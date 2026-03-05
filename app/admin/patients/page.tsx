@@ -283,6 +283,8 @@ function rowToForm(p: PatientRow): PatientForm {
     clinical_notes: ep.clinical_notes ?? "",
     session_notes: ep.session_notes ?? [],
     activities: ep.activities ?? [],
+    practice_id: p.practice_id ?? "",
+    therapist_id: p.therapist_id ?? "",
   };
 }
 
