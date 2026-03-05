@@ -122,6 +122,7 @@ function PersonaCard({ persona, index, selected, onSelect }: {
   return (
     <div
       ref={ref}
+      className="persona-card-wrap"
       onClick={() => onSelect(persona.id)}
       style={{
         "--accent": persona.accent,
@@ -570,6 +571,7 @@ function handleLaunch() {
         @keyframes orb3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,50px) scale(1.1); } }
         @keyframes pulseRing { 0% { transform: scale(0.95); opacity: 0.6; } 100% { transform: scale(1.4); opacity: 0; } }
         @keyframes launchPulse { 0% { transform: scale(1); } 50% { transform: scale(0.96); } 100% { transform: scale(1); } }
+        .persona-card-wrap:active { transform: scale(0.97) !important; }
         @media (max-width: 640px) {
           .hero-h1 { letter-spacing: -0.8px !important; }
           .hero-section-gap { margin-top: 24px !important; }

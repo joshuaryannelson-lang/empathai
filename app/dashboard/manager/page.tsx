@@ -54,7 +54,7 @@ function fmtAvg(n: number | null) {
 // AI prompt construction moved to server-side lib/services/briefing.ts
 
 export default function ManagerDashboard() {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<AdminOverview | null>(null);
 

@@ -188,7 +188,7 @@ function PracticeManagerPage() {
           stream: true,
           dataSnapshot: {
             practice_name: name,
-            week_start: week,
+            week_start: week ? new Date(week + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : week,
             therapists: loadedRows.map(r => ({
               name: r.therapist_name,
               active_cases: r.active_cases,
@@ -460,14 +460,14 @@ function PracticeManagerPage() {
                   {totals.atRisk > 0 && <Badge tone="bad">{totals.atRisk}</Badge>}
                 </Link>
                 <Link
-                  href={`/practices/${practiceId}/health-score?practice_id=${practiceId}`}
+                  href={`/practices/${practiceId}/health-score?practice_id=${practiceId}&week_start=${weekStartISO}`}
                   style={{ textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 9, border: "1px solid #1a1e2a", background: "#0a0c10", color: "inherit", fontWeight: 800, fontSize: 13 }}
                 >
                   <span>Health score</span>
                   <span style={{ opacity: 0.4, fontSize: 12 }}>→</span>
                 </Link>
                 <Link
-                  href="/cases"
+                  href={`/cases?practice_id=${practiceId}`}
                   style={{ textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 9, border: "1px solid #1a1e2a", background: "#0a0c10", color: "inherit", fontWeight: 800, fontSize: 13 }}
                 >
                   <span>Case queue</span>

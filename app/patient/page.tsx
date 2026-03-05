@@ -459,16 +459,16 @@ export default function PatientPortal() {
                     onClick={handleDemoPatient}
                     disabled={demoLoading}
                     style={{
-                      width:"100%", padding:"11px 0", borderRadius:10,
-                      border:"1px solid rgba(255,255,255,0.08)", background:"rgba(255,255,255,0.03)",
-                      color:"rgba(255,255,255,0.45)", fontSize:13, fontWeight:600,
+                      width:"100%", padding:"13px 0", borderRadius:10,
+                      border:"1px solid rgba(56,189,248,0.25)", background:"rgba(56,189,248,0.08)",
+                      color:"rgba(56,189,248,0.85)", fontSize:14, fontWeight:700,
                       cursor:demoLoading?"not-allowed":"pointer", fontFamily:"inherit",
                       transition:"all .15s", letterSpacing:.1,
                     }}
-                    onMouseEnter={e => { if (!demoLoading) { (e.currentTarget as HTMLButtonElement).style.background="rgba(255,255,255,0.06)"; (e.currentTarget as HTMLButtonElement).style.color="rgba(255,255,255,0.65)"; } }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background="rgba(255,255,255,0.03)"; (e.currentTarget as HTMLButtonElement).style.color="rgba(255,255,255,0.45)"; }}
+                    onMouseEnter={e => { if (!demoLoading) { (e.currentTarget as HTMLButtonElement).style.background="rgba(56,189,248,0.14)"; (e.currentTarget as HTMLButtonElement).style.color="#38bdf8"; } }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background="rgba(56,189,248,0.08)"; (e.currentTarget as HTMLButtonElement).style.color="rgba(56,189,248,0.85)"; }}
                   >
-                    {demoLoading ? "Loading demo patient…" : "◎  View as existing patient (demo)"}
+                    {demoLoading ? "Loading demo patient…" : "◎  View as demo patient"}
                   </button>
                   {demoError && (
                     <div style={{ marginTop:8, fontSize:12, color:"#f87171", textAlign:"center" }}>{demoError}</div>
@@ -610,7 +610,7 @@ export default function PatientPortal() {
                     Welcome back
                   </div>
                   <h1 style={{ fontSize:36, fontWeight:900, letterSpacing:-1, color:"rgba(255,255,255,0.97)", lineHeight:1.1, fontFamily:"'Sora',system-ui" }}>
-                    Hi, {identity.patient_name.split(" ")[0]}.
+                    Hi, {identity.patient_name.trim().split(" ")[0]}.
                   </h1>
                   <p style={{ marginTop:14, fontSize:15, color:"rgba(255,255,255,0.5)", lineHeight:1.7, maxWidth:380, margin:"14px auto 0" }}>
                     Your care portal is ready. You can check in with how you&apos;re feeling, view notes from your sessions, track your treatment goals, and more.
@@ -736,12 +736,12 @@ export default function PatientPortal() {
                           <div style={{ fontSize:12, color:"#f87171", marginTop:8 }}>{checkinError}</div>
                         )}
 
-                        <div style={{ marginTop:12 }}>
+                        <div style={{ marginTop:16 }}>
                           <button
                             className="btn-primary"
                             onClick={handleCheckin}
                             disabled={!checkinScore || checkinLoading}
-                            style={{ fontSize:13, padding:"11px 22px" }}
+                            style={{ width:"100%", fontSize:16, fontWeight:700, padding:"14px 28px", letterSpacing:-0.2 }}
                           >
                             {checkinLoading ? "Saving…" : "Submit check-in"}
                           </button>

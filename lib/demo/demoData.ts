@@ -62,20 +62,20 @@ export const demoPatients = [
 
 export const demoCases = [
   // Dr. Maya Chen's caseload
-  { id: caseId(1),  practice_id: P, therapist_id: T1, patient_id: patientId(1),  title: "Case", status: "active", created_at: daysAgo(60) },
-  { id: caseId(2),  practice_id: P, therapist_id: T1, patient_id: patientId(2),  title: "Case", status: "active", created_at: daysAgo(45) },
-  { id: caseId(3),  practice_id: P, therapist_id: T1, patient_id: patientId(3),  title: "Case", status: "active", created_at: daysAgo(30) }, // CRITICAL
-  { id: caseId(4),  practice_id: P, therapist_id: T1, patient_id: patientId(4),  title: "Case", status: "active", created_at: daysAgo(55) },
+  { id: caseId(1),  practice_id: P, therapist_id: T1, patient_id: patientId(1),  title: "Anxiety & Sleep Management", status: "active", created_at: daysAgo(60) },
+  { id: caseId(2),  practice_id: P, therapist_id: T1, patient_id: patientId(2),  title: "Generalized Anxiety", status: "active", created_at: daysAgo(45) },
+  { id: caseId(3),  practice_id: P, therapist_id: T1, patient_id: patientId(3),  title: "Crisis Intervention", status: "active", created_at: daysAgo(30) }, // CRITICAL
+  { id: caseId(4),  practice_id: P, therapist_id: T1, patient_id: patientId(4),  title: "Adjustment Disorder", status: "active", created_at: daysAgo(55) },
   // Dr. James Okafor's caseload
-  { id: caseId(5),  practice_id: P, therapist_id: T2, patient_id: patientId(5),  title: "Case", status: "active", created_at: daysAgo(50) },
-  { id: caseId(6),  practice_id: P, therapist_id: T2, patient_id: patientId(6),  title: "Case", status: "active", created_at: daysAgo(40) },
-  { id: caseId(7),  practice_id: P, therapist_id: T2, patient_id: patientId(7),  title: "Case", status: "active", created_at: daysAgo(35) },
-  { id: caseId(8),  practice_id: P, therapist_id: T2, patient_id: patientId(8),  title: "Case", status: "active", created_at: daysAgo(42) },
+  { id: caseId(5),  practice_id: P, therapist_id: T2, patient_id: patientId(5),  title: "Relationship & Communication", status: "active", created_at: daysAgo(50) },
+  { id: caseId(6),  practice_id: P, therapist_id: T2, patient_id: patientId(6),  title: "CBT for Depression", status: "active", created_at: daysAgo(40) },
+  { id: caseId(7),  practice_id: P, therapist_id: T2, patient_id: patientId(7),  title: "Mood Monitoring", status: "active", created_at: daysAgo(35) },
+  { id: caseId(8),  practice_id: P, therapist_id: T2, patient_id: patientId(8),  title: "Social Anxiety", status: "active", created_at: daysAgo(42) },
   // Dr. Priya Sharma's caseload
-  { id: caseId(9),  practice_id: P, therapist_id: T3, patient_id: patientId(9),  title: "Case", status: "active", created_at: daysAgo(38) },
-  { id: caseId(10), practice_id: P, therapist_id: T3, patient_id: patientId(10), title: "Case", status: "active", created_at: daysAgo(28) },
-  { id: caseId(11), practice_id: P, therapist_id: T3, patient_id: patientId(11), title: "Case", status: "active", created_at: daysAgo(22) },
-  { id: caseId(12), practice_id: P, therapist_id: T3, patient_id: patientId(12), title: "Case", status: "active", created_at: daysAgo(18) },
+  { id: caseId(9),  practice_id: P, therapist_id: T3, patient_id: patientId(9),  title: "Family Dynamics", status: "active", created_at: daysAgo(38) },
+  { id: caseId(10), practice_id: P, therapist_id: T3, patient_id: patientId(10), title: "Workplace Burnout", status: "active", created_at: daysAgo(28) },
+  { id: caseId(11), practice_id: P, therapist_id: T3, patient_id: patientId(11), title: "Self-Esteem Building", status: "active", created_at: daysAgo(22) },
+  { id: caseId(12), practice_id: P, therapist_id: T3, patient_id: patientId(12), title: "Grief Processing", status: "active", created_at: daysAgo(18) },
 ];
 
 // ── Check-ins ────────────────────────────────────────────────────────────────
@@ -223,7 +223,9 @@ export function getDemoTaskById(id: string) {
 export function getDemoAdminOverview() {
   const allScores = demoCheckins.map(c => c.score).filter((s): s is number => s !== null);
   const avg = allScores.length ? allScores.reduce((a, b) => a + b, 0) / allScores.length : null;
-  const atRisk = allScores.filter(s => s <= 3).length;
+  // Count distinct cases with at least one at-risk check-in (score ≤ 3)
+  const atRiskCases = new Set(demoCheckins.filter(c => c.score !== null && c.score <= 3).map(c => c.case_id));
+  const atRisk = atRiskCases.size;
 
   return {
     range: "7d" as const,
@@ -255,7 +257,8 @@ export function getDemoAdminOverview() {
 export function getDemoPracticeSummary() {
   const allScores = demoCheckins.map(c => c.score).filter((s): s is number => s !== null);
   const avg = allScores.length ? allScores.reduce((a, b) => a + b, 0) / allScores.length : null;
-  const atRisk = allScores.filter(s => s <= 3).length;
+  const atRiskCases = new Set(demoCheckins.filter(c => c.score !== null && c.score <= 3).map(c => c.case_id));
+  const atRisk = atRiskCases.size;
 
   return [{
     id: demoPractice.id,
@@ -275,7 +278,8 @@ export function getDemoPracticeTHS(practiceId: string) {
 
   const allScores = demoCheckins.map(c => c.score).filter((s): s is number => s !== null);
   const avgScore = allScores.length ? allScores.reduce((a, b) => a + b, 0) / allScores.length : null;
-  const atRiskCount = allScores.filter(s => s <= 3).length;
+  const atRiskCases = new Set(demoCheckins.filter(c => c.score !== null && c.score <= 3).map(c => c.case_id));
+  const atRiskCount = atRiskCases.size;
   const weekStart = new Date().toISOString().slice(0, 10);
 
   const casesByTherapist: Record<string, number> = {};
@@ -288,7 +292,7 @@ export function getDemoPracticeTHS(practiceId: string) {
     practice_id: practiceId,
     week_start: weekStart,
     score: 6.8,
-    band: "Good",
+    band: "Balanced",
     ths_components: { engagement: 2.0, stability: 1.8, workload: 1.5, coverage: 1.5, total: 6.8 },
     trend: { prior_week_start: null, prior_score: 6.5, delta: 0.3, direction: "up" },
     movements: [],

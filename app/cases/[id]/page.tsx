@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { RISK_THRESHOLDS } from "@/lib/services/risk";
 import MarkdownContent from "@/app/components/MarkdownContent";
@@ -157,6 +157,7 @@ export default function CasePage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiDone, setAiDone]       = useState(false);
   const [aiError, setAiError]     = useState<string | null>(null);
+  const aiSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!id) { setLoading(false); return; }
@@ -218,7 +219,15 @@ export default function CasePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ trigger: "ai", therapistId: d?.therapist?.name ?? "" }),
       });
-      if (res.ok) await loadTasks();
+      if (res.ok) {
+        const json = await res.json().catch(() => ({}));
+        const generated = json?.data?.tasks;
+        if (Array.isArray(generated) && generated.length > 0) {
+          setTasks(prev => [...generated, ...prev]);
+        } else {
+          await loadTasks();
+        }
+      }
     } catch { /* ignore */ }
     finally { setTaskGenLoading(false); }
   }
@@ -261,6 +270,7 @@ export default function CasePage() {
 
   async function generateAI(data: TimelineResponse, goalList: Goal[]) {
     setAiLoading(true); setAiText(""); setAiDone(false); setAiError(null);
+    setTimeout(() => aiSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
     try {
       const res = await fetch(`/api/cases/${id}/session-prep`, {
         method: "POST",
@@ -295,7 +305,7 @@ export default function CasePage() {
   }
 
   const aiSections = useMemo(() => {
-    if (!aiText) return null;
+    if (!aiText || !aiDone) return null;
     const keys = ["OPEN WITH", "WATCH FOR", "TRY THIS", "SEND THIS"];
     const out: Record<string, string> = {};
     for (const k of keys) {
@@ -303,7 +313,7 @@ export default function CasePage() {
       if (m) out[k] = m[1].trim();
     }
     return Object.keys(out).length >= 2 ? out : null;
-  }, [aiText]);
+  }, [aiText, aiDone]);
 
   return (
     <>
@@ -830,7 +840,7 @@ export default function CasePage() {
               </div>
 
               {/* AI Session Prep */}
-              <div className="ai-wrap" style={{ minHeight: 120 }}>
+              <div ref={aiSectionRef} className="ai-wrap" style={{ minHeight: 120 }}>
                 <div className="ai-head">
                   <div className="ai-head-left">
                     <div className="ai-gem">✦</div>

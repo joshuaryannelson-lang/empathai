@@ -204,7 +204,7 @@ function TherapistCareDashboard() {
           stream: true,
           dataSnapshot: {
             therapist_name: careData.therapist_name ?? null,
-            week_start: careData.week_start,
+            week_start: careData.week_start ? new Date(careData.week_start + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : careData.week_start,
             active_cases: careData.totals.active_cases,
             avg_score: careData.totals.avg_score,
             at_risk_checkins: careData.totals.at_risk_checkins,
