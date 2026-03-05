@@ -425,7 +425,7 @@ export default function DemoLanding() {
 
       <div style={{
         minHeight: "100vh", background: "#080810", color: "white",
-        fontFamily: "'DM Sans', system-ui", position: "relative", overflow: "hidden",
+        fontFamily: "'DM Sans', system-ui", position: "relative", overflow: "auto",
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         padding: "32px 24px",
       }}>
@@ -485,20 +485,26 @@ export default function DemoLanding() {
             </div>
           </div>
 
-          {/* ── Action bar — only for multi-practice manager and analytics ── */}
+          {/* Persona cards */}
+          <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+            {PERSONAS.map((persona, i) => (
+              <PersonaCard key={persona.id} persona={persona} index={i} selected={selected} onSelect={handlePersonaSelect} />
+            ))}
+          </div>
+
+          {/* ── Step 2 — appears below cards after selection ── */}
           {showActionBar && (
             <div className="action-bar" style={{
-              marginTop: 32,
+              marginTop: 20,
               display: "flex", alignItems: "center", justifyContent: "space-between",
               gap: 16, flexWrap: "wrap",
               padding: "20px 24px", borderRadius: 20,
               border: "1px solid rgba(255,255,255,0.07)",
               background: "rgba(255,255,255,0.02)",
               backdropFilter: "blur(10px)",
-              animation: "fadeSlideUp 0.6s 0.45s cubic-bezier(0.16,1,0.3,1) both",
+              animation: "fadeSlideUp 0.4s cubic-bezier(0.16,1,0.3,1) both",
             }}>
               {selected === "therapist" ? (
-                /* Therapist picker inline in the action bar */
                 <div style={{ width: "100%" }}>
                   <TherapistCards
                     therapists={therapists}
@@ -577,20 +583,6 @@ export default function DemoLanding() {
                   </button>
                 </>
               )}
-            </div>
-          )}
-
-          {/* Persona cards */}
-          <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
-            {PERSONAS.map((persona, i) => (
-              <PersonaCard key={persona.id} persona={persona} index={i} selected={selected} onSelect={handlePersonaSelect} />
-            ))}
-          </div>
-
-          {/* Therapist flow hint */}
-          {selected === "therapist" && (
-            <div style={{ marginTop: 14, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.25)", animation: "fadeSlideUp 0.4s 0.2s cubic-bezier(0.16,1,0.3,1) both" }}>
-              Click your name to open your dashboard
             </div>
           )}
 
