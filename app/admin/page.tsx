@@ -25,6 +25,74 @@ function toMondayYYYYMMDD(s: string) {
   return toYYYYMMDD(d);
 }
 
+function toMondayISO(s: string) {
+  const d = new Date(`${s}T00:00:00`);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+
+function DemoSeedCard() {
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function seed() {
+    setStatus("loading");
+    setMsg(null);
+    try {
+      const weekStart = toMondayISO(new Date().toISOString().slice(0, 10));
+      const res = await fetch("/api/admin/seed/demo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ week_start: weekStart }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error?.message ?? JSON.stringify(json?.error));
+      setMsg(json?.data?.message ?? "Done.");
+      setStatus("done");
+    } catch (e: any) {
+      setMsg(e?.message ?? String(e));
+      setStatus("error");
+    }
+  }
+
+  const accent = "#f5a623";
+  const accentAlpha = "rgba(245,166,35,";
+
+  return (
+    <div style={{
+      padding: "24px 22px", borderRadius: 16,
+      border: `1px solid ${accentAlpha}0.35)`,
+      background: `linear-gradient(145deg, ${accentAlpha}0.08) 0%, #0d1018 60%)`,
+      position: "relative", overflow: "hidden",
+    }}>
+      <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", background: `radial-gradient(circle, ${accentAlpha}0.15) 0%, transparent 70%)`, pointerEvents: "none" }} />
+      <div style={{ fontSize: 22, marginBottom: 16, color: accent }}>⚡</div>
+      <div style={{ fontWeight: 800, fontSize: 15, color: "#f1f3f8", marginBottom: 8 }}>Initialize Demo Data</div>
+      <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.65, marginBottom: 20 }}>
+        Seeds realistic patient check-in data for all practices for the current week. Safe to run multiple times — skips cases that already have data.
+      </div>
+      {msg && (
+        <div style={{ fontSize: 12, marginBottom: 12, padding: "8px 10px", borderRadius: 8, background: status === "error" ? "#1a0808" : "#061a0b", border: `1px solid ${status === "error" ? "#3d1a1a" : "#0e2e1a"}`, color: status === "error" ? "#f87171" : "#4ade80", fontFamily: "monospace" }}>
+          {msg}
+        </div>
+      )}
+      <button
+        onClick={seed}
+        disabled={status === "loading"}
+        style={{
+          display: "flex", alignItems: "center", gap: 6,
+          fontSize: 13, fontWeight: 700, color: status === "loading" ? "rgba(245,166,35,0.5)" : accent,
+          background: "none", border: `1px solid ${accentAlpha}0.4)`, borderRadius: 9,
+          padding: "8px 16px", cursor: status === "loading" ? "not-allowed" : "pointer",
+          fontFamily: "inherit", transition: "all .15s",
+        }}
+      >
+        {status === "loading" ? "Seeding…" : status === "done" ? "↻ Seed again" : "⚡ Seed demo data"}
+      </button>
+    </div>
+  );
+}
+
 const TOOLS = [
   {
     href: "/admin/therapists",
@@ -187,6 +255,7 @@ export default function AdminPage() {
                 </div>
               </Link>
             ))}
+            <DemoSeedCard />
           </div>
 
           {/* ── Coming soon ── */}

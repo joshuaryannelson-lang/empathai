@@ -4,146 +4,177 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { toMondayISO } from "@/lib/week";
 
-function round1(n: number) {
-  return Math.round(n * 10) / 10;
-}
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
+function round1(n: number) { return Math.round(n * 10) / 10; }
+function clamp(n: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, n)); }
+
+function addDays(isoDate: string, days: number): string {
+  const d = new Date(`${isoDate}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
-function bandLabel(score: number | null) {
-  if (score === null) return "No data yet";
-  if (score < 4) return "Needs attention";
-  if (score < 7) return "Balanced";
-  return "Optimal";
-}
+// ── THS formula from spec ────────────────────────────────────────────────────
+// THS = 0.25·Workload + 0.25·Satisfaction + 0.35·Outcomes + 0.15·Stability
 
-// very lightweight "explainability" layer for demo/investors
-function buildInsights(args: {
-  score: number | null;
+type THSComponents = {
+  total: number;
+  workload: number;
+  satisfaction: number;
+  outcomes: number;
+  stability: number;
+};
+
+function computeTHS(args: {
   avgCheckinScore: number | null;
   workloadSpread: number;
   unassignedCases: number;
-  therapistsCount: number;
   casesCount: number;
-  avgCasesPerTherapist: number;
-}) {
-  const {
-    score,
-    avgCheckinScore,
-    workloadSpread,
-    unassignedCases,
-    therapistsCount,
-    casesCount,
-    avgCasesPerTherapist,
-  } = args;
+  checkinsCount: number;
+  atRiskCount: number;
+}): THSComponents | null {
+  const { avgCheckinScore, workloadSpread, unassignedCases, casesCount, checkinsCount, atRiskCount } = args;
 
-  // Reproduce penalties (must match scoring logic)
-  const imbalancePenalty =
-    avgCheckinScore === null ? 0 : Math.min(2, workloadSpread * 0.5);
-  const unassignedPenalty =
-    avgCheckinScore === null ? 0 : Math.min(2, unassignedCases * 0.25);
+  if (avgCheckinScore === null) return null;
 
-  // Deltas are signed contributions (what pushed score down/up)
-  const deltas = {
-    unassigned_cases_penalty: avgCheckinScore === null ? null : -round1(unassignedPenalty),
-    workload_spread_penalty: avgCheckinScore === null ? null : -round1(imbalancePenalty),
-    avg_checkin_baseline: avgCheckinScore === null ? null : round1(avgCheckinScore),
-  };
+  // Workload (0–10): perfectly balanced = 10; spread of 7+ = 0
+  const workload = clamp(10 - workloadSpread * 1.4, 0, 10);
 
-  const label = bandLabel(score);
+  // Satisfaction (0–10): average patient check-in score
+  const satisfaction = clamp(avgCheckinScore, 0, 10);
 
-  const bullets: string[] = [];
-  const recommendations: Array<{
-    id: string;
-    title: string;
-    impact: { score_delta_est: number };
-    details: string;
-  }> = [];
+  // Outcomes (0–10): satisfaction weighted by engagement rate (% of cases with check-ins)
+  const engagementRate = casesCount > 0 ? Math.min(1, checkinsCount / casesCount) : 0;
+  const outcomes = clamp(avgCheckinScore * (0.4 + 0.6 * engagementRate), 0, 10);
 
-  // Bullets: always include some signal + at least one "good news" when possible
-  if (avgCheckinScore === null) {
-    bullets.push("No check-ins logged for this week, so THS can’t be computed yet.");
-    bullets.push(`Current workload snapshot: ${casesCount} case(s), ${therapistsCount} therapist(s).`);
-    if (unassignedCases > 0) bullets.push(`${unassignedCases} case(s) are unassigned.`);
-  } else {
-    bullets.push(`Avg check-in score this week is ${round1(avgCheckinScore)} (baseline outcome signal).`);
-    bullets.push(`Workload spread is ${workloadSpread} (max cases per therapist minus min).`);
-    bullets.push(`${unassignedCases} case(s) are unassigned.`);
+  // Stability (0–10): penalized by unassigned cases and at-risk signals
+  const stability = clamp(10 - unassignedCases * 0.9 - atRiskCount * 0.6, 0, 10);
 
-    // a "good news" line
-    if (workloadSpread === 0 && therapistsCount > 0) {
-      bullets.push("Workload distribution is even across therapists (spread = 0).");
-    } else if (therapistsCount > 0) {
-      bullets.push(`Avg cases per therapist is ${round1(avgCasesPerTherapist)}.`);
-    }
-  }
-
-  // Recommendations + impact estimates (simple, consistent with penalties)
-  // Unassigned cases: each case up to 0.25 penalty until cap 2.0
-  if (avgCheckinScore !== null && unassignedCases > 0) {
-    const estDelta = round1(Math.min(0.25, 2 - unassignedPenalty)); // effect of assigning 1 case, respecting cap
-    recommendations.push({
-      id: "assign_unassigned_cases",
-      title: "Assign unassigned case(s)",
-      impact: { score_delta_est: estDelta },
-      details:
-        "Unassigned cases create a direct THS penalty. Assigning cases removes that penalty and improves workload clarity.",
-    });
-  }
-
-  // Workload spread: reducing spread by 1 reduces penalty by 0.5 until cap 2.0
-  if (avgCheckinScore !== null && workloadSpread > 0) {
-    const estDelta = round1(Math.min(0.5, 2 - imbalancePenalty)); // effect of reducing spread by ~1, respecting cap
-    recommendations.push({
-      id: "rebalance_workload",
-      title: "Rebalance caseload distribution",
-      impact: { score_delta_est: estDelta },
-      details:
-        "Large workload spread increases burnout risk and reduces THS. Moving a case from the most-loaded therapist to the least-loaded improves balance.",
-    });
-  }
-
-  // If we have check-ins but score is low, suggest “identify at-risk” (placeholder for future AI)
-  if (avgCheckinScore !== null && score !== null && score < 7) {
-    recommendations.push({
-      id: "review_at_risk_cases",
-      title: "Review at-risk cases (low check-in scores)",
-      impact: { score_delta_est: 0.3 },
-      details:
-        "Scan for cases with low check-in scores and prioritize follow-ups. (Later: AI narrative can highlight likely root causes.)",
-    });
-  }
-
-  // Summary sentence
-  let summary = "";
-  if (score === null) {
-    summary = "No THS yet. Add at least one check-in this week to compute a baseline score.";
-  } else if (label === "Optimal") {
-    summary = `Optimal (${score}). Keep distribution steady and maintain outcomes.`;
-  } else if (label === "Balanced") {
-    if (unassignedCases > 0) {
-      summary = `Balanced (${score}). Assigning ${Math.min(unassignedCases, 1)} unassigned case could push this toward optimal.`;
-    } else if (workloadSpread > 0) {
-      summary = `Balanced (${score}). Reducing workload spread by 1 could push this toward optimal.`;
-    } else {
-      summary = `Balanced (${score}). Small improvements to outcomes can move this into optimal.`;
-    }
-  } else {
-    summary = `Needs attention (${score}). Focus on unassigned cases and workload imbalance first.`;
-  }
-
-  // keep only top 2 recs for demo cleanliness
-  const trimmedRecs = recommendations.slice(0, 2);
+  const total = clamp(round1(
+    0.25 * workload + 0.25 * satisfaction + 0.35 * outcomes + 0.15 * stability
+  ), 0, 10);
 
   return {
-    label,
-    summary,
-    bullets,
-    recommendations: trimmedRecs,
-    deltas,
+    total,
+    workload: round1(clamp(workload, 0, 10)),
+    satisfaction: round1(clamp(satisfaction, 0, 10)),
+    outcomes: round1(clamp(outcomes, 0, 10)),
+    stability: round1(clamp(stability, 0, 10)),
   };
 }
+
+function bandLabel(score: number | null): "Optimal" | "Balanced" | "Needs attention" | "No data" {
+  if (score === null) return "No data";
+  if (score >= 7) return "Optimal";
+  if (score >= 4) return "Balanced";
+  return "Needs attention";
+}
+
+// ── What moved THS ───────────────────────────────────────────────────────────
+
+type Movement = { direction: "up" | "down"; label: string; detail: string };
+
+function buildMovements(cur: THSComponents | null, prior: THSComponents | null): Movement[] {
+  if (!cur || !prior) return [];
+
+  const THRESHOLD = 0.25;
+  const meta: Record<string, { label: string; upDetail: string; downDetail: string }> = {
+    workload: {
+      label: "Caseload balance",
+      upDetail: "Caseload better distributed across therapists",
+      downDetail: "Caseload variance rising between therapists",
+    },
+    satisfaction: {
+      label: "Patient satisfaction",
+      upDetail: "Average check-in scores improved this week",
+      downDetail: "Check-in scores declining this week",
+    },
+    outcomes: {
+      label: "Outcome engagement",
+      upDetail: "More patients completing weekly check-ins",
+      downDetail: "Patient engagement with check-ins is lower",
+    },
+    stability: {
+      label: "Practice stability",
+      upDetail: "Fewer unassigned cases and at-risk signals",
+      downDetail: "Unassigned cases or at-risk signals increased",
+    },
+  };
+
+  const movements: Array<Movement & { delta: number }> = [];
+
+  for (const key of ["workload", "satisfaction", "outcomes", "stability"] as const) {
+    const delta = cur[key] - prior[key];
+    if (Math.abs(delta) >= THRESHOLD) {
+      const m = meta[key];
+      movements.push({
+        direction: delta > 0 ? "up" : "down",
+        label: m.label,
+        detail: delta > 0 ? m.upDetail : m.downDetail,
+        delta: round1(delta),
+      });
+    }
+  }
+
+  // Downs first, then ups; within each group, largest delta first
+  movements.sort((a, b) => {
+    if (a.direction !== b.direction) return a.direction === "down" ? -1 : 1;
+    return Math.abs(b.delta) - Math.abs(a.delta);
+  });
+
+  return movements.slice(0, 4).map(({ direction, label, detail }) => ({ direction, label, detail }));
+}
+
+// ── Recommended actions ──────────────────────────────────────────────────────
+
+type Recommendation = { priority: "high" | "medium" | "low"; action: string; reason: string };
+
+function buildRecommendations(args: {
+  score: number | null;
+  avgCheckinScore: number | null;
+  unassignedCases: number;
+  workloadSpread: number;
+  atRiskCount: number;
+  checkinsCount: number;
+  casesCount: number;
+  casesByTherapist: Record<string, number>;
+}): Recommendation[] {
+  const { score, avgCheckinScore, unassignedCases, workloadSpread, atRiskCount, checkinsCount, casesCount, casesByTherapist } = args;
+
+  const recs: Array<Recommendation & { order: number }> = [];
+
+  if (avgCheckinScore === null || checkinsCount === 0) {
+    recs.push({ priority: "high", action: "Encourage patients to submit their weekly check-ins", reason: "No check-in data this week — THS cannot be computed without engagement signals.", order: 0 });
+    return recs.map(({ priority, action, reason }) => ({ priority, action, reason }));
+  }
+
+  if (unassignedCases > 0) {
+    recs.push({ priority: "high", action: `Assign ${unassignedCases} unassigned case${unassignedCases > 1 ? "s" : ""} to a therapist`, reason: "Unassigned cases reduce both Stability and Outcomes scores.", order: 1 });
+  }
+
+  if (atRiskCount > 0) {
+    recs.push({ priority: "high", action: `Review ${atRiskCount} at-risk patient${atRiskCount > 1 ? "s" : ""} flagged by low check-in scores`, reason: "Low scores signal disengagement or crisis risk — review before the next session.", order: 2 });
+  }
+
+  if (workloadSpread > 2) {
+    const entries = Object.entries(casesByTherapist).sort((a, b) => b[1] - a[1]);
+    if (entries.length >= 2) {
+      recs.push({ priority: "medium", action: "Rebalance caseload — move cases from the highest-loaded to the lightest therapist", reason: `Workload spread of ${workloadSpread} is dragging down the Workload component.`, order: 3 });
+    }
+  }
+
+  const engagementRate = casesCount > 0 ? checkinsCount / casesCount : 0;
+  if (engagementRate < 0.5 && casesCount > 0) {
+    recs.push({ priority: "medium", action: "Send check-in reminders to patients who haven't submitted this week", reason: `Only ${Math.round(engagementRate * 100)}% of cases have check-ins — low engagement reduces the Outcomes score.`, order: 4 });
+  }
+
+  if (score !== null && score >= 7 && recs.length === 0) {
+    recs.push({ priority: "low", action: "Maintain current caseload distribution and check-in cadence", reason: "THS is in the optimal range — sustain the momentum.", order: 5 });
+  }
+
+  return recs.sort((a, b) => a.order - b.order).slice(0, 3).map(({ priority, action, reason }) => ({ priority, action, reason }));
+}
+
+// ── Route handler ────────────────────────────────────────────────────────────
 
 export async function GET(
   req: Request,
@@ -151,76 +182,48 @@ export async function GET(
 ) {
   try {
     const { id: practiceId } = await ctx.params;
-
     if (!practiceId) {
-      return NextResponse.json(
-        { data: null, error: { message: "Missing practice id" } },
-        { status: 400 }
-      );
+      return NextResponse.json({ data: null, error: { message: "Missing practice id" } }, { status: 400 });
     }
 
     const url = new URL(req.url);
     const weekStartRaw = url.searchParams.get("week_start");
-    const week_start = toMondayISO(
-      weekStartRaw || new Date().toISOString().slice(0, 10)
-    );
+    const week_start = toMondayISO(weekStartRaw || new Date().toISOString().slice(0, 10));
+    const prior_week_start = addDays(week_start, -7);
 
-    // 1) Pull therapists in this practice
-    const therapistsRes = await supabase
+    // 1) Therapists
+    const { data: therapists, error: tErr } = await supabase
       .from("therapists")
-      .select("id,name,practice_id,created_at")
+      .select("id,name,practice_id")
       .eq("practice_id", practiceId);
+    if (tErr) return NextResponse.json({ data: null, error: tErr }, { status: 500 });
 
-    if (therapistsRes.error) {
-      return NextResponse.json(
-        { data: null, error: therapistsRes.error },
-        { status: 500 }
-      );
-    }
-    const therapists = therapistsRes.data ?? [];
-
-    // 2) Pull cases in this practice (assigned + unassigned)
-    const casesRes = await supabase
+    // 2) Cases
+    const { data: cases, error: cErr } = await supabase
       .from("cases")
-      .select("id,practice_id,therapist_id,status,created_at")
+      .select("id,practice_id,therapist_id,status")
       .eq("practice_id", practiceId);
+    if (cErr) return NextResponse.json({ data: null, error: cErr }, { status: 500 });
 
-    if (casesRes.error) {
-      return NextResponse.json(
-        { data: null, error: casesRes.error },
-        { status: 500 }
-      );
-    }
-    const cases = casesRes.data ?? [];
+    const caseIds = (cases ?? []).map((c) => c.id);
 
-    const caseIds = cases.map((c) => c.id);
-
-    // 3) Pull checkins for this week for all cases in the practice
+    // 3) Current + prior week check-ins in parallel
     let checkins: any[] = [];
+    let priorCheckins: any[] = [];
     if (caseIds.length > 0) {
-      const checkinsRes = await supabase
-        .from("checkins")
-        .select("id,case_id,week_start,score,created_at")
-        .eq("week_start", week_start)
-        .in("case_id", caseIds);
-
-      if (checkinsRes.error) {
-        return NextResponse.json(
-          { data: null, error: checkinsRes.error },
-          { status: 500 }
-        );
-      }
-      checkins = checkinsRes.data ?? [];
+      const [curRes, priorRes] = await Promise.all([
+        supabase.from("checkins").select("id,case_id,score").eq("week_start", week_start).in("case_id", caseIds),
+        supabase.from("checkins").select("id,case_id,score").eq("week_start", prior_week_start).in("case_id", caseIds),
+      ]);
+      checkins = curRes.data ?? [];
+      priorCheckins = priorRes.data ?? [];
     }
 
-    // ---- Metrics / drivers ----
-
-    // Workload: cases per therapist
+    // ── Compute workload metrics ──────────────────────────────────────────────
     const casesByTherapist: Record<string, number> = {};
-    for (const t of therapists) casesByTherapist[t.id] = 0;
-
+    for (const t of (therapists ?? [])) casesByTherapist[t.id] = 0;
     let unassignedCases = 0;
-    for (const c of cases) {
+    for (const c of (cases ?? [])) {
       if (c.therapist_id && casesByTherapist[c.therapist_id] !== undefined) {
         casesByTherapist[c.therapist_id] += 1;
       } else {
@@ -229,36 +232,54 @@ export async function GET(
     }
 
     const counts = Object.values(casesByTherapist);
-    const avgCasesPerTherapist = counts.length
-      ? counts.reduce((a, b) => a + b, 0) / counts.length
-      : 0;
-    const maxCasesPerTherapist = counts.length ? Math.max(...counts) : 0;
-    const minCasesPerTherapist = counts.length ? Math.min(...counts) : 0;
-    const workloadSpread = maxCasesPerTherapist - minCasesPerTherapist;
+    const avgCasesPerTherapist = counts.length ? counts.reduce((a, b) => a + b, 0) / counts.length : 0;
+    const workloadSpread = counts.length ? Math.max(...counts) - Math.min(...counts) : 0;
 
-    // Outcomes proxy: average check-in score for the week (across cases)
+    // ── Current week metrics ──────────────────────────────────────────────────
     const scores = checkins.map((c) => c.score).filter((n) => typeof n === "number");
-    const avgCheckinScore = scores.length
-      ? scores.reduce((a, b) => a + b, 0) / scores.length
-      : null;
+    const avgCheckinScore: number | null = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+    const atRiskCount = checkins.filter((c) => typeof c.score === "number" && c.score <= 3).length;
+    const casesCount = (cases ?? []).length;
 
-    // Composite “practice THS” (simple demo math)
-    let score: number | null = null;
-    if (avgCheckinScore !== null) {
-      const imbalancePenalty = Math.min(2, workloadSpread * 0.5); // up to -2
-      const unassignedPenalty = Math.min(2, unassignedCases * 0.25); // up to -2
-      const raw = avgCheckinScore - imbalancePenalty - unassignedPenalty;
-      score = clamp(round1(raw), 0, 10);
-    }
-
-    const insights = buildInsights({
-      score,
+    const thsComponents = computeTHS({
       avgCheckinScore,
       workloadSpread,
       unassignedCases,
-      therapistsCount: therapists.length,
-      casesCount: cases.length,
-      avgCasesPerTherapist,
+      casesCount,
+      checkinsCount: checkins.length,
+      atRiskCount,
+    });
+
+    // ── Prior week metrics ────────────────────────────────────────────────────
+    const priorScores = priorCheckins.map((c) => c.score).filter((n) => typeof n === "number");
+    const priorAvgScore: number | null = priorScores.length ? priorScores.reduce((a, b) => a + b, 0) / priorScores.length : null;
+    const priorAtRisk = priorCheckins.filter((c) => typeof c.score === "number" && c.score <= 3).length;
+
+    const priorThs = computeTHS({
+      avgCheckinScore: priorAvgScore,
+      workloadSpread,
+      unassignedCases,
+      casesCount,
+      checkinsCount: priorCheckins.length,
+      atRiskCount: priorAtRisk,
+    });
+
+    const currentScore = thsComponents?.total ?? null;
+    const priorScore = priorThs?.total ?? null;
+    const delta = currentScore !== null && priorScore !== null ? round1(currentScore - priorScore) : null;
+
+    // ── Movements + recommendations ───────────────────────────────────────────
+    const movements = buildMovements(thsComponents, priorThs);
+
+    const recommendations = buildRecommendations({
+      score: currentScore,
+      avgCheckinScore,
+      unassignedCases,
+      workloadSpread,
+      atRiskCount,
+      checkinsCount: checkins.length,
+      casesCount,
+      casesByTherapist,
     });
 
     return NextResponse.json(
@@ -266,17 +287,28 @@ export async function GET(
         data: {
           practice_id: practiceId,
           week_start,
-          score,
+          score: currentScore,
+          band: bandLabel(currentScore),
+          ths_components: thsComponents,
+          trend: {
+            prior_week_start,
+            prior_score: priorScore,
+            delta,
+            direction: delta === null ? null : delta > 0.05 ? "up" : delta < -0.05 ? "down" : "flat",
+          },
+          movements,
+          recommendations,
           drivers: {
-            avg_checkin_score: avgCheckinScore,
-            therapists_count: therapists.length,
-            cases_count: cases.length,
+            avg_checkin_score: avgCheckinScore !== null ? round1(avgCheckinScore) : null,
+            therapists_count: (therapists ?? []).length,
+            cases_count: casesCount,
             unassigned_cases_count: unassignedCases,
             avg_cases_per_therapist: round1(avgCasesPerTherapist),
             workload_spread: workloadSpread,
             cases_by_therapist: casesByTherapist,
+            at_risk_count: atRiskCount,
+            checkin_count: checkins.length,
           },
-          insights,
         },
         error: null,
       },
