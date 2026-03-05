@@ -50,30 +50,7 @@ function fmtAvg(n: number | null) {
   return n === null || n === undefined ? "—" : n.toFixed(1);
 }
 
-function buildAiPrompt(data: AdminOverview): string {
-  const t = data.totals;
-  const practiceLines = data.practices
-    .map(p => `  • ${p.name ?? p.id}: ${p.therapists} therapists, ${p.active_cases} active cases, ${p.unassigned_cases} unassigned, ${p.at_risk_checkins} at-risk check-ins, avg score ${fmtAvg(p.avg_score)}`)
-    .join("\n");
-
-  return `You are an operations AI for a behavioral health group practice. Give the clinical director a concise operational briefing based on this week's data.
-
-Network snapshot (past 7 days):
-  • ${t.practices} practices, ${t.therapists} therapists
-  • ${t.active_cases} active cases | ${t.unassigned_cases} unassigned
-  • ${t.checkins} check-ins submitted | avg score ${fmtAvg(t.avg_score)} | ${t.at_risk_checkins} at-risk
-
-Practice breakdown:
-${practiceLines}
-
-Reply with EXACTLY these four labeled lines (label in ALL CAPS, colon, content on same line):
-PRIORITY: The single most urgent operational issue to address today.
-UNASSIGNED: What the unassigned case volume means and the recommended routing action.
-AT RISK: The at-risk signal pattern and which team should respond first.
-THIS WEEK: One specific focus for the clinical operations team this week.
-
-Be direct. Specific to behavioral health operations. No preamble or filler.`;
-}
+// AI prompt construction moved to server-side lib/services/briefing.ts
 
 export default function ManagerDashboard() {
   const [loading, setLoading] = useState(false);
@@ -113,14 +90,29 @@ export default function ManagerDashboard() {
     setAiDone(false);
     setAiError(null);
     try {
-      const res = await fetch("/api/admin/ai-briefing", {
+      const res = await fetch("/api/briefing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: buildAiPrompt(overview) }),
+        body: JSON.stringify({
+          role: "network",
+          triggeredBy: "network-manager",
+          dataSnapshot: {
+            totals: overview.totals,
+            practices: overview.practices.map(p => ({
+              name: p.name,
+              id: p.id,
+              therapists: p.therapists,
+              active_cases: p.active_cases,
+              unassigned_cases: p.unassigned_cases,
+              at_risk_checkins: p.at_risk_checkins,
+              avg_score: p.avg_score,
+            })),
+          },
+        }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? "AI error");
-      const text: string = json?.data?.text ?? "";
+      if (!res.ok) throw new Error(json?.error?.message ?? "AI error");
+      const text: string = json?.data?.output ?? "";
       if (!text) throw new Error("Empty response");
       // Streaming word-by-word animation
       const words = text.split(" ");

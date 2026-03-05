@@ -1,6 +1,9 @@
 // app/api/practices/[id]/at-risk/route.ts
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { hasAtRiskScore } from "@/lib/services/risk";
+import { isDemoMode } from "@/lib/demo/demoMode";
+import { getDemoPracticeAtRisk } from "@/lib/demo/demoData";
 
 function addDaysISO(dateStr: string, days: number) {
   const d = new Date(`${dateStr}T00:00:00`);
@@ -29,6 +32,10 @@ type CheckinRow = {
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const { id: practiceId } = await context.params;
+
+  if (isDemoMode(request.url)) {
+    return NextResponse.json({ data: getDemoPracticeAtRisk(practiceId), error: null });
+  }
 
   const { searchParams } = new URL(request.url);
   const weekStart = searchParams.get("week_start");
@@ -113,7 +120,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       const weekAvg = weekScores.length ? weekScores.reduce((a, b) => a + b, 0) / weekScores.length : null;
       const minWeekScore = weekScores.length ? Math.min(...weekScores) : null;
 
-      const atRiskThisWeek = weekScores.some((s) => s <= 3);
+      const atRiskThisWeek = hasAtRiskScore(weekScores);
 
       return {
         case_id: c.id,

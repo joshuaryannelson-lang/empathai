@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { isDemoMode } from "@/lib/demo/demoMode";
+import { demoPractice } from "@/lib/demo/demoData";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
@@ -16,7 +18,11 @@ export async function POST(request: Request) {
   return NextResponse.json({ data, error: null }, { status: 201 });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (isDemoMode(request.url)) {
+    return NextResponse.json({ data: [demoPractice], error: null });
+  }
+
   const { data, error } = await supabase
     .from("practice") // table name from Supabase
     .select("id, name")

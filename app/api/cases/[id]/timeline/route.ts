@@ -3,6 +3,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { isDemoMode } from "@/lib/demo/demoMode";
+import { getDemoTimeline } from "@/lib/demo/demoData";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,11 @@ export async function GET(
 ) {
   const resolvedParams = await Promise.resolve((ctx as any).params);
   const caseId = resolvedParams?.id as string | undefined;
+
+  if (isDemoMode(_req.url) && caseId) {
+    const data = getDemoTimeline(caseId);
+    if (data) return NextResponse.json({ data, error: null });
+  }
 
   if (!caseId) {
     return NextResponse.json(

@@ -2,16 +2,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { supabase } from "@/lib/supabase";
 import { bad, getIdFromContext, ok, RouteContextWithId } from "@/lib/route-helpers";
+import { isDemoMode } from "@/lib/demo/demoMode";
+import { getDemoCaseGoals } from "@/lib/demo/demoData";
 
 export async function GET(_req: Request, ctx: RouteContextWithId) {
   const caseId = await getIdFromContext(ctx);
   if (!caseId) return bad("Missing case id");
 
+  if (isDemoMode(_req.url)) return ok(getDemoCaseGoals(caseId));
+
   const { data, error } = await supabase
     .from("goals")
-    .select("*")
+    .select("id, case_id, title, status, target_date, created_at")
     .eq("case_id", caseId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(50);
 
   if (error) return bad(error.message, 400, error);
   return ok(data);

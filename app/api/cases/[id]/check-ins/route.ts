@@ -1,6 +1,7 @@
 // app/api/cases/[id]/checkins/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
+// SERVICE ROLE: justified — server-side aggregation for therapist dashboard
 import { supabaseAdmin } from "@/lib/supabase";
 import { toMondayISO } from "@/lib/week";
 
@@ -65,10 +66,11 @@ export async function GET(_req: Request, ctx: Ctx) {
 
     const { data, error } = await supabaseAdmin
       .from("checkins")
-      .select("*")
+      .select("id, case_id, score, mood, note, notes, week_start, created_at")
       .eq("case_id", caseId)
       .order("week_start", { ascending: false })
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(50);
 
     if (error) {
       return NextResponse.json({ data: null, error }, { status: 400 });

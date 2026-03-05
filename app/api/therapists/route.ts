@@ -1,6 +1,8 @@
 // app/api/therapists/route.ts
 import { NextResponse } from "next/server";
-import { supabaseAdmin as supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
+import { isDemoMode } from "@/lib/demo/demoMode";
+import { demoTherapists } from "@/lib/demo/demoData";
 
 /**
  * GET    /api/therapists?practice_id=...
@@ -20,6 +22,13 @@ async function safeJson(req: Request) {
 }
 
 export async function GET(request: Request) {
+  if (isDemoMode(request.url)) {
+    const { searchParams } = new URL(request.url);
+    const practiceId = searchParams.get("practice_id");
+    const data = practiceId ? demoTherapists.filter(t => t.practice_id === practiceId) : demoTherapists;
+    return NextResponse.json({ data, error: null });
+  }
+
   console.log("[/api/therapists] GET called");
   console.log("[/api/therapists] SUPABASE_URL set:", !!process.env.NEXT_PUBLIC_SUPABASE_URL);
   console.log("[/api/therapists] ANON_KEY set:", !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);

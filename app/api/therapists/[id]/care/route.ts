@@ -2,6 +2,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { isScoreCritical } from "@/lib/services/risk";
+import { isDemoMode } from "@/lib/demo/demoMode";
+import { getDemoTherapistCare } from "@/lib/demo/demoData";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +50,10 @@ export async function GET(
       { data: null, error: { message: "Missing therapistId (route param id)." } },
       { status: 400 }
     );
+  }
+
+  if (isDemoMode(request.url)) {
+    return NextResponse.json({ data: getDemoTherapistCare(therapistId), error: null });
   }
 
   // 0) Therapist name + practice for header
@@ -153,12 +160,12 @@ export async function GET(
     if (score !== null) {
       bucket.sum += score;
       bucket.scored += 1;
-      if (score <= 3) bucket.low += 1;
+      if (isScoreCritical(score)) bucket.low += 1;
       if (bucket.lowest === null || score < bucket.lowest) bucket.lowest = score;
 
       totalSum += score;
       totalScored += 1;
-      if (score <= 3) totalLow += 1;
+      if (isScoreCritical(score)) totalLow += 1;
     }
 
     if (createdAt) {

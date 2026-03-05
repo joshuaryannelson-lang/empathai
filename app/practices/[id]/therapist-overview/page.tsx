@@ -124,32 +124,7 @@ function fmtAvg(n: number | null) {
   return n === null || n === undefined ? "—" : n.toFixed(1);
 }
 
-function buildAiPrompt(practiceName: string | null, weekStart: string, rows: TherapistRow[], totals: { totalActive: number; teamAvg: number | null; missing: number; atRisk: number }): string {
-  const therapistLines = rows
-    .map(r => `  • ${r.therapist_name}: ${r.active_cases} cases, avg score ${fmtAvg(r.avg_checkin_score)}, ${r.missing_checkins} missing check-ins, ${r.at_risk_patients} at-risk`)
-    .join("\n");
-
-  return `You are an operations AI for a behavioral health practice. Give the practice manager a concise operational briefing for this week.
-
-Practice: ${practiceName ?? "Unknown"}
-Week starting: ${weekStart}
-
-Practice snapshot:
-  • ${rows.length} therapists, ${totals.totalActive} active cases
-  • Team avg engagement score: ${fmtAvg(totals.teamAvg)}
-  • ${totals.missing} missing check-ins, ${totals.atRisk} at-risk patients
-
-Therapist breakdown:
-${therapistLines || "  (no therapists)"}
-
-Reply with EXACTLY these four labeled lines (label in ALL CAPS, colon, content on same line):
-PRIORITY: The single most urgent issue for the practice manager to address today.
-AT RISK: Which therapists or patients need immediate clinical attention and why.
-FOLLOW UP: Which therapists have missing check-ins and the recommended action.
-THIS WEEK: One specific operational focus for the practice this week.
-
-Be direct. Specific to behavioral health operations. No preamble or filler.`;
-}
+// AI prompt construction moved to server-side lib/services/briefing.ts
 
 function PracticeManagerPage() {
   const params = useParams();
@@ -202,14 +177,30 @@ function PracticeManagerPage() {
     setAiDone(false);
     setAiError(null);
     try {
-      const res = await fetch("/api/admin/ai-briefing", {
+      const res = await fetch("/api/briefing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: buildAiPrompt(name, week, loadedRows, loadedTotals) }),
+        body: JSON.stringify({
+          role: "manager",
+          triggeredBy: `manager:${practiceId}`,
+          caseCode: practiceId,
+          dataSnapshot: {
+            practice_name: name,
+            week_start: week,
+            therapists: loadedRows.map(r => ({
+              name: r.therapist_name,
+              active_cases: r.active_cases,
+              avg_score: r.avg_checkin_score,
+              missing_checkins: r.missing_checkins,
+              at_risk_patients: r.at_risk_patients,
+            })),
+            totals: loadedTotals,
+          },
+        }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? "AI error");
-      const text: string = json?.data?.text ?? "";
+      if (!res.ok) throw new Error(json?.error?.message ?? "AI error");
+      const text: string = json?.data?.output ?? "";
       if (!text) throw new Error("Empty response");
       const words = text.split(" ");
       for (let i = 0; i < words.length; i++) {

@@ -1,6 +1,8 @@
 // app/api/practices/summary/route.ts
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { isDemoMode } from "@/lib/demo/demoMode";
+import { getDemoPracticeSummary } from "@/lib/demo/demoData";
 
 function addDaysISO(dateStr: string, days: number) {
   const d = new Date(`${dateStr}T00:00:00`);
@@ -9,6 +11,10 @@ function addDaysISO(dateStr: string, days: number) {
 }
 
 export async function GET(request: Request) {
+  if (isDemoMode(request.url)) {
+    return NextResponse.json({ data: getDemoPracticeSummary(), error: null });
+  }
+
   const { searchParams } = new URL(request.url);
   const weekStart = searchParams.get("week_start");
 

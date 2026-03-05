@@ -1,10 +1,16 @@
 // app/api/patients/route.ts
 import { NextResponse } from "next/server";
-import { supabaseAdmin as supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
+import { isDemoMode } from "@/lib/demo/demoMode";
+import { demoPatients } from "@/lib/demo/demoData";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  if (isDemoMode(request.url)) {
+    return NextResponse.json({ data: null, error: "Demo mode — changes are disabled" }, { status: 403 });
+  }
+
   const body = await request.json().catch(() => ({}));
   const first_name = typeof body?.first_name === "string" ? body.first_name.trim() : "";
   const last_name = typeof body?.last_name === "string" ? body.last_name.trim() : "";
@@ -63,7 +69,24 @@ export async function POST(request: Request) {
  * GET /api/patients
  * Returns all patients joined with their most recent case (practice, therapist, status).
  */
-export async function GET() {
+export async function GET(request: Request) {
+  if (isDemoMode(request.url)) {
+    return NextResponse.json({
+      data: demoPatients.map(p => ({
+        id: p.id,
+        name: `${p.first_name} ${p.last_name}`,
+        case_id: null,
+        practice_id: null,
+        practice_name: null,
+        therapist_id: null,
+        therapist_name: null,
+        status: "active",
+        extended_profile: {},
+      })),
+      error: null,
+    });
+  }
+
   // Load all patients
   const { data: patients, error: patientsErr } = await supabase
     .from("patients")

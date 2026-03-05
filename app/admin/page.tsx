@@ -118,6 +118,14 @@ const TOOLS = [
     title: "Developer Tools",
     desc: "Inspect API endpoints, run diagnostics, and review integration health. Use for debugging data pipelines and testing configuration changes.",
   },
+  {
+    href: "/status",
+    icon: "◉",
+    accent: "#22c55e",
+    accentAlpha: "rgba(34,197,94,",
+    title: "System Status",
+    desc: "Real-time health of every AI service — briefing, session prep, THS, task generation, redaction, and risk classification.",
+  },
 ];
 
 const COMING_SOON = [

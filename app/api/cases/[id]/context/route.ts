@@ -2,6 +2,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { isDemoMode } from "@/lib/demo/demoMode";
+import { getDemoCase, getDemoPatient, getDemoTherapist, demoPractice } from "@/lib/demo/demoData";
 
 export async function GET(
   _: Request,
@@ -11,6 +13,22 @@ export async function GET(
 
   if (!caseId) {
     return NextResponse.json({ data: null, error: "Missing caseId" }, { status: 400 });
+  }
+
+  if (isDemoMode(_.url)) {
+    const c = getDemoCase(caseId);
+    if (!c) return NextResponse.json({ data: null, error: "Case not found" }, { status: 404 });
+    const patient = getDemoPatient(c.patient_id);
+    const therapist = getDemoTherapist(c.therapist_id);
+    return NextResponse.json({
+      data: {
+        case: { id: c.id, title: c.title, status: c.status },
+        practice: { id: demoPractice.id, name: demoPractice.name },
+        therapist: therapist ? { id: therapist.id, name: therapist.name, extended_profile: therapist.extended_profile } : null,
+        patient: patient ? { id: patient.id, first_name: patient.first_name, last_name: patient.last_name, extended_profile: {} } : null,
+      },
+      error: null,
+    });
   }
 
   // Case

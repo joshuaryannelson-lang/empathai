@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { BUCKET, type Bucket } from "@/lib/constants";
+import { RISK_THRESHOLDS } from "@/lib/services/risk";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type CaseRow = {
@@ -96,32 +97,7 @@ function buildCasesUrl(args: {
   return `/cases${suffix}`;
 }
 
-// ─── AI Summary Prompt ────────────────────────────────────────────────────────
-function buildSummaryPrompt(care: TherapistCareResponse): string {
-  const { totals, cases, therapist_name, week_start } = care;
-  const lowList = cases.filter(c => c.at_risk_checkins > 0);
-  const missList = cases.filter(c => c.missing_checkin);
-  const lowNames = lowList.map(c => `${c.patient_first_name} ${c.patient_last_name}`.trim() || "Unknown").join(", ");
-  const missNames = missList.map(c => `${c.patient_first_name} ${c.patient_last_name}`.trim() || "Unknown").join(", ");
-
-  return `You are a clinical care coordinator assistant generating a concise weekly briefing for a therapist.
-
-Therapist: ${therapist_name ?? "the therapist"}
-Week of: ${week_start}
-Active caseload: ${totals.active_cases} patients
-Average weekly check-in score: ${totals.avg_score !== null ? fmtAvg(totals.avg_score) : "N/A"} out of 10
-Low score alerts (≤3): ${totals.at_risk_checkins} check-in(s)${lowList.length ? ` — ${lowNames}` : ""}
-Missing check-ins: ${totals.missing_checkins} patient(s)${missList.length ? ` — ${missNames}` : ""}
-${lowList.map(c => `\n${c.patient_first_name} ${c.patient_last_name} scored ${c.lowest_score}/10 — last check-in: ${c.last_checkin_at ?? "unknown"}`).join("")}
-
-Write a warm, professional 3–4 sentence weekly briefing for ${therapist_name ?? "the therapist"}.
-- Lead with the most urgent concern if any exists
-- Mention specific patient names naturally
-- End with one concrete suggested action or encouragement
-- Tone: like a thoughtful clinical supervisor, not robotic
-- Do NOT use bullet points or headers, just flowing prose
-- Keep it under 100 words`;
-}
+// ─── AI Summary (server-side briefing service) ───────────────────────────────
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 function TherapistCareDashboard() {
@@ -214,20 +190,40 @@ function TherapistCareDashboard() {
     setAiDone(false);
     setAiError(null);
     try {
-      const response = await fetch("/api/summary", {
+      const lowList = careData.cases.filter(c => c.at_risk_checkins > 0);
+      const missList = careData.cases.filter(c => c.missing_checkin);
+
+      const response = await fetch("/api/briefing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [{ role: "user", content: buildSummaryPrompt(careData) }],
+          role: "therapist",
+          triggeredBy: `therapist:${therapistId}`,
+          caseCode: therapistId,
+          dataSnapshot: {
+            therapist_name: careData.therapist_name ?? null,
+            week_start: careData.week_start,
+            active_cases: careData.totals.active_cases,
+            avg_score: careData.totals.avg_score,
+            at_risk_checkins: careData.totals.at_risk_checkins,
+            missing_checkins: careData.totals.missing_checkins,
+            low_score_patients: lowList.map(c => `${c.patient_first_name ?? ""} ${c.patient_last_name ?? ""}`.trim() || "Unknown"),
+            missing_patients: missList.map(c => `${c.patient_first_name ?? ""} ${c.patient_last_name ?? ""}`.trim() || "Unknown"),
+            low_score_details: lowList.map(c => ({
+              name: `${c.patient_first_name ?? ""} ${c.patient_last_name ?? ""}`.trim() || "Unknown",
+              lowest_score: c.lowest_score,
+              last_checkin_at: c.last_checkin_at,
+            })),
+          },
         }),
       });
 
       const json = await response.json();
       if (!response.ok) {
-        throw new Error(`API ${response.status}: ${json?.error ?? JSON.stringify(json)}`);
+        throw new Error(json?.error?.message ?? `API ${response.status}`);
       }
 
-      const text: string = json?.content?.[0]?.text ?? "";
+      const text: string = json?.data?.output ?? "";
       if (!text) throw new Error("Empty response from API");
 
       // Word-by-word streaming effect
@@ -559,7 +555,7 @@ function TherapistCareDashboard() {
                           <div className="caseload-tags">
                             <span className={`tag ${c.checkins > 0 ? "tag--neutral" : "tag--missing"}`}>{c.checkins} check-in{c.checkins !== 1 ? "s" : ""}</span>
                             {c.avg_score !== null && (
-                              <span className={`tag ${c.avg_score <= 3 ? "tag--risk" : c.avg_score <= 5 ? "tag--neutral" : "tag--good"}`}>avg {fmtAvg(c.avg_score)}</span>
+                              <span className={`tag ${c.avg_score <= RISK_THRESHOLDS.criticalScore ? "tag--risk" : c.avg_score <= RISK_THRESHOLDS.monitorAvgScore ? "tag--neutral" : "tag--good"}`}>avg {fmtAvg(c.avg_score)}</span>
                             )}
                             {c.at_risk_checkins > 0 && <span className="tag tag--risk">{c.at_risk_checkins} at-risk</span>}
                             {c.missing_checkin && <span className="tag tag--missing">no check-in</span>}

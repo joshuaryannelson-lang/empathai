@@ -2,8 +2,23 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { isDemoMode } from "@/lib/demo/demoMode";
+import { demoCases, demoTherapists, demoCheckins } from "@/lib/demo/demoData";
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (isDemoMode(request.url)) {
+    return NextResponse.json({
+      data: {
+        practices: 1,
+        therapists: demoTherapists.length,
+        cases: demoCases.length,
+        checkins: demoCheckins.length,
+        unassigned_cases: 0,
+      },
+      error: null,
+    });
+  }
+
   // If your table names differ, adjust them here.
   const [p, t, c, ci] = await Promise.all([
     supabase.from("practice").select("id", { count: "exact", head: true }),

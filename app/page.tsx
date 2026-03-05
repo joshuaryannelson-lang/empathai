@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { isDemoMode, enableDemoMode, disableDemoMode, DEMO_CONFIG } from "@/lib/demo/demoMode";
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 type Practice = { id: string; name: string | null };
@@ -373,18 +374,19 @@ function GuidedDemoPanel({ router }: { router: ReturnType<typeof useRouter> }) {
             Monday morning at a therapy practice
           </div>
         </div>
-        <div style={{ marginLeft: "auto", fontSize: 11, color: "rgba(255,255,255,0.25)", fontFamily: "'DM Mono', monospace" }}>
+        <div className="demo-header-hint" style={{ marginLeft: "auto", fontSize: 11, color: "rgba(255,255,255,0.25)", fontFamily: "'DM Mono', monospace" }}>
           Click a step to explore →
         </div>
       </div>
 
       {/* Steps */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0 }}>
+      <div className="demo-steps-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0 }}>
         {DEMO_STEPS.map((s, idx) => {
           const isActive = activeStep === s.step;
           return (
             <div
               key={s.step}
+              className="demo-step-cell"
               onClick={() => handleStepClick(s.step)}
               style={{
                 padding: "20px 18px",
@@ -451,6 +453,11 @@ export default function DemoLanding() {
   const [selected, setSelected] = useState<string | null>(null);
   const [launched, setLaunched] = useState(false);
   const [managerMode, setManagerMode] = useState<"multi" | "single">("multi");
+  const [isDemo, setIsDemo] = useState(false);
+
+  useEffect(() => {
+    setIsDemo(isDemoMode());
+  }, []);
 
   // Practice picker state (manager single-practice mode)
   const [practices, setPractices] = useState<Practice[]>([]);
@@ -563,11 +570,19 @@ function handleLaunch() {
         @keyframes orb3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,50px) scale(1.1); } }
         @keyframes pulseRing { 0% { transform: scale(0.95); opacity: 0.6; } 100% { transform: scale(1.4); opacity: 0; } }
         @keyframes launchPulse { 0% { transform: scale(1); } 50% { transform: scale(0.96); } 100% { transform: scale(1); } }
-        @media (max-width: 600px) {
+        @media (max-width: 640px) {
           .hero-h1 { letter-spacing: -0.8px !important; }
           .hero-section-gap { margin-top: 24px !important; }
           .action-bar { flex-direction: column !important; align-items: stretch !important; }
           .action-bar-launch { width: 100% !important; justify-content: center !important; }
+          .persona-grid { grid-template-columns: 1fr !important; }
+          .demo-steps-grid { grid-template-columns: 1fr !important; }
+          .demo-step-cell { border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.05); }
+          .demo-header-hint { display: none; }
+        }
+        @media (min-width: 641px) and (max-width: 900px) {
+          .persona-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .demo-steps-grid { grid-template-columns: repeat(2, 1fr) !important; }
         }
       `}</style>
 
@@ -633,10 +648,12 @@ function handleLaunch() {
             </div>
           </div>
 
-          {/* ── Guided demo story ── */}
-          <div style={{ marginTop: 28 }}>
-            <GuidedDemoPanel router={router} />
-          </div>
+          {/* ── Guided demo story — visible only in demo mode ── */}
+          {isDemo && (
+            <div style={{ marginTop: 28, animation: "fadeSlideUp 0.5s cubic-bezier(0.16,1,0.3,1) both" }}>
+              <GuidedDemoPanel router={router} />
+            </div>
+          )}
 
           {/* ── Manager action bar ── */}
           {showActionBar && (
@@ -724,7 +741,7 @@ function handleLaunch() {
           )}
 
           {/* Persona cards */}
-          <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+          <div className="persona-grid" style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
             {PERSONAS.map((persona, i) => (
               <PersonaCard key={persona.id} persona={persona} index={i} selected={selected} onSelect={handlePersonaSelect} />
             ))}
@@ -734,7 +751,71 @@ function handleLaunch() {
             Demo environment · Data is synthetic · No real patient info
           </div>
         </div>
+
+        {/* Floating demo toggle */}
+        <DemoToggle />
       </div>
     </>
+  );
+}
+
+// ── Demo Toggle (bottom-right pill) ──────────────────────────────────────────
+
+function DemoToggle() {
+  const [demoOn, setDemoOn] = useState(false);
+
+  useEffect(() => {
+    setDemoOn(isDemoMode());
+  }, []);
+
+  const handleClick = useCallback(() => {
+    if (demoOn) {
+      disableDemoMode();
+      window.location.reload();
+    } else {
+      enableDemoMode();
+      window.location.href = `/dashboard/manager?practice_id=${DEMO_CONFIG.practiceId}`;
+    }
+  }, [demoOn]);
+
+  return (
+    <button
+      onClick={handleClick}
+      style={{
+        position: "fixed",
+        bottom: 20,
+        right: 20,
+        zIndex: 9000,
+        display: "flex",
+        alignItems: "center",
+        gap: 7,
+        padding: "8px 16px",
+        borderRadius: 999,
+        border: demoOn
+          ? "1px solid rgba(34,197,94,0.35)"
+          : "1px solid rgba(255,255,255,0.12)",
+        background: demoOn
+          ? "rgba(34,197,94,0.10)"
+          : "rgba(255,255,255,0.05)",
+        backdropFilter: "blur(12px)",
+        color: demoOn ? "#22c55e" : "rgba(255,255,255,0.45)",
+        fontSize: 12,
+        fontWeight: 700,
+        fontFamily: "'DM Mono', 'Fira Mono', monospace",
+        cursor: "pointer",
+        transition: "all 0.2s ease",
+        letterSpacing: 0.3,
+      }}
+    >
+      <span style={{
+        width: 7,
+        height: 7,
+        borderRadius: "50%",
+        background: demoOn ? "#22c55e" : "rgba(255,255,255,0.25)",
+        boxShadow: demoOn ? "0 0 8px #22c55e" : "none",
+        flexShrink: 0,
+      }} />
+      {demoOn ? "Demo On" : "Try Demo"}
+    </button>
   );
 }

@@ -1,6 +1,7 @@
 // app/api/ths/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
+// SERVICE ROLE: justified — server-side THS computation across case data
 import { supabaseAdmin } from "@/lib/supabase";
 import { toMondayISO } from "@/lib/week";
 

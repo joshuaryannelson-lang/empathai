@@ -3,6 +3,8 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { BUCKET } from "@/lib/constants";
+import { isDemoMode } from "@/lib/demo/demoMode";
+import { getDemoNormalizedCases } from "@/lib/demo/demoData";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +31,13 @@ function fullName(first: string | null, last: string | null) {
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
+
+  if (isDemoMode(req.url)) {
+    const practiceId = searchParams.get("practice_id") ?? undefined;
+    const therapistId = searchParams.get("therapist_id") ?? undefined;
+    const data = getDemoNormalizedCases(practiceId, therapistId);
+    return NextResponse.json({ data, error: null, total: data.length, page: 1, limit: 50 });
+  }
 
   const practiceId = searchParams.get("practice_id");
   const therapistId = searchParams.get("therapist_id");

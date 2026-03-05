@@ -1,6 +1,6 @@
 // app/api/patients/[id]/route.ts
 import { NextResponse } from "next/server";
-import { supabaseAdmin as supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 export async function GET(
   _req: Request,

@@ -2,6 +2,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { isDemoMode } from "@/lib/demo/demoMode";
+import { getDemoAdminOverview } from "@/lib/demo/demoData";
 
 type RangeKey = "1d" | "7d" | "30d" | "this_week" | "last_week";
 
@@ -47,6 +49,10 @@ function errMsg(e: any) {
 }
 
 export async function GET(request: Request) {
+  if (isDemoMode(request.url)) {
+    return NextResponse.json({ data: getDemoAdminOverview(), error: null });
+  }
+
   const { searchParams } = new URL(request.url);
   const rawRange = (searchParams.get("range") as RangeKey) || "7d";
   const range: RangeKey = ALLOWED.includes(rawRange) ? rawRange : "7d";

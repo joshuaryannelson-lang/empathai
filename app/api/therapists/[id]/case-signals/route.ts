@@ -2,6 +2,9 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { SIGNAL, Signal } from "@/lib/constants";
+import { hasAtRiskScore, RISK_THRESHOLDS } from "@/lib/services/risk";
+import { isDemoMode } from "@/lib/demo/demoMode";
+import { getDemoCaseSignals } from "@/lib/demo/demoData";
 
 function startOfDayISO(dateStr: string) {
   // dateStr expected: YYYY-MM-DD
@@ -31,6 +34,10 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   const { id: therapistId } = await context.params;
+
+  if (isDemoMode(request.url)) {
+    return NextResponse.json({ data: getDemoCaseSignals(therapistId), error: null });
+  }
 
   const { searchParams } = new URL(request.url);
   const weekStartRaw = searchParams.get("week_start");
@@ -129,12 +136,12 @@ export async function GET(
       scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
 
     const missingCheckinThisWeek = w.length === 0;
-    const atRiskThisWeek = scores.some((s) => s <= 3);
+    const atRiskThisWeek = hasAtRiskScore(scores);
 
     let signal: Signal = SIGNAL.OK;
     if (atRiskThisWeek) signal = SIGNAL.AT_RISK;
     else if (missingCheckinThisWeek) signal = SIGNAL.MISSING_CHECKIN;
-    else if (avgWeekScore !== null && avgWeekScore <= 5) signal = SIGNAL.MONITOR;
+    else if (avgWeekScore !== null && avgWeekScore <= RISK_THRESHOLDS.monitorAvgScore) signal = SIGNAL.MONITOR;
 
     return {
       case_id: caseId,

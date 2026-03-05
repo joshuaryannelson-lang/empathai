@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { isDemoMode } from "@/lib/demo/demoMode";
 
 function addDaysISO(dateStr: string, days: number) {
   const d = new Date(`${dateStr}T00:00:00`);
@@ -32,6 +33,10 @@ async function safeJson(req: Request) {
  * }
  */
 export async function POST(request: Request) {
+  if (isDemoMode(request.url)) {
+    return NextResponse.json({ data: null, error: "Demo mode — changes are disabled" }, { status: 403 });
+  }
+
   const body = await safeJson(request);
 
   const caseIds: string[] = Array.isArray(body?.case_ids) ? body.case_ids : [];

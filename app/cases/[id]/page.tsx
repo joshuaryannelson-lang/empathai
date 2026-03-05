@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import { RISK_THRESHOLDS } from "@/lib/services/risk";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ExtendedPatient = {
@@ -131,6 +132,26 @@ export default function CasePage() {
   const [notesOpen, setNotesOpen]     = useState(false);
   const [copied, setCopied]     = useState<string | null>(null);
 
+  // Tasks state
+  type TaskRow = {
+    id: string;
+    case_id: string;
+    assigned_to_role: "therapist" | "patient";
+    created_by: "ai" | "therapist" | "system";
+    title: string;
+    description: string | null;
+    status: "pending" | "in_progress" | "completed" | "dismissed";
+    due_date: string | null;
+    created_at: string;
+  };
+  const [tasks, setTasks] = useState<TaskRow[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [taskGenLoading, setTaskGenLoading] = useState(false);
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskDesc, setNewTaskDesc] = useState("");
+  const [newTaskRole, setNewTaskRole] = useState<"therapist" | "patient">("patient");
+
   const [aiText, setAiText]       = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiDone, setAiDone]       = useState(false);
@@ -141,16 +162,15 @@ export default function CasePage() {
     Promise.all([
       fetch(`/api/cases/${id}/timeline`, { cache: "no-store" }).then(r => r.json()).catch(() => null),
       fetch(`/api/cases/${id}/goals`,    { cache: "no-store" }).then(r => r.json()).catch(() => null),
-    ]).then(([timelineJson, goalsJson]) => {
+      fetch(`/api/cases/${id}/tasks`,    { cache: "no-store" }).then(r => r.json()).catch(() => null),
+    ]).then(([timelineJson, goalsJson, tasksJson]) => {
       if (timelineJson) setD(timelineJson?.data ?? timelineJson);
       setGoals(goalsJson?.data ?? []);
+      setTasks(tasksJson?.data ?? []);
     }).finally(() => setLoading(false));
   }, [id]);
 
-  useEffect(() => {
-    if (!loading && d && !aiText && !aiLoading) generateAI(d, goals);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
+  // Session prep is on-demand — therapist clicks "Generate" instead of auto-firing on page load
 
   const checkins    = d?.checkins ?? [];
   const latest      = checkins[0] ?? null;
@@ -160,9 +180,9 @@ export default function CasePage() {
   const avgScore    = avg(checkins.map(c => c.score).filter((n): n is number => n !== null));
   const baseline    = avg(checkins.slice(1, 4).map(c => c.score).filter((n): n is number => n !== null));
   const delta       = latest?.score != null && baseline != null ? latest.score - baseline : null;
-  const isLow       = latest?.score != null && latest.score <= 3;
-  const isDropping  = delta != null && delta <= -2;
-  const isStale     = latest?.created_at ? daysSince(latest.created_at) >= 7 : false;
+  const isLow       = latest?.score != null && latest.score <= RISK_THRESHOLDS.criticalScore;
+  const isDropping  = delta != null && delta <= RISK_THRESHOLDS.decliningDelta;
+  const isStale     = latest?.created_at ? daysSince(latest.created_at) >= RISK_THRESHOLDS.staleDays : false;
   const hue         = scoreHue(latest?.score ?? null);
   const outreachText = `Hi ${patientName} — I saw your recent check-in and wanted to reach out before our session. How are things feeling right now?`;
 
@@ -179,23 +199,93 @@ export default function CasePage() {
     setTimeout(() => setCopied(null), 2000);
   }
 
+  async function loadTasks() {
+    setTasksLoading(true);
+    try {
+      const res = await fetch(`/api/cases/${id}/tasks`, { cache: "no-store" });
+      const json = await res.json();
+      setTasks(json?.data ?? []);
+    } catch { /* ignore */ }
+    finally { setTasksLoading(false); }
+  }
+
+  async function generateTasksAI() {
+    setTaskGenLoading(true);
+    try {
+      const res = await fetch(`/api/cases/${id}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trigger: "ai", therapistId: d?.therapist?.name ?? "" }),
+      });
+      if (res.ok) await loadTasks();
+    } catch { /* ignore */ }
+    finally { setTaskGenLoading(false); }
+  }
+
+  async function addManualTask() {
+    if (!newTaskTitle.trim()) return;
+    try {
+      const res = await fetch(`/api/cases/${id}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trigger: "manual",
+          therapistId: d?.therapist?.name ?? "",
+          task: { title: newTaskTitle, description: newTaskDesc || undefined, assignedToRole: newTaskRole },
+        }),
+      });
+      if (res.ok) {
+        setNewTaskTitle(""); setNewTaskDesc(""); setShowAddTask(false);
+        await loadTasks();
+      }
+    } catch { /* ignore */ }
+  }
+
+  async function cycleTaskStatus(task: TaskRow) {
+    const next = task.status === "pending" ? "in_progress" : task.status === "in_progress" ? "completed" : "pending";
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next, userId: d?.therapist?.name ?? "" }),
+      });
+      if (res.ok) {
+        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: next as TaskRow["status"] } : t));
+      }
+    } catch { /* ignore */ }
+  }
+
+  const therapistTasks = tasks.filter(t => t.assigned_to_role === "therapist");
+  const patientTasks = tasks.filter(t => t.assigned_to_role === "patient");
+
   async function generateAI(data: TimelineResponse, goalList: Goal[]) {
     setAiLoading(true); setAiText(""); setAiDone(false); setAiError(null);
     try {
       const res = await fetch(`/api/cases/${id}/session-prep`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: buildPrompt(data, goalList) }),
+        body: JSON.stringify({ prompt: buildPrompt(data, goalList), stream: true }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(`API ${res.status}: ${json?.error ?? JSON.stringify(json)}`);
-      const text: string = json?.data?.text ?? "";
-      if (!text) throw new Error("Empty response");
-      const words = text.split(" ");
-      for (let i = 0; i < words.length; i++) {
-        await new Promise(r => setTimeout(r, 28 + Math.random() * 30));
-        setAiText(words.slice(0, i + 1).join(" "));
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(`API ${res.status}: ${(errJson as any)?.error ?? JSON.stringify(errJson)}`);
       }
+
+      // Stream text from ReadableStream
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response stream");
+
+      const decoder = new TextDecoder();
+      let accumulated = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+        setAiText(accumulated);
+      }
+
+      if (!accumulated.trim()) throw new Error("Empty response");
     } catch (e: any) {
       setAiError(e?.message ?? String(e));
     } finally {
@@ -224,7 +314,11 @@ export default function CasePage() {
 
         .layout { display: grid; grid-template-columns: 264px 1fr 256px; gap: 16px; align-items: start; }
         @media (max-width: 1000px) { .layout { grid-template-columns: 264px 1fr; } .feed-col { display: none; } }
-        @media (max-width: 700px)  { .layout { grid-template-columns: 1fr; } }
+        @media (max-width: 700px)  {
+          .layout { grid-template-columns: 1fr; }
+          .sidebar { position: static; }
+          .shell { padding: 16px 12px 60px; }
+        }
 
         /* ── ACTIVITY FEED ── */
         .feed-col { position: sticky; top: 24px; border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; max-height: calc(100vh - 48px); display: flex; flex-direction: column; }
@@ -305,13 +399,14 @@ export default function CasePage() {
         .action-btn--done   { color: #4ade80 !important; border-color: #0e2e1a !important; background: #061a0b !important; }
 
         .trend-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; animation: fadeUp .3s ease .08s both; }
+        @media (max-width: 500px) { .trend-row { grid-template-columns: 1fr; } }
         .trend-card { padding: 14px 16px; border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; }
         .trend-label { font-size: 10px; font-weight: 600; color: #4b5563; text-transform: uppercase; letter-spacing: .06em; }
         .trend-value { font-size: 22px; font-weight: 700; letter-spacing: -.02em; margin: 4px 0 2px; }
         .trend-sub   { font-size: 11px; color: #374151; }
 
         .context-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; animation: fadeUp .3s ease .11s both; }
-        @media (max-width: 600px) { .context-row { grid-template-columns: 1fr; } }
+        @media (max-width: 700px) { .context-row { grid-template-columns: 1fr; } }
 
         .ctx-card { border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; }
         .ctx-head { padding: 12px 16px; border-bottom: 1px solid #131720; display: flex; align-items: center; justify-content: space-between; }
@@ -348,6 +443,7 @@ export default function CasePage() {
         .ai-regen { font-size: 11px; font-weight: 600; color: #4b5563; background: none; border: 1px solid #1f2533; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-family: inherit; transition: all .15s; }
         .ai-regen:hover { color: #9ca3af; border-color: #2a3050; }
         .ai-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px; }
+        @media (max-width: 500px) { .ai-grid { grid-template-columns: 1fr; } }
         .ai-card { padding: 14px 16px; border-radius: 10px; border: 1px solid #131a30; background: #080c18; }
         .ai-card-label { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
         .ai-card-text { font-size: 13px; line-height: 1.65; color: #c8d0e0; }
@@ -374,6 +470,56 @@ export default function CasePage() {
         .skeleton { background: linear-gradient(90deg,#111420 0%,#1a1e2a 50%,#111420 100%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 5px; }
         @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ── TASKS ── */
+        .tasks-wrap { border-radius: 14px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; animation: fadeUp .3s ease .13s both; }
+        .tasks-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; border-bottom: 1px solid #131720; }
+        .tasks-head-left { display: flex; align-items: center; gap: 10px; }
+        .tasks-title { font-size: 12px; font-weight: 600; color: #9ca3af; letter-spacing: .05em; text-transform: uppercase; }
+        .tasks-count { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #111420; border: 1px solid #1f2533; color: #4b5563; }
+        .tasks-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        @media (max-width: 500px) {
+          .tasks-head { flex-direction: column; gap: 10px; align-items: stretch; }
+          .tasks-actions { width: 100%; }
+          .tasks-btn { flex: 1; text-align: center; min-height: 44px; }
+          .task-form-row { flex-wrap: wrap; }
+          .task-input { min-height: 44px; font-size: 16px; }
+          .task-role-select { min-height: 44px; font-size: 14px; flex: 1; }
+          .task-submit-btn { min-height: 44px; flex: 1; }
+          .action-card { flex-direction: column; align-items: stretch; }
+          .action-btn { width: 100%; text-align: center; min-height: 44px; }
+        }
+        .tasks-btn { font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 7px; border: 1px solid #1f2533; background: #111420; color: #9ca3af; cursor: pointer; font-family: inherit; transition: all .15s; }
+        .tasks-btn:hover { border-color: #2e3650; color: #e8eaf0; }
+        .tasks-btn--ai { border-color: #2a3560; background: #0d1220; color: #6b82d4; }
+        .tasks-btn--ai:hover { background: #141b34; }
+        .tasks-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .tasks-group { padding: 8px 14px; }
+        .tasks-group-label { font-size: 10px; font-weight: 700; color: #4b5563; text-transform: uppercase; letter-spacing: .06em; padding: 6px 4px 4px; }
+        .task-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 4px; border-bottom: 1px solid #0f1218; }
+        .task-item:last-child { border-bottom: none; }
+        .task-status-btn { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; flex-shrink: 0; margin-top: 1px; cursor: pointer; border: none; transition: all .15s; }
+        .task-status--pending { background: #111420; border: 1px solid #1f2533; color: #4b5563; }
+        .task-status--in_progress { background: #0d1220; border: 1px solid #2a3560; color: #6b82d4; }
+        .task-status--completed { background: #061a0b; border: 1px solid #0e2e1a; color: #4ade80; }
+        .task-body { flex: 1; min-width: 0; }
+        .task-title-row { display: flex; align-items: center; gap: 6px; }
+        .task-title { font-size: 13px; color: #c8d0e0; line-height: 1.4; }
+        .task-title--done { color: #374151; text-decoration: line-through; }
+        .task-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 20px; letter-spacing: .04em; flex-shrink: 0; }
+        .task-badge--ai { background: #1a2240; border: 1px solid #2a3560; color: #6b82d4; }
+        .task-badge--manual { background: #0d1018; border: 1px solid #1a1e2a; color: #6b7280; }
+        .task-desc { font-size: 11px; color: #6b7280; margin-top: 2px; line-height: 1.5; }
+        .task-meta { font-size: 10px; color: #374151; margin-top: 3px; font-family: 'DM Mono', monospace; }
+        .tasks-empty { padding: 24px 18px; font-size: 13px; color: #374151; text-align: center; }
+        .task-add-form { padding: 12px 14px; border-top: 1px solid #131720; display: grid; gap: 8px; }
+        .task-input { width: 100%; padding: 8px 12px; border-radius: 7px; border: 1px solid #1f2533; background: #0a0c12; color: #e2e8f0; font-size: 13px; font-family: inherit; outline: none; transition: border-color .15s; }
+        .task-input:focus { border-color: #2a3560; }
+        .task-input::placeholder { color: #374151; }
+        .task-form-row { display: flex; gap: 8px; align-items: center; }
+        .task-role-select { padding: 6px 10px; border-radius: 6px; border: 1px solid #1f2533; background: #111420; color: #9ca3af; font-size: 12px; font-family: inherit; cursor: pointer; }
+        .task-submit-btn { padding: 6px 14px; border-radius: 7px; border: 1px solid #0e2e1a; background: #061a0b; color: #4ade80; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all .15s; }
+        .task-submit-btn:hover { background: #0a2412; }
       `}</style>
 
       <div className="shell">
@@ -595,52 +741,165 @@ export default function CasePage() {
                 </div>
               )}
 
+              {/* Tasks */}
+              <div className="tasks-wrap">
+                <div className="tasks-head">
+                  <div className="tasks-head-left">
+                    <div className="tasks-title">Tasks</div>
+                    <div className="tasks-count">{tasks.filter(t => t.status !== "completed" && t.status !== "dismissed").length} open</div>
+                  </div>
+                  <div className="tasks-actions">
+                    <button className="tasks-btn tasks-btn--ai" onClick={generateTasksAI} disabled={taskGenLoading}>
+                      {taskGenLoading ? "Generating..." : "Generate Tasks"}
+                    </button>
+                    <button className="tasks-btn" onClick={() => setShowAddTask(v => !v)}>
+                      {showAddTask ? "Cancel" : "+ Add Task"}
+                    </button>
+                  </div>
+                </div>
+
+                {showAddTask && (
+                  <div className="task-add-form">
+                    <input className="task-input" placeholder="Task title..." value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} />
+                    <input className="task-input" placeholder="Description (optional)" value={newTaskDesc} onChange={e => setNewTaskDesc(e.target.value)} />
+                    <div className="task-form-row">
+                      <select className="task-role-select" value={newTaskRole} onChange={e => setNewTaskRole(e.target.value as "therapist" | "patient")}>
+                        <option value="patient">Patient homework</option>
+                        <option value="therapist">Therapist follow-up</option>
+                      </select>
+                      <button className="task-submit-btn" onClick={addManualTask}>Add</button>
+                    </div>
+                  </div>
+                )}
+
+                {tasks.length === 0 && !tasksLoading ? (
+                  <div className="tasks-empty">No tasks yet — generate from session data or add manually</div>
+                ) : (
+                  <>
+                    {therapistTasks.length > 0 && (
+                      <div className="tasks-group">
+                        <div className="tasks-group-label">Therapist follow-ups</div>
+                        {therapistTasks.map(t => (
+                          <div key={t.id} className="task-item">
+                            <button
+                              className={`task-status-btn task-status--${t.status}`}
+                              onClick={() => cycleTaskStatus(t)}
+                              title={`Status: ${t.status}`}
+                            >{t.status === "completed" ? "✓" : t.status === "in_progress" ? "►" : ""}</button>
+                            <div className="task-body">
+                              <div className="task-title-row">
+                                <span className={`task-title ${t.status === "completed" ? "task-title--done" : ""}`}>{t.title}</span>
+                                <span className={`task-badge ${t.created_by === "ai" ? "task-badge--ai" : "task-badge--manual"}`}>
+                                  {t.created_by === "ai" ? "AI" : "Manual"}
+                                </span>
+                              </div>
+                              {t.description && <div className="task-desc">{t.description}</div>}
+                              {t.due_date && <div className="task-meta">Due {fmtDate(t.due_date)}</div>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {patientTasks.length > 0 && (
+                      <div className="tasks-group">
+                        <div className="tasks-group-label">Patient homework</div>
+                        {patientTasks.map(t => (
+                          <div key={t.id} className="task-item">
+                            <button
+                              className={`task-status-btn task-status--${t.status}`}
+                              onClick={() => cycleTaskStatus(t)}
+                              title={`Status: ${t.status}`}
+                            >{t.status === "completed" ? "✓" : t.status === "in_progress" ? "►" : ""}</button>
+                            <div className="task-body">
+                              <div className="task-title-row">
+                                <span className={`task-title ${t.status === "completed" ? "task-title--done" : ""}`}>{t.title}</span>
+                                <span className={`task-badge ${t.created_by === "ai" ? "task-badge--ai" : "task-badge--manual"}`}>
+                                  {t.created_by === "ai" ? "AI" : "Manual"}
+                                </span>
+                              </div>
+                              {t.description && <div className="task-desc">{t.description}</div>}
+                              {t.due_date && <div className="task-meta">Due {fmtDate(t.due_date)}</div>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
               {/* AI Session Prep */}
-              <div className="ai-wrap">
+              <div className="ai-wrap" style={{ minHeight: 120 }}>
                 <div className="ai-head">
                   <div className="ai-head-left">
                     <div className="ai-gem">✦</div>
                     <div className="ai-head-title">Session Prep</div>
                     <div className="ai-badge">AI</div>
                   </div>
-                  {aiDone && d && <button className="ai-regen" onClick={() => generateAI(d, goals)}>↻ Regenerate</button>}
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {!aiText && !aiLoading && d && (
+                      <button className="ai-regen" style={{ background: "#1a2240", color: "#6b82d4", fontWeight: 700 }} onClick={() => generateAI(d, goals)}>
+                        Generate
+                      </button>
+                    )}
+                    {aiDone && d && (
+                      <button className="ai-regen" onClick={() => generateAI(d, goals)} disabled={aiLoading}>
+                        {aiLoading ? "Generating..." : "↻ Regenerate"}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                <div className="ai-grid">
-                  {aiLoading && !aiSections && [
+                <div className="ai-grid" style={{ minHeight: 100, transition: "all 0.2s ease" }}>
+                  {/* Skeleton loading state */}
+                  {aiLoading && !aiText && [
                     ["55%","85%","70%"], ["50%","90%","65%"],
                     ["60%","80%","72%"], ["52%","88%","60%"],
                   ].map((ws, i) => (
-                    <div key={i} className="ai-card">
+                    <div key={i} className="ai-card" style={{ minHeight: 80 }}>
                       <div className="skeleton" style={{ height: 10, width: ws[0], marginBottom: 12 }} />
                       <div className="skeleton" style={{ height: 12, width: ws[1], marginBottom: 7 }} />
                       <div className="skeleton" style={{ height: 12, width: ws[2] }} />
                     </div>
                   ))}
 
-                  {aiError && (
-                    <div style={{ gridColumn: "1/-1", fontSize: 12, color: "#f87171", fontFamily: "DM Mono,monospace", background: "#1a0808", border: "1px solid #3d1a1a", borderRadius: 8, padding: "10px 12px" }}>
-                      {aiError}
+                  {/* Empty state — user hasn't generated yet */}
+                  {!aiText && !aiLoading && !aiError && (
+                    <div style={{ gridColumn: "1/-1", padding: "24px 16px", textAlign: "center", fontSize: 13, color: "#374151" }}>
+                      Click Generate to create AI session prep notes
                     </div>
                   )}
 
+                  {aiError && (
+                    <div style={{ gridColumn: "1/-1", fontSize: 12, color: "#f87171", fontFamily: "DM Mono,monospace", background: "#1a0808", border: "1px solid #3d1a1a", borderRadius: 8, padding: "10px 12px" }}>
+                      {aiError}
+                      {d && (
+                        <button className="ai-regen" style={{ marginTop: 8, display: "block" }} onClick={() => generateAI(d, goals)}>
+                          Try again
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Streaming text before sections are parsed */}
                   {aiText && !aiSections && (
-                    <div style={{ gridColumn: "1/-1", fontSize: 13, lineHeight: 1.8, color: "#c8d0e0", padding: "4px 2px" }}>
+                    <div style={{ gridColumn: "1/-1", fontSize: 13, lineHeight: 1.8, color: "#c8d0e0", padding: "4px 2px", whiteSpace: "pre-wrap", transition: "opacity 0.15s ease", opacity: 1 }}>
                       {aiText}{aiLoading && <span className="ai-cursor" />}
                     </div>
                   )}
 
+                  {/* Parsed sections */}
                   {aiSections && [
                     { key: "OPEN WITH",  icon: "💬", color: "#6b82d4", label: "Open with" },
                     { key: "WATCH FOR", icon: "👁",  color: "#fb923c", label: "Watch for" },
                     { key: "TRY THIS",  icon: "🎯", color: "#4ade80", label: "Try this" },
                     { key: "SEND THIS", icon: "✉️", color: "#a78bfa", label: "Send this" },
                   ].map(({ key, icon, color, label }) => (
-                    <div key={key} className="ai-card">
+                    <div key={key} className="ai-card" style={{ minHeight: 80, transition: "opacity 0.2s ease" }}>
                       <div className="ai-card-label" style={{ color }}>
                         <span>{icon}</span>{label}
                       </div>
-                      <div className="ai-card-text">
+                      <div className="ai-card-text" style={{ whiteSpace: "pre-wrap" }}>
                         {aiSections[key] ?? "—"}
                         {aiLoading && key === "SEND THIS" && <span className="ai-cursor" />}
                       </div>

@@ -2,10 +2,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { supabase } from "@/lib/supabase";
 import { bad, getIdFromContext, ok, RouteContextWithId } from "@/lib/route-helpers";
+import { isDemoMode } from "@/lib/demo/demoMode";
+import { getDemoCase } from "@/lib/demo/demoData";
 
 export async function GET(_req: Request, ctx: RouteContextWithId) {
   const id = await getIdFromContext(ctx);
   if (!id) return bad("Missing case id");
+
+  if (isDemoMode(_req.url)) {
+    const c = getDemoCase(id);
+    if (!c) return bad("Case not found", 404);
+    return ok(c);
+  }
 
   const { data, error } = await supabase.from("cases").select("*").eq("id", id).single();
 
@@ -14,6 +22,8 @@ export async function GET(_req: Request, ctx: RouteContextWithId) {
 }
 
 export async function PATCH(req: Request, ctx: RouteContextWithId) {
+  if (isDemoMode(req.url)) return bad("Demo mode — changes are disabled", 403);
+
   const id = await getIdFromContext(ctx);
   if (!id) return bad("Missing case id");
 
@@ -46,6 +56,8 @@ export async function PATCH(req: Request, ctx: RouteContextWithId) {
 }
 
 export async function DELETE(_req: Request, ctx: RouteContextWithId) {
+  if (isDemoMode(_req.url)) return bad("Demo mode — changes are disabled", 403);
+
   const id = await getIdFromContext(ctx);
   if (!id) return bad("Missing case id");
 

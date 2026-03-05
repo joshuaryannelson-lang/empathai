@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
+// SERVICE ROLE: justified — patient identification for unauthenticated check-in flow
 import { supabaseAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
