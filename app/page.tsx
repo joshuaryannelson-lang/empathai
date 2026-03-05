@@ -346,6 +346,19 @@ export default function DemoLanding() {
       setTimeout(() => router.push("/analytics"), 300);
       return;
     }
+    if (id === "therapist" && typeof window !== "undefined" && window.innerWidth <= 600) {
+      setSelected(id); setLaunched(true);
+      fetchJson<Therapist[]>("/api/therapists").then((data) => {
+        if (data && data.length > 0) {
+          const t = data[Math.floor(Math.random() * data.length)];
+          try { localStorage.setItem("selected_practice_id", t.practice_id); } catch {}
+          try { localStorage.setItem("selected_therapist_id", t.id); } catch {}
+          try { localStorage.setItem("selected_persona", "therapist"); } catch {}
+          router.push(`/dashboard/therapists/${encodeURIComponent(t.id)}/care?week_start=${encodeURIComponent(weekStart)}`);
+        }
+      }).catch(() => {});
+      return;
+    }
     setSelected((prev) => (prev === id ? null : id));
   }
 
@@ -415,6 +428,11 @@ export default function DemoLanding() {
         @keyframes orb3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,50px) scale(1.1); } }
         @keyframes pulseRing { 0% { transform: scale(0.95); opacity: 0.6; } 100% { transform: scale(1.4); opacity: 0; } }
         @keyframes launchPulse { 0% { transform: scale(1); } 50% { transform: scale(0.96); } 100% { transform: scale(1); } }
+        .persona-grid { order: 2; }
+        .step2-bar { order: 3; }
+        @media (min-width: 601px) {
+          .step2-bar { order: 1; }
+        }
         @media (max-width: 600px) {
           .hero-h1 { letter-spacing: -0.8px !important; }
           .hero-section-gap { margin-top: 24px !important; }
@@ -438,7 +456,7 @@ export default function DemoLanding() {
           <div style={{ position: "absolute", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(245,166,35,0.10) 0%, transparent 65%)", top: "40%", right: "20%", animation: "orb3 16s ease-in-out infinite" }} />
         </div>
 
-        <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 1320 }}>
+        <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 1320, display: "flex", flexDirection: "column" }}>
 
           {/* Hero */}
           <div style={{ textAlign: "center", animation: "headerReveal 0.7s cubic-bezier(0.16,1,0.3,1) both" }}>
@@ -486,15 +504,15 @@ export default function DemoLanding() {
           </div>
 
           {/* Persona cards */}
-          <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+          <div className="persona-grid" style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
             {PERSONAS.map((persona, i) => (
               <PersonaCard key={persona.id} persona={persona} index={i} selected={selected} onSelect={handlePersonaSelect} />
             ))}
           </div>
 
-          {/* ── Step 2 — appears below cards after selection ── */}
+          {/* ── Step 2 — above cards on desktop, below on mobile ── */}
           {showActionBar && (
-            <div className="action-bar" style={{
+            <div className="action-bar step2-bar" style={{
               marginTop: 20,
               display: "flex", alignItems: "center", justifyContent: "space-between",
               gap: 16, flexWrap: "wrap",
