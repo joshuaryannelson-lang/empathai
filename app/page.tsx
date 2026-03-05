@@ -1,0 +1,571 @@
+"use client";
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+
+// ── Data ──────────────────────────────────────────────────────────────────────
+type Practice = { id: string; name: string | null };
+type Therapist = { id: string; name: string; practice_id: string };
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url, { cache: "no-store" });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || (json as any)?.error) throw new Error((json as any)?.error?.message ?? JSON.stringify(json));
+  return ((json as any)?.data ?? json) as T;
+}
+
+function toYYYYMMDD(d: Date) { return d.toISOString().slice(0, 10); }
+function toMondayYYYYMMDD(s: string) {
+  const d = new Date(`${s}T00:00:00`);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return toYYYYMMDD(d);
+}
+
+// ── Personas ──────────────────────────────────────────────────────────────────
+const PERSONAS = [
+  {
+    id: "manager",
+    label: "Practice Manager",
+    icon: "⬡",
+    tagline: "Your whole practice, one view",
+    description: "Stop flying blind. See every therapist, every case, every risk signal — and act before small problems become big ones.",
+    accent: "#00c8a0",
+    accentRgb: "0,200,160",
+    highlights: ["Live roster overview", "Utilization & capacity", "Multi-therapist signals"],
+    cta: "Launch my dashboard",
+  },
+  {
+    id: "therapist",
+    label: "Therapist",
+    icon: "◎",
+    tagline: "Know your patients. Really know them.",
+    description: "Walk into every session prepared. Surface the patients who need you most before they slip through the cracks.",
+    accent: "#7c5cfc",
+    accentRgb: "124,92,252",
+    highlights: ["Weekly engagement signals", "AI session prep notes", "Risk & alert flags"],
+    cta: "Open my caseload",
+  },
+  {
+    id: "patient",
+    label: "Patient",
+    icon: "♡",
+    tagline: "Your care, your way.",
+    description: "Check in with how you're feeling, review notes from your sessions, track your goals, and stay connected with your therapist.",
+    accent: "#38bdf8",
+    accentRgb: "56,189,248",
+    highlights: ["Daily check-ins", "Session notes", "Treatment goals"],
+    cta: "Open my portal",
+  },
+  {
+    id: "admin",
+    label: "Admin",
+    icon: "⬢",
+    tagline: "Total system control",
+    description: "Configure practices, manage your therapist roster, and keep patient assignments clean — all from one place.",
+    accent: "#e879f9",
+    accentRgb: "232,121,249",
+    highlights: ["Practice configuration", "Therapist management", "Patient administration"],
+    cta: "Open admin console",
+  },
+  {
+    id: "analytics",
+    label: "Analytics",
+    icon: "◈",
+    tagline: "Signal, not noise",
+    description: "Practice health scores, at-risk patterns, and engagement trends — the insights you wish you had, finally surfaced.",
+    accent: "#f5a623",
+    accentRgb: "245,166,35",
+    highlights: ["Practice health scores", "At-risk trend patterns", "Engagement benchmarks"],
+    cta: "Explore the insights",
+    badge: "Coming soon",
+  },
+];
+type Persona = typeof PERSONAS[number];
+
+// ── Noise ─────────────────────────────────────────────────────────────────────
+function Noise() {
+  return (
+    <svg style={{ position: "fixed", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 0, opacity: 0.028 }} xmlns="http://www.w3.org/2000/svg">
+      <filter id="noise">
+        <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch" />
+        <feColorMatrix type="saturate" values="0" />
+      </filter>
+      <rect width="100%" height="100%" filter="url(#noise)" />
+    </svg>
+  );
+}
+
+// ── PersonaCard ───────────────────────────────────────────────────────────────
+function PersonaCard({ persona, index, selected, onSelect }: {
+  persona: Persona;
+  index: number;
+  selected: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const isSelected = selected === persona.id;
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const handleMove = (e: MouseEvent) => {
+      const rect = el.getBoundingClientRect();
+      el.style.setProperty("--mx", `${((e.clientX - rect.left) / rect.width) * 100}%`);
+      el.style.setProperty("--my", `${((e.clientY - rect.top) / rect.height) * 100}%`);
+    };
+    el.addEventListener("mousemove", handleMove);
+    return () => el.removeEventListener("mousemove", handleMove);
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      onClick={() => onSelect(persona.id)}
+      style={{
+        "--accent": persona.accent,
+        "--accent-rgb": persona.accentRgb,
+        "--mx": "50%", "--my": "50%",
+        position: "relative",
+        borderRadius: 20,
+        padding: 22,
+        cursor: "pointer",
+        transition: "transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s ease",
+        transform: isSelected ? "translateY(-6px) scale(1.02)" : "translateY(0) scale(1)",
+        border: isSelected
+          ? `1.5px solid color-mix(in srgb, ${persona.accent} 60%, transparent)`
+          : "1.5px solid rgba(255,255,255,0.08)",
+        background: isSelected
+          ? `radial-gradient(circle at var(--mx) var(--my), rgba(var(--accent-rgb),0.12) 0%, rgba(0,0,0,0) 70%), rgba(255,255,255,0.04)`
+          : `radial-gradient(circle at var(--mx) var(--my), rgba(var(--accent-rgb),0.06) 0%, rgba(0,0,0,0) 60%), rgba(255,255,255,0.02)`,
+        boxShadow: isSelected
+          ? `0 0 0 1px rgba(var(--accent-rgb),0.2), 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(var(--accent-rgb),0.08)`
+          : "0 4px 24px rgba(0,0,0,0.3)",
+        animationDelay: `${index * 120}ms`,
+        animationName: "fadeSlideUp",
+        animationDuration: "0.6s",
+        animationFillMode: "both",
+        animationTimingFunction: "cubic-bezier(0.16,1,0.3,1)",
+        display: "flex",
+        flexDirection: "column",
+      } as React.CSSProperties}
+    >
+      {/* Coming soon badge */}
+      {"badge" in persona && persona.badge && (
+        <div style={{
+          position: "absolute", top: 14, right: 14,
+          padding: "3px 9px", borderRadius: 999,
+          fontSize: 10, fontWeight: 700, letterSpacing: 1,
+          textTransform: "uppercase" as const,
+          background: `rgba(var(--accent-rgb), 0.12)`,
+          border: `1px solid rgba(var(--accent-rgb), 0.35)`,
+          color: persona.accent,
+        }}>
+          {persona.badge}
+        </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: 14,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 20,
+          background: `rgba(var(--accent-rgb), 0.12)`,
+          border: `1px solid rgba(var(--accent-rgb), 0.2)`,
+          color: persona.accent,
+          transition: "transform 0.2s ease",
+          transform: isSelected ? "rotate(-8deg) scale(1.1)" : "none",
+        }}>
+          {persona.icon}
+        </div>
+        <div style={{
+          width: 8, height: 8, borderRadius: "50%",
+          background: isSelected ? persona.accent : "rgba(255,255,255,0.2)",
+          boxShadow: isSelected ? `0 0 10px ${persona.accent}` : "none",
+          transition: "all 0.3s ease", marginTop: 6,
+        }} />
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.8, textTransform: "uppercase", color: persona.accent, opacity: 0.9, fontFamily: "'DM Mono', 'Fira Mono', monospace" }}>
+          {persona.label}
+        </div>
+        <div style={{ marginTop: 6, fontSize: 19, fontWeight: 900, letterSpacing: -0.6, color: "rgba(255,255,255,0.97)", lineHeight: 1.15, fontFamily: "'Sora', 'DM Sans', system-ui" }}>
+          {persona.tagline}
+        </div>
+        <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.6, color: "rgba(255,255,255,0.62)", fontFamily: "'DM Sans', system-ui" }}>
+          {persona.description}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 5 }}>
+        {persona.highlights.map((h) => (
+          <span key={h} style={{
+            fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 999,
+            background: `rgba(var(--accent-rgb), 0.1)`,
+            border: `1px solid rgba(var(--accent-rgb), 0.18)`,
+            color: `rgba(var(--accent-rgb), 1)`,
+            fontFamily: "'DM Mono', monospace",
+            width: "fit-content",
+          }}>{h}</span>
+        ))}
+      </div>
+
+      <div style={{ marginTop: "auto", paddingTop: 22 }}>
+        <div style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          fontSize: 14, fontWeight: 800,
+          color: isSelected ? persona.accent : "rgba(255,255,255,0.5)",
+          transition: "color 0.25s ease", fontFamily: "'Sora', system-ui",
+          letterSpacing: -0.2,
+        }}>
+          {persona.cta}
+          <span style={{ display: "inline-block", transition: "transform 0.25s ease", transform: isSelected ? "translateX(5px)" : "none", fontSize: 16 }}>→</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Therapist picker cards ────────────────────────────────────────────────────
+function TherapistCards({
+  therapists,
+  loading,
+  accent,
+  onSelect,
+}: {
+  therapists: Therapist[];
+  loading: boolean;
+  accent: string;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div style={{ animationName: "fadeSlideUp", animationDuration: "0.4s", animationFillMode: "both", animationTimingFunction: "cubic-bezier(0.16,1,0.3,1)" }}>
+      <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.4, textTransform: "uppercase" as const, opacity: 0.45, marginBottom: 12 }}>
+        Select therapist
+      </div>
+      {loading ? (
+        <div style={{ opacity: 0.4, fontSize: 13 }}>Loading therapists…</div>
+      ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {therapists.map((t) => (
+            <div
+              key={t.id}
+              onClick={() => onSelect(t.id)}
+              style={{
+                padding: "10px 18px",
+                borderRadius: 10,
+                border: `1px solid rgba(255,255,255,0.1)`,
+                background: "rgba(255,255,255,0.03)",
+                cursor: "pointer",
+                fontWeight: 700,
+                fontSize: 14,
+                color: "rgba(255,255,255,0.75)",
+                transition: "all 0.15s ease",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLDivElement).style.border = `1px solid ${accent}66`;
+                (e.currentTarget as HTMLDivElement).style.color = "rgba(255,255,255,0.95)";
+                (e.currentTarget as HTMLDivElement).style.background = `rgba(124,92,252,0.07)`;
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLDivElement).style.border = "1px solid rgba(255,255,255,0.1)";
+                (e.currentTarget as HTMLDivElement).style.color = "rgba(255,255,255,0.75)";
+                (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.03)";
+              }}
+            >
+              {t.name}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+export default function DemoLanding() {
+  const router = useRouter();
+  const [selected, setSelected] = useState<string | null>(null);
+  const [launched, setLaunched] = useState(false);
+  const [managerMode, setManagerMode] = useState<"multi" | "single">("multi");
+
+  // Practice/therapist picker state
+  const [practices, setPractices] = useState<Practice[]>([]);
+  const [therapists, setTherapists] = useState<Therapist[]>([]);
+  const [pickedPracticeId, setPickedPracticeId] = useState("");
+  const [loadingTherapists, setLoadingTherapists] = useState(false);
+
+  const weekStart = useMemo(() => toMondayYYYYMMDD(toYYYYMMDD(new Date())), []);
+
+  // Filter practices for demo modes
+  const harperPractice = practices.find(p => p.name?.toLowerCase().includes("harper"));
+
+  // Fetch practices as soon as manager + single is selected (to auto-resolve Harper)
+  useEffect(() => {
+    if (selected !== "manager" || managerMode !== "single" || practices.length > 0) return;
+    fetchJson<Practice[]>("/api/practices")
+      .then((data) => setPractices(data ?? []))
+      .catch(() => {});
+  }, [selected, managerMode, practices.length]);
+
+  // Fetch all therapists when therapist flow selected
+  useEffect(() => {
+    if (selected !== "therapist") return;
+    setLoadingTherapists(true);
+    setTherapists([]);
+    fetchJson<Therapist[]>("/api/therapists")
+      .then((data) => setTherapists(data ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingTherapists(false));
+  }, [selected]);
+
+  // Reset sub-selections when persona changes
+  useEffect(() => {
+    setPickedPracticeId("");
+    setTherapists([]);
+  }, [selected]);
+
+  function handlePersonaSelect(id: string) {
+    if (id === "patient") {
+      setSelected(id); setLaunched(true);
+      setTimeout(() => router.push("/patient"), 300);
+      return;
+    }
+    if (id === "admin") {
+      setSelected(id); setLaunched(true);
+      try { localStorage.setItem("selected_persona", "admin"); } catch {}
+      setTimeout(() => router.push("/admin"), 300);
+      return;
+    }
+    if (id === "analytics") {
+      setSelected(id); setLaunched(true);
+      try { localStorage.setItem("selected_persona", "analytics"); } catch {}
+      setTimeout(() => router.push("/analytics"), 300);
+      return;
+    }
+    setSelected((prev) => (prev === id ? null : id));
+  }
+
+  function handleTherapistSelect(therapistId: string) {
+    const therapist = therapists.find(t => t.id === therapistId);
+    const practiceId = therapist?.practice_id ?? pickedPracticeId;
+    try { localStorage.setItem("selected_practice_id", practiceId); } catch {}
+    try { localStorage.setItem("selected_therapist_id", therapistId); } catch {}
+    try { localStorage.setItem("selected_persona", "therapist"); } catch {}
+    setLaunched(true);
+    setTimeout(() => {
+      router.push(`/dashboard/therapists/${encodeURIComponent(therapistId)}/care?week_start=${encodeURIComponent(weekStart)}`);
+    }, 300);
+  }
+
+  function handleLaunch() {
+    if (!selected) return;
+    if (selected === "manager" && managerMode === "multi") {
+      try { localStorage.setItem("selected_persona", "manager"); } catch {}
+      try { localStorage.setItem("selected_manager_mode", "multi"); } catch {}
+      setLaunched(true);
+      setTimeout(() => router.push("/dashboard/manager"), 300);
+    } else if (selected === "manager" && managerMode === "single" && harperPractice) {
+      try { localStorage.setItem("selected_persona", "manager"); } catch {}
+      try { localStorage.setItem("selected_manager_mode", "single"); } catch {}
+      try { localStorage.setItem("selected_practice_id", harperPractice.id); } catch {}
+      setLaunched(true);
+      setTimeout(() => router.push(`/practices/${encodeURIComponent(harperPractice.id)}/therapist-overview?week_start=${encodeURIComponent(weekStart)}`), 300);
+    } else if (selected === "analytics") {
+      try { localStorage.setItem("selected_persona", "analytics"); } catch {}
+      setLaunched(true);
+      setTimeout(() => router.push("/analytics"), 300);
+    } else if (selected === "admin") {
+      try { localStorage.setItem("selected_persona", "admin"); } catch {}
+      setLaunched(true);
+      setTimeout(() => router.push("/admin"), 300);
+    } else if (selected === "patient") {
+      setLaunched(true);
+      setTimeout(() => router.push("/patient"), 300);
+    }
+  }
+
+  const selectedPersona = PERSONAS.find((p) => p.id === selected);
+  // Action bar for all manager modes, analytics, admin, and therapist
+  const showActionBar = selected === "manager" || selected === "therapist";
+  const canLaunch = showActionBar && (
+    selected !== "manager" ||
+    managerMode === "multi" ||
+    (managerMode === "single" && !!harperPractice)
+  );
+
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600;700&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        @keyframes fadeSlideUp {
+          from { opacity: 0; transform: translateY(24px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes headerReveal {
+          from { opacity: 0; transform: translateY(-16px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes orb1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(40px,-30px) scale(1.08); } }
+        @keyframes orb2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-50px,40px) scale(1.05); } }
+        @keyframes orb3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,50px) scale(1.1); } }
+        @keyframes pulseRing { 0% { transform: scale(0.95); opacity: 0.6; } 100% { transform: scale(1.4); opacity: 0; } }
+        @keyframes launchPulse { 0% { transform: scale(1); } 50% { transform: scale(0.96); } 100% { transform: scale(1); } }
+      `}</style>
+
+      <div style={{
+        minHeight: "100vh", background: "#080810", color: "white",
+        fontFamily: "'DM Sans', system-ui", position: "relative", overflow: "hidden",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        padding: "48px 24px",
+      }}>
+        <Noise />
+
+        {/* Ambient orbs */}
+        <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden" }}>
+          <div style={{ position: "absolute", width: 700, height: 700, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,92,252,0.18) 0%, transparent 65%)", top: "-15%", left: "-10%", animation: "orb1 18s ease-in-out infinite" }} />
+          <div style={{ position: "absolute", width: 600, height: 600, borderRadius: "50%", background: "radial-gradient(circle, rgba(0,200,160,0.12) 0%, transparent 65%)", bottom: "-10%", right: "5%", animation: "orb2 22s ease-in-out infinite" }} />
+          <div style={{ position: "absolute", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(245,166,35,0.10) 0%, transparent 65%)", top: "40%", right: "20%", animation: "orb3 16s ease-in-out infinite" }} />
+        </div>
+
+        <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 1320 }}>
+
+          {/* Header */}
+          <div style={{ textAlign: "center", animation: "headerReveal 0.7s cubic-bezier(0.16,1,0.3,1) both" }}>
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px",
+              borderRadius: 999, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.04)",
+              fontSize: 11, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase",
+              color: "rgba(255,255,255,0.5)", fontFamily: "'DM Mono', monospace", marginBottom: 24,
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#00c8a0", boxShadow: "0 0 8px #00c8a0", display: "inline-block" }} />
+              Interactive Demo
+            </div>
+            <h1 style={{ fontSize: "clamp(36px, 6vw, 62px)", fontWeight: 900, letterSpacing: -2, lineHeight: 1.05, color: "rgba(255,255,255,0.97)", fontFamily: "'Sora', system-ui" }}>
+              Who are you{" "}
+              <span style={{ background: "linear-gradient(135deg, #7c5cfc, #00c8a0)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                today?
+              </span>
+            </h1>
+            <p style={{ marginTop: 16, fontSize: 16, color: "rgba(255,255,255,0.45)", maxWidth: 480, margin: "16px auto 0", lineHeight: 1.6 }}>
+              Pick a role to explore the experience designed for you.
+            </p>
+          </div>
+
+          {/* ── Action bar — only for multi-practice manager and analytics ── */}
+          {showActionBar && (
+            <div style={{
+              marginTop: 32,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: 16, flexWrap: "wrap",
+              padding: "20px 24px", borderRadius: 20,
+              border: "1px solid rgba(255,255,255,0.07)",
+              background: "rgba(255,255,255,0.02)",
+              backdropFilter: "blur(10px)",
+              animation: "fadeSlideUp 0.6s 0.45s cubic-bezier(0.16,1,0.3,1) both",
+            }}>
+              {selected === "therapist" ? (
+                /* Therapist picker inline in the action bar */
+                <div style={{ width: "100%" }}>
+                  <TherapistCards
+                    therapists={therapists}
+                    loading={loadingTherapists}
+                    accent={selectedPersona?.accent ?? "#fff"}
+                    onSelect={handleTherapistSelect}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    {/* Manager mode toggle */}
+                    {selected === "manager" && (
+                      <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                        {(["multi", "single"] as const).map((mode) => (
+                          <button
+                            key={mode}
+                            onClick={() => { setManagerMode(mode); setPickedPracticeId(""); }}
+                            style={{
+                              padding: "6px 14px", borderRadius: 7, border: "none",
+                              background: managerMode === mode ? "rgba(0,200,160,0.15)" : "transparent",
+                              color: managerMode === mode ? "#00c8a0" : "rgba(255,255,255,0.4)",
+                              fontWeight: 700, fontSize: 12, cursor: "pointer",
+                              transition: "all 0.2s ease",
+                            }}
+                          >
+                            {mode === "multi" ? "Multiple practice" : "Single practice"}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Status text */}
+                    {selectedPersona ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ position: "relative", width: 10, height: 10 }}>
+                          <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: selectedPersona.accent, animation: "pulseRing 1.4s ease-out infinite" }} />
+                          <div style={{ width: 10, height: 10, borderRadius: "50%", background: selectedPersona.accent, position: "relative" }} />
+                        </div>
+                        <span style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>
+                          Entering as{" "}
+                          <span style={{ color: selectedPersona.accent, fontWeight: 700 }}>{selectedPersona.label}</span>
+                        </span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 14, color: "rgba(255,255,255,0.3)" }}>Select a role above to continue</span>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={handleLaunch}
+                    disabled={!canLaunch}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "14px 28px", borderRadius: 14,
+                      border: selectedPersona && canLaunch
+                        ? `1px solid color-mix(in srgb, ${selectedPersona.accent} 40%, transparent)`
+                        : "1px solid rgba(255,255,255,0.10)",
+                      background: selectedPersona && canLaunch
+                        ? `linear-gradient(135deg, rgba(${selectedPersona.accentRgb},0.22), rgba(${selectedPersona.accentRgb},0.08))`
+                        : "rgba(255,255,255,0.03)",
+                      color: canLaunch ? "white" : "rgba(255,255,255,0.3)",
+                      fontWeight: 800, fontSize: 15,
+                      cursor: canLaunch ? "pointer" : "not-allowed",
+                      transition: "all 0.25s ease",
+                      fontFamily: "'Sora', system-ui",
+                      boxShadow: selectedPersona && canLaunch ? `0 0 30px rgba(${selectedPersona.accentRgb},0.15)` : "none",
+                      animation: launched ? "launchPulse 0.4s ease" : "none",
+                    }}
+                  >
+                    {launched ? "Launching…" : selectedPersona ? selectedPersona.cta : "Launch experience"}
+                    <span style={{ display: "inline-block", transition: "transform 0.25s ease", transform: canLaunch && !launched ? "translateX(2px)" : "none" }}>
+                      {launched ? "⟳" : "→"}
+                    </span>
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Persona cards */}
+          <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+            {PERSONAS.map((persona, i) => (
+              <PersonaCard key={persona.id} persona={persona} index={i} selected={selected} onSelect={handlePersonaSelect} />
+            ))}
+          </div>
+
+          {/* Therapist flow hint */}
+          {selected === "therapist" && (
+            <div style={{ marginTop: 14, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.25)", animation: "fadeSlideUp 0.4s 0.2s cubic-bezier(0.16,1,0.3,1) both" }}>
+              Click your name to open your dashboard
+            </div>
+          )}
+
+          <div style={{ marginTop: 20, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.25)", fontFamily: "'DM Mono', monospace", animation: "fadeSlideUp 0.6s 0.6s cubic-bezier(0.16,1,0.3,1) both" }}>
+            Demo environment · Data is synthetic · No real patient info
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
