@@ -227,61 +227,6 @@ function PersonaCard({ persona, index, selected, onSelect }: {
   );
 }
 
-// ── Therapist picker cards ────────────────────────────────────────────────────
-function TherapistCards({
-  therapists,
-  loading,
-  accent,
-  onSelect,
-}: {
-  therapists: Therapist[];
-  loading: boolean;
-  accent: string;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <div style={{ animationName: "fadeSlideUp", animationDuration: "0.4s", animationFillMode: "both", animationTimingFunction: "cubic-bezier(0.16,1,0.3,1)" }}>
-      <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.4, textTransform: "uppercase" as const, opacity: 0.45, marginBottom: 12 }}>
-        Select therapist
-      </div>
-      {loading ? (
-        <div style={{ opacity: 0.4, fontSize: 13 }}>Loading therapists…</div>
-      ) : (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {therapists.map((t) => (
-            <div
-              key={t.id}
-              onClick={() => onSelect(t.id)}
-              style={{
-                padding: "10px 18px",
-                borderRadius: 10,
-                border: `1px solid rgba(255,255,255,0.1)`,
-                background: "rgba(255,255,255,0.03)",
-                cursor: "pointer",
-                fontWeight: 700,
-                fontSize: 14,
-                color: "rgba(255,255,255,0.75)",
-                transition: "all 0.15s ease",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLDivElement).style.border = `1px solid ${accent}66`;
-                (e.currentTarget as HTMLDivElement).style.color = "rgba(255,255,255,0.95)";
-                (e.currentTarget as HTMLDivElement).style.background = `rgba(124,92,252,0.07)`;
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLDivElement).style.border = "1px solid rgba(255,255,255,0.1)";
-                (e.currentTarget as HTMLDivElement).style.color = "rgba(255,255,255,0.75)";
-                (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.03)";
-              }}
-            >
-              {t.name}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function DemoLanding() {
@@ -290,11 +235,8 @@ export default function DemoLanding() {
   const [launched, setLaunched] = useState(false);
   const [managerMode, setManagerMode] = useState<"multi" | "single">("multi");
 
-  // Practice/therapist picker state
+  // Practice picker state (manager single-practice mode)
   const [practices, setPractices] = useState<Practice[]>([]);
-  const [therapists, setTherapists] = useState<Therapist[]>([]);
-  const [pickedPracticeId, setPickedPracticeId] = useState("");
-  const [loadingTherapists, setLoadingTherapists] = useState(false);
 
   const weekStart = useMemo(() => toMondayYYYYMMDD(toYYYYMMDD(new Date())), []);
 
@@ -308,25 +250,6 @@ export default function DemoLanding() {
       .then((data) => setPractices(data ?? []))
       .catch(() => {});
   }, [selected, managerMode, practices.length]);
-
-  // Fetch all therapists when therapist flow selected
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (selected !== "therapist") return;
-    setLoadingTherapists(true);
-    setTherapists([]);
-    fetchJson<Therapist[]>("/api/therapists")
-      .then((data) => setTherapists(data ?? []))
-      .catch(() => {})
-      .finally(() => setLoadingTherapists(false));
-  }, [selected]);
-
-  // Reset sub-selections when persona changes
-  useEffect(() => {
-    setPickedPracticeId("");
-    setTherapists([]);
-  }, [selected]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   function handlePersonaSelect(id: string) {
     if (id === "patient") {
@@ -346,7 +269,7 @@ export default function DemoLanding() {
       setTimeout(() => router.push("/analytics"), 300);
       return;
     }
-    if (id === "therapist" && typeof window !== "undefined" && window.innerWidth <= 600) {
+    if (id === "therapist") {
       setSelected(id); setLaunched(true);
       fetchJson<Therapist[]>("/api/therapists").then((data) => {
         if (data && data.length > 0) {
@@ -362,19 +285,7 @@ export default function DemoLanding() {
     setSelected((prev) => (prev === id ? null : id));
   }
 
-  function handleTherapistSelect(therapistId: string) {
-    const therapist = therapists.find(t => t.id === therapistId);
-    const practiceId = therapist?.practice_id ?? pickedPracticeId;
-    try { localStorage.setItem("selected_practice_id", practiceId); } catch {}
-    try { localStorage.setItem("selected_therapist_id", therapistId); } catch {}
-    try { localStorage.setItem("selected_persona", "therapist"); } catch {}
-    setLaunched(true);
-    setTimeout(() => {
-      router.push(`/dashboard/therapists/${encodeURIComponent(therapistId)}/care?week_start=${encodeURIComponent(weekStart)}`);
-    }, 300);
-  }
-
-  function handleLaunch() {
+function handleLaunch() {
     if (!selected) return;
     if (selected === "manager" && managerMode === "multi") {
       try { localStorage.setItem("selected_persona", "manager"); } catch {}
@@ -402,10 +313,8 @@ export default function DemoLanding() {
   }
 
   const selectedPersona = PERSONAS.find((p) => p.id === selected);
-  // Action bar for all manager modes, analytics, admin, and therapist
-  const showActionBar = selected === "manager" || selected === "therapist";
+  const showActionBar = selected === "manager";
   const canLaunch = showActionBar && (
-    selected !== "manager" ||
     managerMode === "multi" ||
     (managerMode === "single" && !!harperPractice)
   );
@@ -522,17 +431,7 @@ export default function DemoLanding() {
               backdropFilter: "blur(10px)",
               animation: "fadeSlideUp 0.4s cubic-bezier(0.16,1,0.3,1) both",
             }}>
-              {selected === "therapist" ? (
-                <div style={{ width: "100%" }}>
-                  <TherapistCards
-                    therapists={therapists}
-                    loading={loadingTherapists}
-                    accent={selectedPersona?.accent ?? "#fff"}
-                    onSelect={handleTherapistSelect}
-                  />
-                </div>
-              ) : (
-                <>
+              <>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     {/* Manager mode toggle */}
                     {selected === "manager" && (
@@ -540,7 +439,7 @@ export default function DemoLanding() {
                         {(["multi", "single"] as const).map((mode) => (
                           <button
                             key={mode}
-                            onClick={() => { setManagerMode(mode); setPickedPracticeId(""); }}
+                            onClick={() => { setManagerMode(mode); }}
                             style={{
                               padding: "6px 14px", borderRadius: 7, border: "none",
                               background: managerMode === mode ? "rgba(0,200,160,0.15)" : "transparent",
@@ -600,7 +499,6 @@ export default function DemoLanding() {
                     </span>
                   </button>
                 </>
-              )}
             </div>
           )}
 
