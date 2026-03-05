@@ -30,7 +30,11 @@ export async function GET(request: Request) {
 
   const { data, error } = practiceId ? await query.eq("practice_id", practiceId) : await query;
 
-  if (error) return NextResponse.json({ data: null, error }, { status: 500 });
+  if (error) {
+    console.error("[/api/therapists] Supabase error:", JSON.stringify(error));
+    console.error("[/api/therapists] SUPABASE_URL set:", !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+    return NextResponse.json({ data: null, error }, { status: 500 });
+  }
   return NextResponse.json({ data, error: null });
 }
 
