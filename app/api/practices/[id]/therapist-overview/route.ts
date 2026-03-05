@@ -1,4 +1,5 @@
 // app/api/practices/[id]/therapist-overview/route.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 

@@ -1,4 +1,5 @@
 // FILE: app/cases/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import Link from "next/link";
@@ -185,7 +186,8 @@ function CasesPage() {
     finally { setLoading(false); }
   }
 
-  useEffect(() => { refreshAll(true); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { refreshAll(true); }, []);
 
   const weekLabel = weekStartFromUrl
     ? new Date(weekStartFromUrl + "T12:00:00Z").toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })
@@ -230,7 +232,7 @@ function CasesPage() {
 
         .search-wrap { position: relative; margin-left: auto; }
         .search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); font-size: 14px; color: #374151; pointer-events: none; }
-        .search-input { padding: 8px 12px 8px 32px; border-radius: 9px; border: 1px solid #1f2533; background: #0d1018; color: #e8eaf0; font-family: 'DM Sans', sans-serif; font-size: 13px; width: 220px; transition: border-color .15s; }
+        .search-input { padding: 8px 12px 8px 32px; border-radius: 9px; border: 1px solid #1f2533; background: #0d1018; color: #e8eaf0; font-family: 'DM Sans', sans-serif; font-size: 13px; width: 220px; transition: border-color .15s; max-width: 100%; }
         .search-input::placeholder { color: #374151; }
         .search-input:focus { outline: none; border-color: #2e3650; }
 
@@ -290,6 +292,16 @@ function CasesPage() {
         @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
 
         @keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        @media (max-width: 767px) {
+          .page { padding: 64px 14px 60px !important; }
+          .toolbar { gap: 8px; }
+          .search-wrap { margin-left: 0 !important; width: 100%; }
+          .search-input { width: 100% !important; }
+          .bucket-pills { flex-wrap: wrap; gap: 6px; }
+          .bucket-row { flex-direction: column; align-items: flex-start; }
+          .case-row { flex-wrap: wrap; gap: 10px; }
+          .status-tag { display: none; }
+        }
       `}</style>
 
       <div style={{ display: "flex", minHeight: "100vh" }}>

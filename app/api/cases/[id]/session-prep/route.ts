@@ -35,7 +35,7 @@ export async function GET(_req: Request, ctx: RouteContextWithId) {
   });
 }
 
-export async function POST(req: Request, _ctx: RouteContextWithId) {
+export async function POST(req: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return bad("Anthropic API key not configured", 500);
 

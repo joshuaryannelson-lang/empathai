@@ -136,6 +136,10 @@ export default function AnalyticsComingSoon() {
         @keyframes orb3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,50px) scale(1.1); } }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+        @media (max-width: 767px) {
+          .analytics-module-grid { grid-template-columns: 1fr !important; }
+          .analytics-roadmap-milestones { flex-wrap: wrap !important; gap: 12px !important; }
+        }
       `}</style>
 
       <div style={{ minHeight: "100vh", background: "#080810", color: "white", fontFamily: "'DM Sans', system-ui", position: "relative", overflow: "hidden" }}>
@@ -181,7 +185,7 @@ export default function AnalyticsComingSoon() {
                 boxShadow: "0 0 12px rgba(245,166,35,0.4)",
               }} />
             </div>
-            <div style={{ display: "flex", gap: 24, marginTop: 14 }}>
+            <div className="analytics-roadmap-milestones" style={{ display: "flex", gap: 24, marginTop: 14 }}>
               {[
                 { label: "Health Score", done: true },
                 { label: "At-Risk Patterns", done: false },
@@ -223,7 +227,7 @@ export default function AnalyticsComingSoon() {
           </div>
 
           {/* Module cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 48, animation: "fadeUp 0.7s 0.25s cubic-bezier(0.16,1,0.3,1) both" }}>
+          <div className="analytics-module-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 48, animation: "fadeUp 0.7s 0.25s cubic-bezier(0.16,1,0.3,1) both" }}>
             <ModuleCard
               icon="◈" accent="#f5a623" status="live"
               title="Practice Health Score"

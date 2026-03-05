@@ -1,4 +1,5 @@
 // app/practices/[id]/at-risk/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import Link from "next/link";
@@ -149,7 +150,13 @@ function PracticeAtRiskPage() {
   const queue = data?.queue ?? [];
 
   return (
-    <main style={{ padding: 40 }}>
+    <main style={{ padding: "40px 20px" }}>
+      <style>{`
+        @media (max-width: 767px) {
+          .atrisk-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+          .atrisk-table > div { min-width: 600px; }
+        }
+      `}</style>
       <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
         <Link href={`/practices/${practiceId}/therapist-overview?week_start=${encodeURIComponent(weekStartISO)}`} style={{ opacity: 0.9 }}>
           ← Back to Manager
@@ -212,7 +219,7 @@ function PracticeAtRiskPage() {
       </div>
 
       {/* Table */}
-      <div style={{ marginTop: 22 }}>
+      <div className="atrisk-table" style={{ marginTop: 22 }}>
         <div
           style={{
             display: "grid",

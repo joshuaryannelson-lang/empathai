@@ -1,4 +1,5 @@
 // app/admin/patients/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import Link from "next/link";
@@ -79,7 +80,7 @@ function SlidePanel({ open, onClose, title, children }: { open: boolean; onClose
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 40 }} />
-      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 560, background: "#0d1018", borderLeft: "1px solid #1a1e2a", zIndex: 50, display: "flex", flexDirection: "column" }}>
+      <div className="ap-slide-panel" style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 560, background: "#0d1018", borderLeft: "1px solid #1a1e2a", zIndex: 50, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: "1px solid #1a1e2a" }}>
           <div style={{ fontWeight: 900, fontSize: 16 }}>{title}</div>
           <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#6b7280", fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
@@ -197,7 +198,7 @@ function SessionNotesEditor({ notes, onChange }: { notes: SessionNote[]; onChang
         <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.45, letterSpacing: 0.5, textTransform: "uppercase" }}>Session Notes</div>
         <Btn tone="ghost" onClick={addNote} disabled={notes.length >= 10}>+ Add Note</Btn>
       </div>
-      {notes.length === 0 && <div style={{ fontSize: 12, opacity: 0.4, marginBottom: 8 }}>No session notes. Click "Add Note" to mock session notes.</div>}
+      {notes.length === 0 && <div style={{ fontSize: 12, opacity: 0.4, marginBottom: 8 }}>No session notes. Click &quot;Add Note&quot; to mock session notes.</div>}
       {notes.map((note, i) => (
         <div key={i} style={{ marginBottom: 12, padding: "12px 14px", borderRadius: 9, border: "1px solid #1a1e2a", background: "#080c12" }}>
           <div style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "center" }}>
@@ -232,7 +233,7 @@ function ActivitiesEditor({ activities, onChange }: { activities: Activity[]; on
         <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.45, letterSpacing: 0.5, textTransform: "uppercase" }}>Activities</div>
         <Btn tone="ghost" onClick={addActivity} disabled={activities.length >= 15}>+ Add Activity</Btn>
       </div>
-      {activities.length === 0 && <div style={{ fontSize: 12, opacity: 0.4, marginBottom: 8 }}>No activities. Click "Add Activity" to log homework, exercises, or milestones.</div>}
+      {activities.length === 0 && <div style={{ fontSize: 12, opacity: 0.4, marginBottom: 8 }}>No activities. Click &quot;Add Activity&quot; to log homework, exercises, or milestones.</div>}
       {activities.map((act, i) => (
         <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "center" }}>
           <input type="date" value={act.date} onChange={(e) => update(i, "date", e.target.value)}
@@ -446,7 +447,14 @@ export default function PatientManagerPage() {
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
     <NavSidebar practiceId={null} practiceName={null} therapistId={null} weekStart={weekStartISO} adminOnly={true} />
-    <main style={{ flex: 1, background: "#080c12", color: "#e2e8f0", padding: "40px 48px", maxWidth: 1100 }}>
+    <main className="ap-main" style={{ flex: 1, background: "#080c12", color: "#e2e8f0", padding: "40px 48px", maxWidth: 1100 }}>
+      <style>{`
+        @media (max-width: 767px) {
+          .ap-main { padding: 64px 16px 60px !important; }
+          .ap-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+          .ap-slide-panel { width: 100% !important; left: 0 !important; border-left: none !important; border-top: 1px solid #1a1e2a; }
+        }
+      `}</style>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
         <Link href="/admin" style={{ textDecoration: "none", color: "#6b7280", fontSize: 13 }}>← Admin</Link>
@@ -484,6 +492,7 @@ export default function PatientManagerPage() {
       )}
 
       {/* Table */}
+      <div className="ap-table-wrap">
       <div style={{ border: "1px solid #1a1e2a", borderRadius: 12, overflow: "hidden", background: "#0d1018" }}>
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 1.2fr 1.4fr 0.7fr 120px", padding: "8px 14px", borderBottom: "1px solid #1f2533", fontSize: 11, fontWeight: 700, opacity: 0.45, letterSpacing: 0.5, textTransform: "uppercase" }}>
           <div>Patient</div>
@@ -551,6 +560,7 @@ export default function PatientManagerPage() {
             </div>
           );
         })}
+      </div>
       </div>
 
       {/* Add / Edit panel */}

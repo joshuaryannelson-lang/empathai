@@ -1,4 +1,5 @@
 // app/practices/[id]/therapist-overview/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import Link from "next/link";
@@ -75,7 +76,8 @@ function StatRow({ label, value, tone = "neutral" }: { label: string; value: any
   );
 }
 
-function TherapistCard({ row, practiceId, weekStartISO, onOpen }: {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function TherapistCard({ row, practiceId: _practiceId, weekStartISO, onOpen }: {
   row: TherapistRow;
   practiceId: string;
   weekStartISO: string;
@@ -249,10 +251,10 @@ function PracticeManagerPage() {
   useEffect(() => {
     setPickedDateISO(initialWeekStartISO);
     setWeekStartISO(initialWeekStartISO);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [practiceId, initialWeekStartISO]);
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [practiceId, weekStartISO]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [practiceId, weekStartISO]);
 
   const totals = useMemo(() => {
     const totalActive = rows.reduce((s, r) => s + (r.active_cases ?? 0), 0);
@@ -294,11 +296,17 @@ function PracticeManagerPage() {
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
         input[type="date"] { color-scheme: dark; }
+        @media (max-width: 767px) {
+          .tov-main { padding: 64px 16px 60px !important; }
+          .tov-header { flex-direction: column !important; align-items: flex-start !important; }
+          .tov-header > div:last-child { flex-direction: column !important; align-items: flex-start !important; }
+          .tov-two-col { grid-template-columns: 1fr !important; }
+        }
       `}</style>
 
       <NavSidebar practiceId={practiceId} practiceName={practiceName} therapistId={selectedTherapistId} weekStart={weekStartISO} mode="practice" hideGroups={["Therapists"]} />
 
-      <main style={{ flex: 1, minWidth: 0, padding: "48px 56px 80px" }}>
+      <main className="tov-main" style={{ flex: 1, minWidth: 0, padding: "48px 56px 80px" }}>
 
         {/* Header */}
         <div style={{ animation: "fadeUp 0.25s ease", marginBottom: 36 }}>
@@ -306,7 +314,7 @@ function PracticeManagerPage() {
             ← Dashboard
           </Link>
 
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20 }}>
+          <div className="tov-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20 }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10 }}>
                 <div style={{
@@ -357,7 +365,7 @@ function PracticeManagerPage() {
               <div style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg, #3b4fd4, #6d3fc4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>✦</div>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: 0.8, textTransform: "uppercase" }}>Practice Briefing</div>
-                <div style={{ fontSize: 11, color: "#374151", marginTop: 1 }}>AI-generated · based on this week's practice data</div>
+                <div style={{ fontSize: 11, color: "#374151", marginTop: 1 }}>AI-generated · based on this week&apos;s practice data</div>
               </div>
             </div>
             {aiDone && (
@@ -371,7 +379,7 @@ function PracticeManagerPage() {
           </div>
           <div style={{ padding: 16 }}>
             {aiLoading && !aiSections && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="tov-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 {[["55%","85%","70%"],["50%","90%","65%"],["60%","80%","72%"],["52%","88%","60%"]].map((ws, i) => (
                   <div key={i} style={{ padding: "14px 16px", borderRadius: 10, border: "1px solid #131a30", background: "#080c18" }}>
                     {ws.map((w, j) => (
@@ -391,7 +399,7 @@ function PracticeManagerPage() {
               </div>
             )}
             {aiSections && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="tov-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 {[
                   { key: "PRIORITY",  icon: "⚡", color: "#f87171", label: "Priority" },
                   { key: "AT RISK",   icon: "◉",  color: "#eab308", label: "At-risk signals" },
@@ -414,7 +422,7 @@ function PracticeManagerPage() {
         </div>
 
         {/* Two-column layout */}
-        <div style={{ animation: "fadeUp 0.35s ease 0.12s both", marginTop: 20, display: "grid", gridTemplateColumns: "0.85fr 1.5fr", gap: 14, alignItems: "start" }}>
+        <div className="tov-two-col" style={{ animation: "fadeUp 0.35s ease 0.12s both", marginTop: 20, display: "grid", gridTemplateColumns: "0.85fr 1.5fr", gap: 14, alignItems: "start" }}>
 
           {/* ── Left: Practice context ── */}
           <div style={{ display: "grid", gap: 14 }}>

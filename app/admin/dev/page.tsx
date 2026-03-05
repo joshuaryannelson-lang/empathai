@@ -1,4 +1,5 @@
 // app/admin/dev/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import Link from "next/link";
@@ -393,6 +394,7 @@ function DiagnosticsTab() {
     setRunning(false);
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { runAll(); }, []);
 
   const counts = Object.values(results).reduce(
@@ -444,12 +446,14 @@ function AdminDevPage() {
   const [sidebarPracticeId, setSidebarPracticeId] = useState<string | null>(null);
   const [sidebarTherapistId, setSidebarTherapistId] = useState<string | null>(null);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     try {
       setSidebarPracticeId(localStorage.getItem("selected_practice_id"));
       setSidebarTherapistId(localStorage.getItem("selected_therapist_id"));
     } catch {}
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#080c12", color: "#e2e8f0" }}>
@@ -457,6 +461,9 @@ function AdminDevPage() {
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,900&family=DM+Mono:wght@400;500&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'DM Sans', sans-serif; }
+        @media (max-width: 767px) {
+          .dev-main { padding: 64px 16px 60px !important; }
+        }
       `}</style>
 
       <NavSidebar
@@ -467,7 +474,7 @@ function AdminDevPage() {
         adminOnly={true}
       />
 
-      <main style={{ flex: 1, minWidth: 0, padding: "40px 48px 80px", maxWidth: 960 }}>
+      <main className="dev-main" style={{ flex: 1, minWidth: 0, padding: "40px 48px 80px", maxWidth: 960 }}>
 
         {/* Header */}
         <div style={{ marginBottom: 32 }}>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 type NavItem = {
   label: string;
@@ -35,6 +36,7 @@ export function NavSidebar({
   hideGroups?: string[];
 }) {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const practiceOverviewItem = practiceId
     ? {
@@ -109,24 +111,10 @@ export function NavSidebar({
     ? baseGroups.filter(g => !hideGroups.includes(g.label))
     : baseGroups;
 
-  return (
-    <nav
-      style={{
-        width: 200,
-        flexShrink: 0,
-        borderRight: "1px solid #1a1e2a",
-        paddingRight: 20,
-        paddingTop: 28,
-        paddingLeft: 4,
-        position: "sticky",
-        top: 0,
-        alignSelf: "flex-start",
-        maxHeight: "100vh",
-        overflowY: "auto",
-      }}
-    >
+  const navContent = (
+    <>
       {/* Brand */}
-      <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 9, marginBottom: 32 }}>
+      <Link href="/" onClick={() => setMobileOpen(false)} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 9, marginBottom: 32 }}>
         <div style={{
           width: 28, height: 28, borderRadius: 8,
           background: "linear-gradient(135deg, #4f6ef7, #7c5cfc)",
@@ -141,26 +129,17 @@ export function NavSidebar({
       <div style={{ display: "grid", gap: 20 }}>
         {groups.map((group) => (
           <div key={group.label}>
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 900,
-                letterSpacing: 1,
-                opacity: 0.4,
-                textTransform: "uppercase",
-                marginBottom: 6,
-              }}
-            >
+            <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: 1, opacity: 0.4, textTransform: "uppercase", marginBottom: 6 }}>
               {group.label}
             </div>
             <div style={{ display: "grid", gap: 2 }}>
               {group.items.map((item) => {
-                const isActive =
-                  item.href !== "#" && pathname === item.href.split("?")[0];
+                const isActive = item.href !== "#" && pathname === item.href.split("?")[0];
                 return (
                   <Link
                     key={item.href + item.label}
                     href={item.href}
+                    onClick={() => setMobileOpen(false)}
                     style={{
                       display: "block",
                       padding: "6px 8px",
@@ -176,18 +155,7 @@ export function NavSidebar({
                   >
                     {item.label}
                     {item.note && (
-                      <span
-                        style={{
-                          display: "block",
-                          fontSize: 10,
-                          opacity: 0.55,
-                          marginTop: 1,
-                          fontWeight: 600,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
+                      <span style={{ display: "block", fontSize: 10, opacity: 0.55, marginTop: 1, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {item.note}
                       </span>
                     )}
@@ -198,6 +166,81 @@ export function NavSidebar({
           </div>
         ))}
       </div>
-    </nav>
+    </>
+  );
+
+  return (
+    <>
+      <style>{`
+        .nav-sidebar {
+          width: 200px;
+          flex-shrink: 0;
+          border-right: 1px solid #1a1e2a;
+          padding: 28px 20px 28px 4px;
+          position: sticky;
+          top: 0;
+          align-self: flex-start;
+          max-height: 100vh;
+          overflow-y: auto;
+        }
+        .nav-ham {
+          display: none;
+        }
+        @media (max-width: 767px) {
+          .nav-sidebar {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 230px;
+            height: 100vh;
+            z-index: 1000;
+            background: #080c12;
+            border-right: 1px solid #1a1e2a;
+            padding: 24px 20px 24px 16px;
+            overflow-y: auto;
+          }
+          .nav-sidebar--open {
+            display: block;
+          }
+          .nav-ham {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: fixed;
+            top: 14px;
+            left: 14px;
+            z-index: 1001;
+            width: 36px;
+            height: 36px;
+            border-radius: 9px;
+            background: #0d1018;
+            border: 1px solid #1a1e2a;
+            color: #e2e8f0;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+          }
+          .nav-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 999;
+          }
+        }
+      `}</style>
+
+      {/* Mobile hamburger */}
+      <button className="nav-ham" onClick={() => setMobileOpen(o => !o)} aria-label="Toggle menu">
+        {mobileOpen ? "✕" : "☰"}
+      </button>
+
+      {/* Mobile overlay backdrop */}
+      {mobileOpen && <div className="nav-overlay" onClick={() => setMobileOpen(false)} />}
+
+      <nav className={`nav-sidebar${mobileOpen ? " nav-sidebar--open" : ""}`}>
+        {navContent}
+      </nav>
+    </>
   );
 }

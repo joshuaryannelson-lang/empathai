@@ -1,4 +1,5 @@
 // lib/route-helpers.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 
 export type RouteContextWithId = {

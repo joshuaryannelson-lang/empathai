@@ -1,4 +1,5 @@
 // app/api/cases/[id]/ai-summary/route.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 
 /**

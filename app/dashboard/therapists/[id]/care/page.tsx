@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import Link from "next/link";
@@ -180,10 +181,6 @@ function TherapistCareDashboard() {
   // Derive attention lists and healthy cases directly from the cases array
   const lowList = useMemo(() => (care?.cases ?? []).filter(c => c.at_risk_checkins > 0), [care]);
   const missList = useMemo(() => (care?.cases ?? []).filter(c => c.missing_checkin), [care]);
-  const healthyCases = useMemo(
-    () => (care?.cases ?? []).filter(c => c.at_risk_checkins === 0 && !c.missing_checkin),
-    [care]
-  );
 
   const totals = care?.totals;
   const urgentCount = lowList.length + missList.length;

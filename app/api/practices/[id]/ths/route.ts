@@ -1,4 +1,5 @@
 // app/api/practices/[id]/ths/route.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { toMondayISO } from "@/lib/week";

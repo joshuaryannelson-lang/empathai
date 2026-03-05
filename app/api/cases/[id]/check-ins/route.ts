@@ -1,4 +1,5 @@
 // app/api/cases/[id]/checkins/route.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { toMondayISO } from "@/lib/week";

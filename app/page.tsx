@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -309,6 +310,7 @@ export default function DemoLanding() {
   }, [selected, managerMode, practices.length]);
 
   // Fetch all therapists when therapist flow selected
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (selected !== "therapist") return;
     setLoadingTherapists(true);
@@ -324,6 +326,7 @@ export default function DemoLanding() {
     setPickedPracticeId("");
     setTherapists([]);
   }, [selected]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function handlePersonaSelect(id: string) {
     if (id === "patient") {
@@ -412,13 +415,19 @@ export default function DemoLanding() {
         @keyframes orb3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,50px) scale(1.1); } }
         @keyframes pulseRing { 0% { transform: scale(0.95); opacity: 0.6; } 100% { transform: scale(1.4); opacity: 0; } }
         @keyframes launchPulse { 0% { transform: scale(1); } 50% { transform: scale(0.96); } 100% { transform: scale(1); } }
+        @media (max-width: 600px) {
+          .hero-h1 { letter-spacing: -0.8px !important; }
+          .hero-section-gap { margin-top: 24px !important; }
+          .action-bar { flex-direction: column !important; align-items: stretch !important; }
+          .action-bar-launch { width: 100% !important; justify-content: center !important; }
+        }
       `}</style>
 
       <div style={{
         minHeight: "100vh", background: "#080810", color: "white",
         fontFamily: "'DM Sans', system-ui", position: "relative", overflow: "hidden",
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-        padding: "48px 24px",
+        padding: "32px 24px",
       }}>
         <Noise />
 
@@ -431,31 +440,54 @@ export default function DemoLanding() {
 
         <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 1320 }}>
 
-          {/* Header */}
+          {/* Hero */}
           <div style={{ textAlign: "center", animation: "headerReveal 0.7s cubic-bezier(0.16,1,0.3,1) both" }}>
-            <div style={{
-              display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px",
-              borderRadius: 999, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.04)",
-              fontSize: 11, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase",
-              color: "rgba(255,255,255,0.5)", fontFamily: "'DM Mono', monospace", marginBottom: 24,
-            }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#00c8a0", boxShadow: "0 0 8px #00c8a0", display: "inline-block" }} />
-              Interactive Demo
+
+            {/* Wordmark */}
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 12,
+                background: "linear-gradient(135deg, #7c5cfc, #00c8a0)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 18, fontWeight: 900, color: "white",
+                boxShadow: "0 0 24px rgba(124,92,252,0.4)",
+                fontFamily: "'Sora', system-ui",
+              }}>⬡</div>
+              <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5, color: "rgba(255,255,255,0.95)", fontFamily: "'Sora', system-ui" }}>
+                EmpathAI
+              </span>
             </div>
-            <h1 style={{ fontSize: "clamp(36px, 6vw, 62px)", fontWeight: 900, letterSpacing: -2, lineHeight: 1.05, color: "rgba(255,255,255,0.97)", fontFamily: "'Sora', system-ui" }}>
-              Who are you{" "}
-              <span style={{ background: "linear-gradient(135deg, #7c5cfc, #00c8a0)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                today?
+
+            {/* Main headline */}
+            <h1 className="hero-h1" style={{ fontSize: "clamp(26px, 3.5vw, 44px)", fontWeight: 900, letterSpacing: -1.5, lineHeight: 1.1, color: "rgba(255,255,255,0.97)", fontFamily: "'Sora', system-ui", maxWidth: 680, margin: "0 auto" }}>
+              AI-powered therapy{" "}
+              <span style={{ background: "linear-gradient(135deg, #7c5cfc 20%, #00c8a0 80%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                practice management
               </span>
             </h1>
-            <p style={{ marginTop: 16, fontSize: 16, color: "rgba(255,255,255,0.45)", maxWidth: 480, margin: "16px auto 0", lineHeight: 1.6 }}>
-              Pick a role to explore the experience designed for you.
+
+            {/* Sub-headline */}
+            <p style={{ marginTop: 12, fontSize: 14, color: "rgba(255,255,255,0.42)", maxWidth: 460, margin: "12px auto 0", lineHeight: 1.5 }}>
+              Surface at-risk cases early, automate session prep, and keep every practice running at its best.
             </p>
+
+            {/* Section label into role picker */}
+            <div className="hero-section-gap" style={{ marginTop: 28, marginBottom: 4 }}>
+              <div style={{
+                display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px",
+                borderRadius: 999, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.04)",
+                fontSize: 11, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase" as const,
+                color: "rgba(255,255,255,0.4)", fontFamily: "'DM Mono', monospace",
+              }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#00c8a0", boxShadow: "0 0 8px #00c8a0", display: "inline-block" }} />
+                Choose your role to get started
+              </div>
+            </div>
           </div>
 
           {/* ── Action bar — only for multi-practice manager and analytics ── */}
           {showActionBar && (
-            <div style={{
+            <div className="action-bar" style={{
               marginTop: 32,
               display: "flex", alignItems: "center", justifyContent: "space-between",
               gap: 16, flexWrap: "wrap",
@@ -517,6 +549,7 @@ export default function DemoLanding() {
                   </div>
 
                   <button
+                    className="action-bar-launch"
                     onClick={handleLaunch}
                     disabled={!canLaunch}
                     style={{

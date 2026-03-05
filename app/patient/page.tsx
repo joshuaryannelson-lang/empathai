@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -382,7 +383,7 @@ export default function PatientPortal() {
                     Step 1 of 3
                   </div>
                   <h1 style={{ fontSize:32, fontWeight:900, letterSpacing:-.8, color:"rgba(255,255,255,0.97)", lineHeight:1.1, fontFamily:"'Sora',system-ui" }}>
-                    Let's find<br />your account
+                    Let&apos;s find<br />your account
                   </h1>
                   <p style={{ marginTop:10, fontSize:14, color:"rgba(255,255,255,0.42)", lineHeight:1.6 }}>
                     Enter your name and date of birth to access your care portal.
@@ -578,7 +579,7 @@ export default function PatientPortal() {
                     Registration complete
                   </div>
                   <h1 style={{ fontSize:32, fontWeight:900, letterSpacing:-.8, color:"rgba(255,255,255,0.97)", lineHeight:1.1, fontFamily:"'Sora',system-ui" }}>
-                    You're on the list,<br />{firstName}.
+                    You&apos;re on the list,<br />{firstName}.
                   </h1>
                   <p style={{ marginTop:14, fontSize:14, color:"rgba(255,255,255,0.45)", lineHeight:1.7, maxWidth:360, margin:"14px auto 0" }}>
                     Your account has been created. Your care team will reach out to connect you to the full portal.
@@ -612,7 +613,7 @@ export default function PatientPortal() {
                     Hi, {identity.patient_name.split(" ")[0]}.
                   </h1>
                   <p style={{ marginTop:14, fontSize:15, color:"rgba(255,255,255,0.5)", lineHeight:1.7, maxWidth:380, margin:"14px auto 0" }}>
-                    Your care portal is ready. You can check in with how you're feeling, view notes from your sessions, track your treatment goals, and more.
+                    Your care portal is ready. You can check in with how you&apos;re feeling, view notes from your sessions, track your treatment goals, and more.
                   </p>
                 </div>
 
@@ -766,7 +767,7 @@ export default function PatientPortal() {
                                   {fmtFull(ci.created_at)}{idx === 0 ? " · latest" : ""}
                                 </div>
                                 {noteText(ci)
-                                  ? <div style={{ fontSize:13, color:"rgba(255,255,255,0.6)", marginTop:3, lineHeight:1.5, fontStyle:"italic" }}>"{noteText(ci)}"</div>
+                                  ? <div style={{ fontSize:13, color:"rgba(255,255,255,0.6)", marginTop:3, lineHeight:1.5, fontStyle:"italic" }}>&quot;{noteText(ci)}&quot;</div>
                                   : <div style={{ fontSize:12, color:"rgba(255,255,255,0.2)", marginTop:3, fontStyle:"italic" }}>No note</div>}
                               </div>
                             </div>
@@ -839,7 +840,7 @@ export default function PatientPortal() {
                       </span>
                     </div>
                     <p style={{ fontSize:13, color:"rgba(255,255,255,0.25)", lineHeight:1.65 }}>
-                      Direct messaging with your care provider is on the way. You'll be able to send and receive messages, share updates between sessions, and get quick responses from your therapist.
+                      Direct messaging with your care provider is on the way. You&apos;ll be able to send and receive messages, share updates between sessions, and get quick responses from your therapist.
                     </p>
                     <div style={{ marginTop:14, display:"flex", gap:8 }}>
                       <div style={{ flex:1, height:36, borderRadius:8, border:"1px solid rgba(255,255,255,0.07)", background:"rgba(255,255,255,0.02)", display:"flex", alignItems:"center", paddingLeft:12 }}>

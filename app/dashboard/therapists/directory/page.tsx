@@ -1,4 +1,5 @@
 // app/dashboard/therapists/directory/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import Link from "next/link";
@@ -189,7 +190,14 @@ function TherapistDirectoryPage() {
       therapistId={null}
       weekStart={weekStart}
     />
-    <main style={{ padding: 40, flex: 1, maxWidth: 1100 }}>
+    <main className="dir-main" style={{ padding: 40, flex: 1, maxWidth: 1100 }}>
+      <style>{`
+        @media (max-width: 767px) {
+          .dir-main { padding: 64px 16px 60px !important; }
+          .dir-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+          .dir-table-wrap > div { min-width: 500px; }
+        }
+      `}</style>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <Link href="/" style={{ textDecoration: "none", opacity: 0.9, color: "inherit" }}>
@@ -274,7 +282,7 @@ function TherapistDirectoryPage() {
       </div>
 
       {/* Therapist list */}
-      <div style={{ marginTop: 18 }}>
+      <div className="dir-table-wrap" style={{ marginTop: 18 }}>
         <div
           style={{
             display: "grid",

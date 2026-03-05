@@ -1,4 +1,5 @@
 // FILE: app/api/cases/route.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { BUCKET } from "@/lib/constants";

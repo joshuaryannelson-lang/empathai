@@ -1,4 +1,5 @@
 // app/dashboard/manager/page.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import Link from "next/link";
@@ -135,6 +136,7 @@ export default function ManagerDashboard() {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
 
   const [managerMode, setManagerMode] = useState<"multi" | "single" | null>(null);
@@ -212,10 +214,10 @@ export default function ManagerDashboard() {
         hideGroups={["Therapist"]}
       />
 
-      <main style={{ flex: 1, padding: "36px 40px 80px", maxWidth: 1100, overflowX: "hidden" }}>
+      <main className="mgr-main" style={{ flex: 1, padding: "36px 40px 80px", maxWidth: 1100, overflowX: "hidden" }}>
 
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 28 }}>
+        <div className="mgr-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 28 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: "#4b5563", marginBottom: 6 }}>
               Manager Dashboard
@@ -269,7 +271,7 @@ export default function ManagerDashboard() {
         )}
 
         {/* Stat tiles */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginBottom: 20 }}>
+        <div className="mgr-stats" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginBottom: 20 }}>
           {[
             { label: "Practices", value: totals?.practices ?? "—", accent: "#6b82d4" },
             { label: "Therapists", value: totals?.therapists ?? "—", accent: "#6b82d4" },
@@ -326,7 +328,7 @@ export default function ManagerDashboard() {
                   Operational Briefing
                 </div>
                 <div style={{ fontSize: 11, color: "#374151", marginTop: 1 }}>
-                  AI-generated · based on this week's network data
+                  AI-generated · based on this week&apos;s network data
                 </div>
               </div>
             </div>
@@ -343,7 +345,7 @@ export default function ManagerDashboard() {
           <div style={{ padding: 16 }}>
             {/* Loading skeletons */}
             {aiLoading && !aiSections && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="mgr-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 {[["55%","85%","70%"], ["50%","90%","65%"], ["60%","80%","72%"], ["52%","88%","60%"]].map((ws, i) => (
                   <div key={i} style={{ padding: "14px 16px", borderRadius: 10, border: "1px solid #131a30", background: "#080c18" }}>
                     {ws.map((w, j) => (
@@ -370,7 +372,7 @@ export default function ManagerDashboard() {
 
             {/* Parsed sections */}
             {aiSections && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="mgr-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 {[
                   { key: "PRIORITY",   icon: "⚡", color: "#f87171", label: "Priority" },
                   { key: "UNASSIGNED", icon: "⇄",  color: "#fb923c", label: "Unassigned cases" },
@@ -395,7 +397,7 @@ export default function ManagerDashboard() {
         </div>
 
         {/* Issues row */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+        <div className="mgr-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
           {/* Routing friction */}
           <div style={{ borderRadius: 12, border: "1px solid #1a1e2a", background: "#0d1018", overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px", borderBottom: "1px solid #131720" }}>
@@ -413,7 +415,7 @@ export default function ManagerDashboard() {
             </div>
             <div style={{ padding: "12px 16px" }}>
               <div style={{ fontSize: 12, color: "#4b5563", marginBottom: 10, lineHeight: 1.5 }}>
-                Cases not yet attached to a therapist — need routing before the week's sessions.
+                Cases not yet attached to a therapist — need routing before the week&apos;s sessions.
               </div>
               {practices.filter(p => p.unassigned_cases > 0).length === 0 ? (
                 <div style={{ fontSize: 13, color: "#374151" }}>No routing issues this period.</div>
@@ -527,6 +529,14 @@ export default function ManagerDashboard() {
         @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
         select { color-scheme: dark; }
+        @media (max-width: 767px) {
+          .mgr-main { padding: 64px 16px 60px !important; }
+          .mgr-header { flex-direction: column !important; align-items: flex-start !important; }
+          .mgr-header > div:last-child { width: 100%; }
+          .mgr-header select { flex: 1; min-width: 0; }
+          .mgr-stats { grid-template-columns: repeat(3, 1fr) !important; }
+          .mgr-two-col { grid-template-columns: 1fr !important; }
+        }
       `}</style>
     </div>
   );

@@ -80,12 +80,14 @@ export default function AdminPage() {
 
   const weekStart = useMemo(() => toMondayYYYYMMDD(toYYYYMMDD(new Date())), []);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     try {
       setSidebarPracticeId(localStorage.getItem("selected_practice_id"));
       setSidebarTherapistId(localStorage.getItem("selected_therapist_id"));
     } catch {}
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     fetch("/api/admin/overview?range=7d", { cache: "no-store" })
@@ -110,6 +112,10 @@ export default function AdminPage() {
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
         .tool-card { transition: border-color 0.15s, transform 0.15s, background 0.15s; }
         .tool-card:hover { transform: translateY(-2px); }
+        @media (max-width: 767px) {
+          .admin-main { padding: 64px 16px 60px !important; }
+          .admin-tool-grid { grid-template-columns: 1fr !important; }
+        }
       `}</style>
 
       <NavSidebar
@@ -120,7 +126,7 @@ export default function AdminPage() {
         adminOnly={true}
       />
 
-      <main style={{ flex: 1, minWidth: 0, padding: "56px 64px 80px", maxWidth: 900 }}>
+      <main className="admin-main" style={{ flex: 1, minWidth: 0, padding: "56px 64px 80px", maxWidth: 900 }}>
 
         {/* ── Header ── */}
         <div style={{ animation: "fadeUp 0.25s ease", marginBottom: 56 }}>
@@ -153,7 +159,7 @@ export default function AdminPage() {
           <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.6, color: "#374151", textTransform: "uppercase", marginBottom: 16 }}>
             Tools
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 36 }}>
+          <div className="admin-tool-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 36 }}>
             {TOOLS.map(({ href, icon, accent, accentAlpha, title, desc }) => (
               <Link key={href} href={href} style={{ textDecoration: "none", color: "inherit" }}>
                 <div
@@ -187,7 +193,7 @@ export default function AdminPage() {
           <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.6, color: "#374151", textTransform: "uppercase", marginBottom: 16 }}>
             Coming soon
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          <div className="admin-tool-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
             {COMING_SOON.map(({ icon, title, desc, badge }) => (
               <div key={title} style={{
                 padding: "24px 22px", borderRadius: 16,

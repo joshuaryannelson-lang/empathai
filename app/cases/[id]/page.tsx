@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import Link from "next/link";
@@ -681,7 +682,7 @@ export default function CasePage() {
                       <div className="feed-info">
                         <div className="feed-date">{fmtFull(ci.created_at)}{idx === 0 ? " · latest" : ""}</div>
                         {noteText(ci)
-                          ? <div className="feed-note">"{noteText(ci)}"</div>
+                          ? <div className="feed-note">&quot;{noteText(ci)}&quot;</div>
                           : <div className="feed-note" style={{ opacity: 0.3 }}>No note</div>}
                       </div>
                     </div>
