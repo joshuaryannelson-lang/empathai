@@ -1,0 +1,64 @@
+name: E2E Tests
+
+on: [push, pull_request]
+
+# Required secrets (set in GitHub repo Settings > Secrets and variables > Actions):
+#   NEXT_PUBLIC_SUPABASE_URL   - Supabase project URL
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY - Supabase anonymous key
+#   ANTHROPIC_API_KEY          - Anthropic API key (not used in demo mode, but required for build)
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run unit tests
+        run: npx jest --passWithNoTests
+
+      - name: Build Next.js
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npm run build
+
+      - name: Run E2E tests
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CI: true
+        run: npx playwright test
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
+      - name: Upload mobile screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-screenshots
+          path: test-results/mobile-*.png
+          retention-days: 14

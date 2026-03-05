@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { RISK_THRESHOLDS } from "@/lib/services/risk";
+import MarkdownContent from "@/app/components/MarkdownContent";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ExtendedPatient = {
@@ -883,8 +884,9 @@ export default function CasePage() {
 
                   {/* Streaming text before sections are parsed */}
                   {aiText && !aiSections && (
-                    <div style={{ gridColumn: "1/-1", fontSize: 13, lineHeight: 1.8, color: "#c8d0e0", padding: "4px 2px", whiteSpace: "pre-wrap", transition: "opacity 0.15s ease", opacity: 1 }}>
-                      {aiText}{aiLoading && <span className="ai-cursor" />}
+                    <div style={{ gridColumn: "1/-1", fontSize: 13, lineHeight: 1.8, color: "#c8d0e0", padding: "4px 2px", transition: "opacity 0.15s ease", opacity: 1 }}>
+                      <MarkdownContent>{aiText}</MarkdownContent>
+                      {aiLoading && <span className="ai-cursor" />}
                     </div>
                   )}
 
@@ -899,8 +901,8 @@ export default function CasePage() {
                       <div className="ai-card-label" style={{ color }}>
                         <span>{icon}</span>{label}
                       </div>
-                      <div className="ai-card-text" style={{ whiteSpace: "pre-wrap" }}>
-                        {aiSections[key] ?? "—"}
+                      <div className="ai-card-text">
+                        {aiSections[key] ? <MarkdownContent>{aiSections[key]}</MarkdownContent> : "—"}
                         {aiLoading && key === "SEND THIS" && <span className="ai-cursor" />}
                       </div>
                       {key === "SEND THIS" && aiSections[key] && (

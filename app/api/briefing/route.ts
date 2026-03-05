@@ -14,7 +14,7 @@ const VALID_ROLES: BriefingRole[] = ["therapist", "manager", "network"];
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { role, dataSnapshot, triggeredBy, caseCode } = body;
+    const { role, dataSnapshot, triggeredBy, caseCode, stream } = body;
 
     if (!role || !VALID_ROLES.includes(role)) {
       return NextResponse.json(
@@ -25,7 +25,11 @@ export async function POST(req: Request) {
 
     // Demo mode: return canned response, no LLM call
     if (isDemoMode(req.url)) {
-      return NextResponse.json({ data: getDemoBriefing(role), error: null });
+      const demo = getDemoBriefing(role);
+      if (stream) {
+        return streamText(demo.output);
+      }
+      return NextResponse.json({ data: demo, error: null });
     }
 
     if (!dataSnapshot || typeof dataSnapshot !== "object") {
@@ -42,6 +46,10 @@ export async function POST(req: Request) {
       caseCode: caseCode ?? null,
     });
 
+    if (stream) {
+      return streamText(result.output);
+    }
+
     return NextResponse.json({ data: result, error: null });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -50,4 +58,28 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+}
+
+/** Stream text to the client in small chunks for progressive rendering. */
+function streamText(text: string): Response {
+  const encoder = new TextEncoder();
+  const CHUNK_SIZE = 12; // characters per chunk — balance between smoothness and overhead
+  const readable = new ReadableStream({
+    async start(controller) {
+      for (let i = 0; i < text.length; i += CHUNK_SIZE) {
+        controller.enqueue(encoder.encode(text.slice(i, i + CHUNK_SIZE)));
+        // Tiny yield to allow chunks to flush separately
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      controller.close();
+    },
+  });
+
+  return new Response(readable, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache",
+      "Transfer-Encoding": "chunked",
+    },
+  });
 }

@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { NavSidebar } from "@/app/components/NavSidebar";
+import MarkdownContent from "@/app/components/MarkdownContent";
 
 type RangeKey = "1d" | "7d" | "30d" | "this_week" | "last_week";
 
@@ -96,6 +97,7 @@ export default function ManagerDashboard() {
         body: JSON.stringify({
           role: "network",
           triggeredBy: "network-manager",
+          stream: true,
           dataSnapshot: {
             totals: overview.totals,
             practices: overview.practices.map(p => ({
@@ -110,16 +112,21 @@ export default function ManagerDashboard() {
           },
         }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message ?? "AI error");
-      const text: string = json?.data?.output ?? "";
-      if (!text) throw new Error("Empty response");
-      // Streaming word-by-word animation
-      const words = text.split(" ");
-      for (let i = 0; i < words.length; i++) {
-        await new Promise(r => setTimeout(r, 22 + Math.random() * 20));
-        setAiText(words.slice(0, i + 1).join(" "));
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json?.error?.message ?? "AI error");
       }
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+      const decoder = new TextDecoder();
+      let accumulated = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+        setAiText(accumulated);
+      }
+      if (!accumulated) throw new Error("Empty response");
     } catch (e: any) {
       setAiError(e?.message ?? String(e));
     } finally {
@@ -357,7 +364,7 @@ export default function ManagerDashboard() {
             {/* Raw text fallback while streaming (before sections parse) */}
             {aiText && !aiSections && (
               <div style={{ fontSize: 13, lineHeight: 1.8, color: "#c8d0e0", padding: "4px 2px" }}>
-                {aiText}
+                <MarkdownContent>{aiText}</MarkdownContent>
                 {aiLoading && <span style={{ display: "inline-block", width: 2, height: 13, background: "#6d3fc4", marginLeft: 3, verticalAlign: "middle", animation: "blink 1s step-end infinite" }} />}
               </div>
             )}
@@ -376,7 +383,7 @@ export default function ManagerDashboard() {
                       <span>{icon}</span>{label}
                     </div>
                     <div style={{ fontSize: 13, lineHeight: 1.65, color: "#c8d0e0" }}>
-                      {aiSections[key] ?? "—"}
+                      {aiSections[key] ? <MarkdownContent>{aiSections[key]}</MarkdownContent> : "—"}
                       {aiLoading && key === "THIS WEEK" && (
                         <span style={{ display: "inline-block", width: 2, height: 13, background: "#6d3fc4", marginLeft: 3, verticalAlign: "middle", animation: "blink 1s step-end infinite" }} />
                       )}

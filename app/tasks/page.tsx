@@ -43,18 +43,9 @@ export default function TasksPage() {
   useEffect(() => {
     (async () => {
       try {
-        // Fetch all cases, then tasks for each. In production this would be a single endpoint.
-        const casesRes = await fetch("/api/cases", { cache: "no-store" });
-        const casesJson = await casesRes.json().catch(() => ({}));
-        const caseList: Array<{ id: string }> = casesJson?.data ?? [];
-
-        const allTasks: TaskRow[] = [];
-        for (const c of caseList.slice(0, 50)) {
-          const res = await fetch(`/api/cases/${encodeURIComponent(c.id)}/tasks`, { cache: "no-store" });
-          const json = await res.json().catch(() => ({}));
-          allTasks.push(...(json?.data ?? []));
-        }
-        setTasks(allTasks);
+        const res = await fetch("/api/tasks", { cache: "no-store" });
+        const json = await res.json().catch(() => ({}));
+        setTasks(json?.data ?? []);
       } catch { /* ignore */ }
       finally { setLoading(false); }
     })();

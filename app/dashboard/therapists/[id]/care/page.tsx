@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import MarkdownContent from "@/app/components/MarkdownContent";
 import { BUCKET, type Bucket } from "@/lib/constants";
 import { RISK_THRESHOLDS } from "@/lib/services/risk";
 
@@ -200,6 +201,7 @@ function TherapistCareDashboard() {
           role: "therapist",
           triggeredBy: `therapist:${therapistId}`,
           caseCode: therapistId,
+          stream: true,
           dataSnapshot: {
             therapist_name: careData.therapist_name ?? null,
             week_start: careData.week_start,
@@ -218,20 +220,21 @@ function TherapistCareDashboard() {
         }),
       });
 
-      const json = await response.json();
       if (!response.ok) {
+        const json = await response.json().catch(() => ({}));
         throw new Error(json?.error?.message ?? `API ${response.status}`);
       }
-
-      const text: string = json?.data?.output ?? "";
-      if (!text) throw new Error("Empty response from API");
-
-      // Word-by-word streaming effect
-      const words = text.split(" ");
-      for (let i = 0; i < words.length; i++) {
-        await new Promise(r => setTimeout(r, 38 + Math.random() * 40));
-        setAiSummary(words.slice(0, i + 1).join(" "));
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+      const decoder = new TextDecoder();
+      let accumulated = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+        setAiSummary(accumulated);
       }
+      if (!accumulated) throw new Error("Empty response from API");
     } catch (e: any) {
       setAiError(e?.message ?? String(e));
     } finally {
@@ -667,7 +670,7 @@ function TherapistCareDashboard() {
                 )}
                 {aiSummary && (
                   <div className="ai-text">
-                    {aiSummary}
+                    <MarkdownContent>{aiSummary}</MarkdownContent>
                     {aiLoading && <span className="ai-cursor" />}
                   </div>
                 )}
