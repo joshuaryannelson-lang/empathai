@@ -271,15 +271,21 @@ export default function DemoLanding() {
     }
     if (id === "therapist") {
       setSelected(id); setLaunched(true);
-      fetchJson<Therapist[]>("/api/therapists").then((data) => {
-        if (data && data.length > 0) {
-          const t = data[Math.floor(Math.random() * data.length)];
-          try { localStorage.setItem("selected_practice_id", t.practice_id); } catch {}
-          try { localStorage.setItem("selected_therapist_id", t.id); } catch {}
-          try { localStorage.setItem("selected_persona", "therapist"); } catch {}
-          router.push(`/dashboard/therapists/${encodeURIComponent(t.id)}/care?week_start=${encodeURIComponent(weekStart)}`);
-        }
-      }).catch(() => {});
+      fetch("/api/therapists", { cache: "no-store" })
+        .then((res) => res.json())
+        .then((json) => {
+          const list: Therapist[] = Array.isArray(json?.data) ? json.data : [];
+          if (list.length > 0) {
+            const t = list[Math.floor(Math.random() * list.length)];
+            try { localStorage.setItem("selected_practice_id", t.practice_id); } catch {}
+            try { localStorage.setItem("selected_therapist_id", t.id); } catch {}
+            try { localStorage.setItem("selected_persona", "therapist"); } catch {}
+            router.push(`/dashboard/therapists/${encodeURIComponent(t.id)}/care?week_start=${encodeURIComponent(weekStart)}`);
+          } else {
+            setLaunched(false); setSelected(null);
+          }
+        })
+        .catch(() => { setLaunched(false); setSelected(null); });
       return;
     }
     setSelected((prev) => (prev === id ? null : id));
