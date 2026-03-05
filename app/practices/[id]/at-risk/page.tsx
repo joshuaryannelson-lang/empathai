@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 
 type AtRiskRow = {
@@ -100,7 +100,7 @@ function Badge({
   );
 }
 
-export default function PracticeAtRiskPage() {
+function PracticeAtRiskPage() {
   const params = useParams();
   const search = useSearchParams();
 
@@ -291,5 +291,13 @@ export default function PracticeAtRiskPage() {
       </div>
 
     </main>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <PracticeAtRiskPage />
+    </Suspense>
   );
 }

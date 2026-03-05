@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { NavSidebar } from "@/app/components/NavSidebar";
 
@@ -149,7 +149,7 @@ THIS WEEK: One specific operational focus for the practice this week.
 Be direct. Specific to behavioral health operations. No preamble or filler.`;
 }
 
-export default function PracticeManagerPage() {
+function PracticeManagerPage() {
   const params = useParams();
   const practiceId = params?.id as string;
   const search = useSearchParams();
@@ -550,5 +550,13 @@ export default function PracticeManagerPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <PracticeManagerPage />
+    </Suspense>
   );
 }

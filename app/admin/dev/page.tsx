@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { NavSidebar } from "@/app/components/NavSidebar";
 
@@ -435,7 +435,7 @@ function DiagnosticsTab() {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-export default function AdminDevPage() {
+function AdminDevPage() {
   const searchParams = useSearchParams();
   const initialTab = (searchParams?.get("tab") as Tab) ?? "api";
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -502,5 +502,13 @@ export default function AdminDevPage() {
 
       </main>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <AdminDevPage />
+    </Suspense>
   );
 }

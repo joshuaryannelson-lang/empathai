@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { BUCKET, type Bucket } from "@/lib/constants";
 
@@ -123,7 +123,7 @@ Write a warm, professional 3–4 sentence weekly briefing for ${therapist_name ?
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function TherapistCareDashboard() {
+function TherapistCareDashboard() {
   const params = useParams();
   const searchParams = useSearchParams();
 
@@ -685,5 +685,13 @@ export default function TherapistCareDashboard() {
         </div>{/* end page-layout */}
       </div>{/* end page-wrap */}
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <TherapistCareDashboard />
+    </Suspense>
   );
 }
