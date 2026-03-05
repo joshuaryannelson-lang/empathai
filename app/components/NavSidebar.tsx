@@ -42,7 +42,7 @@ export function NavSidebar({
     ? {
         label: "Practice overview",
         href: `/practices/${encodeURIComponent(practiceId)}/therapist-overview?week_start=${encodeURIComponent(weekStart)}`,
-        note: practiceName ?? practiceId,
+        note: practiceName ?? "…",
       }
     : { label: "Practice overview", href: "#", dim: true, note: "select a practice" };
 

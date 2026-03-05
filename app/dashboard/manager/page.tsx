@@ -153,7 +153,7 @@ export default function ManagerDashboard() {
   }, []);
 
   const selectedPracticeName = useMemo(
-    () => (data?.practices ?? []).find(p => p.id === selectedPracticeId)?.name ?? selectedPracticeId,
+    () => (data?.practices ?? []).find(p => p.id === selectedPracticeId)?.name ?? null,
     [data, selectedPracticeId]
   );
 
@@ -451,7 +451,7 @@ export default function ManagerDashboard() {
             </div>
             <div style={{ padding: "12px 16px" }}>
               <div style={{ fontSize: 12, color: "#4b5563", marginBottom: 10, lineHeight: 1.5 }}>
-                Check-ins with scores ≤ 3 this week — flagged for therapist follow-up.
+                Check-ins with scores ≤ 3 this week — flagged for therapist follow-up. Count reflects check-in events, not unique patients.
               </div>
               {practices.filter(p => p.at_risk_checkins > 0).length === 0 ? (
                 <div style={{ fontSize: 13, color: "#374151" }}>No at-risk check-ins this period.</div>

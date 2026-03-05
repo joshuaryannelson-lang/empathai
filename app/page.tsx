@@ -237,6 +237,7 @@ export default function DemoLanding() {
 
   // Practice picker state (manager single-practice mode)
   const [practices, setPractices] = useState<Practice[]>([]);
+  const [practicesLoading, setPracticesLoading] = useState(false);
 
   const weekStart = useMemo(() => toMondayYYYYMMDD(toYYYYMMDD(new Date())), []);
 
@@ -246,9 +247,11 @@ export default function DemoLanding() {
   // Fetch practices as soon as manager + single is selected (to auto-resolve Harper)
   useEffect(() => {
     if (selected !== "manager" || managerMode !== "single" || practices.length > 0) return;
+    setPracticesLoading(true);
     fetchJson<Practice[]>("/api/practices")
       .then((data) => setPractices(data ?? []))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setPracticesLoading(false));
   }, [selected, managerMode, practices.length]);
 
   function handlePersonaSelect(id: string) {
@@ -466,9 +469,10 @@ function handleLaunch() {
                   </div>
 
                   <button
+                    type="button"
                     className="action-bar-launch"
                     onClick={handleLaunch}
-                    disabled={!canLaunch}
+                    disabled={!canLaunch || practicesLoading}
                     style={{
                       display: "flex", alignItems: "center", gap: 10,
                       padding: "14px 28px", borderRadius: 14,
@@ -478,18 +482,19 @@ function handleLaunch() {
                       background: selectedPersona && canLaunch
                         ? `linear-gradient(135deg, rgba(${selectedPersona.accentRgb},0.22), rgba(${selectedPersona.accentRgb},0.08))`
                         : "rgba(255,255,255,0.03)",
-                      color: canLaunch ? "white" : "rgba(255,255,255,0.3)",
+                      color: canLaunch && !practicesLoading ? "white" : "rgba(255,255,255,0.3)",
                       fontWeight: 800, fontSize: 15,
-                      cursor: canLaunch ? "pointer" : "not-allowed",
+                      cursor: canLaunch && !practicesLoading ? "pointer" : "not-allowed",
                       transition: "all 0.25s ease",
                       fontFamily: "'Sora', system-ui",
                       boxShadow: selectedPersona && canLaunch ? `0 0 30px rgba(${selectedPersona.accentRgb},0.15)` : "none",
                       animation: launched ? "launchPulse 0.4s ease" : "none",
+                      minWidth: 180, justifyContent: "center",
                     }}
                   >
-                    {launched ? "Launching…" : selectedPersona ? selectedPersona.cta : "Launch experience"}
-                    <span style={{ display: "inline-block", transition: "transform 0.25s ease", transform: canLaunch && !launched ? "translateX(2px)" : "none" }}>
-                      {launched ? "⟳" : "→"}
+                    {launched ? "Launching…" : practicesLoading ? "Loading practice…" : selectedPersona ? selectedPersona.cta : "Launch experience"}
+                    <span style={{ display: "inline-block", transition: "transform 0.25s ease", transform: canLaunch && !launched && !practicesLoading ? "translateX(2px)" : "none" }}>
+                      {launched ? "⟳" : practicesLoading ? "⟳" : "→"}
                     </span>
                   </button>
                 </>

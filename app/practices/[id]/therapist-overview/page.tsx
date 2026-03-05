@@ -278,7 +278,7 @@ function PracticeManagerPage() {
 
   const atRiskRows = rows.filter((r) => r.at_risk_patients > 0);
   const missingRows = rows.filter((r) => r.missing_checkins > 0);
-  const displayName = practiceName ?? practiceId;
+  const displayName = practiceName ?? "…";
 
   function handleOpen(therapistId: string) {
     try { localStorage.setItem("selected_therapist_id", therapistId); } catch {}
@@ -325,7 +325,11 @@ function PracticeManagerPage() {
                 }}>⬡</div>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 3 }}>Practice</div>
-                  <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: -0.8, color: "#f1f3f8", lineHeight: 1 }}>{displayName}</h1>
+                  <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: -0.8, color: "#f1f3f8", lineHeight: 1 }}>
+                  {practiceName === null
+                    ? <span style={{ display: "inline-block", width: 180, height: 28, borderRadius: 6, background: "linear-gradient(90deg,#1a1e2a 0%,#252b3b 50%,#1a1e2a 100%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite", verticalAlign: "middle" }} />
+                    : displayName}
+                </h1>
                 </div>
               </div>
               <p style={{ fontSize: 14, color: "#4b5563", lineHeight: 1.6 }}>
@@ -430,7 +434,7 @@ function PracticeManagerPage() {
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
                 <Badge tone="neutral">Week {weekStartISO}</Badge>
                 <Badge tone={totals.atRisk > 0 ? "bad" : "good"}>
-                  {totals.atRisk > 0 ? `${totals.atRisk} at-risk` : "No at-risk"}
+                  {totals.atRisk > 0 ? `${totals.atRisk} at-risk patients` : "No at-risk"}
                 </Badge>
                 {totals.missing > 0 && <Badge tone="warn">{totals.missing} missing</Badge>}
               </div>
@@ -480,7 +484,7 @@ function PracticeManagerPage() {
             {/* Risk signals */}
             <Section
               title="Risk signals"
-              right={<Badge tone={atRiskRows.length > 0 ? "bad" : "good"}>{atRiskRows.length > 0 ? `${totals.atRisk} at-risk` : "All clear"}</Badge>}
+              right={<Badge tone={atRiskRows.length > 0 ? "bad" : "good"}>{atRiskRows.length > 0 ? `${totals.atRisk} at-risk patients` : "All clear"}</Badge>}
             >
               {atRiskRows.length === 0 ? (
                 <div style={{ opacity: 0.55, fontSize: 13 }}>No at-risk patients this week.</div>

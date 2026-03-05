@@ -200,12 +200,7 @@ function PracticeAtRiskPage() {
       </div>
 
       <div style={{ marginTop: 10, opacity: 0.7, fontSize: 13 }}>
-        Cases with any check-in score ≤ 3 for the selected week. Sorted worst-first.
-      </div>
-
-      <div style={{ marginTop: 10, opacity: 0.6, fontSize: 12 }}>
-        Practice: <span style={{ fontFamily: "monospace" }}>{practiceId}</span> • Week bucket (Monday):{" "}
-        <span style={{ fontFamily: "monospace" }}>{weekStartISO}</span>
+        Cases with any check-in score ≤ 3 for the selected week — sorted worst-first. Each row is one patient case.
       </div>
 
       {error && (

@@ -404,6 +404,11 @@ function TherapistCareDashboard() {
                 <span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor", flexShrink: 0 }} />
                 {loading ? "Loading…" : urgentCount > 0 ? `${urgentCount} need attention` : "All stable"}
               </div>
+              {!loading && urgentCount > 0 && (
+                <div style={{ fontSize: 10, color: "rgba(248,113,113,0.65)", marginTop: 3, fontFamily: "'DM Mono', monospace" }}>
+                  low score or missing check-in
+                </div>
+              )}
               <div className="divider" />
               <div className="stat-row">
                 <span className="stat-label">Active cases</span>
@@ -471,7 +476,7 @@ function TherapistCareDashboard() {
                 </Link>
                 <div className="section-count">{lowList.length} {lowList.length === 1 ? "patient" : "patients"}</div>
               </div>
-              {lowList.length === 0 ? (
+              {!loading && lowList.length === 0 ? (
                 <div className="section-empty">✓ No at-risk check-ins this week</div>
               ) : (
                 <div className="section-body">
@@ -501,7 +506,7 @@ function TherapistCareDashboard() {
                 </Link>
                 <div className="section-count">{missList.length} {missList.length === 1 ? "patient" : "patients"}</div>
               </div>
-              {missList.length === 0 ? (
+              {!loading && missList.length === 0 ? (
                 <div className="section-empty">✓ All patients checked in this week</div>
               ) : (
                 <div className="section-body">
@@ -534,7 +539,7 @@ function TherapistCareDashboard() {
                     <div key={i} style={{ height: 64, borderRadius: 8, background: "linear-gradient(90deg,#111420 0%,#1a1e2a 50%,#111420 100%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
                   ))}
                 </div>
-              ) : (care?.cases ?? []).length === 0 ? (
+              ) : !loading && (care?.cases ?? []).length === 0 ? (
                 <div className="section-empty">No active patients this week</div>
               ) : (
                 <div className="section-body">
