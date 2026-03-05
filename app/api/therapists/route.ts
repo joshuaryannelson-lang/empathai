@@ -20,22 +20,31 @@ async function safeJson(req: Request) {
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const practiceId = searchParams.get("practice_id");
+  console.log("[/api/therapists] GET called");
+  console.log("[/api/therapists] SUPABASE_URL set:", !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+  console.log("[/api/therapists] ANON_KEY set:", !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  console.log("[/api/therapists] SERVICE_ROLE_KEY set:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-  const query = supabase
-    .from("therapists")
-    .select("id, name, practice_id, extended_profile")
-    .order("name", { ascending: true });
+  try {
+    const { searchParams } = new URL(request.url);
+    const practiceId = searchParams.get("practice_id");
 
-  const { data, error } = practiceId ? await query.eq("practice_id", practiceId) : await query;
+    const query = supabase
+      .from("therapists")
+      .select("id, name, practice_id, extended_profile")
+      .order("name", { ascending: true });
 
-  if (error) {
-    console.error("[/api/therapists] Supabase error:", JSON.stringify(error));
-    console.error("[/api/therapists] SUPABASE_URL set:", !!process.env.NEXT_PUBLIC_SUPABASE_URL);
-    return NextResponse.json({ data: null, error }, { status: 500 });
+    const { data, error } = practiceId ? await query.eq("practice_id", practiceId) : await query;
+
+    if (error) {
+      console.error("[/api/therapists] Supabase error:", JSON.stringify(error));
+      return NextResponse.json({ data: null, error }, { status: 500 });
+    }
+    return NextResponse.json({ data, error: null });
+  } catch (e) {
+    console.error("[/api/therapists] Unexpected error:", e);
+    return NextResponse.json({ data: null, error: String(e) }, { status: 500 });
   }
-  return NextResponse.json({ data, error: null });
 }
 
 export async function POST(request: Request) {
