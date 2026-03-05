@@ -337,11 +337,6 @@ function handleLaunch() {
         @keyframes orb3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,50px) scale(1.1); } }
         @keyframes pulseRing { 0% { transform: scale(0.95); opacity: 0.6; } 100% { transform: scale(1.4); opacity: 0; } }
         @keyframes launchPulse { 0% { transform: scale(1); } 50% { transform: scale(0.96); } 100% { transform: scale(1); } }
-        .persona-grid { order: 2; }
-        .step2-bar { order: 3; }
-        @media (min-width: 601px) {
-          .step2-bar { order: 1; }
-        }
         @media (max-width: 600px) {
           .hero-h1 { letter-spacing: -0.8px !important; }
           .hero-section-gap { margin-top: 24px !important; }
@@ -412,16 +407,9 @@ function handleLaunch() {
             </div>
           </div>
 
-          {/* Persona cards */}
-          <div className="persona-grid" style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
-            {PERSONAS.map((persona, i) => (
-              <PersonaCard key={persona.id} persona={persona} index={i} selected={selected} onSelect={handlePersonaSelect} />
-            ))}
-          </div>
-
-          {/* ── Step 2 — above cards on desktop, below on mobile ── */}
+          {/* ── Manager action bar ── */}
           {showActionBar && (
-            <div className="action-bar step2-bar" style={{
+            <div className="action-bar" style={{
               marginTop: 20,
               display: "flex", alignItems: "center", justifyContent: "space-between",
               gap: 16, flexWrap: "wrap",
@@ -501,6 +489,13 @@ function handleLaunch() {
                 </>
             </div>
           )}
+
+          {/* Persona cards */}
+          <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+            {PERSONAS.map((persona, i) => (
+              <PersonaCard key={persona.id} persona={persona} index={i} selected={selected} onSelect={handlePersonaSelect} />
+            ))}
+          </div>
 
           <div style={{ marginTop: 20, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.25)", fontFamily: "'DM Mono', monospace", animation: "fadeSlideUp 0.6s 0.6s cubic-bezier(0.16,1,0.3,1) both" }}>
             Demo environment · Data is synthetic · No real patient info
