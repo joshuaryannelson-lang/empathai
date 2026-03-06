@@ -264,18 +264,33 @@ export default function QABoard() {
   const [submitting, setSubmitting] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // Track locally deleted results so polling doesn't resurrect them
+  const deletedKeys = useRef<Set<string>>(new Set());
+  // Snapshot the tester name for × visibility — only updates on blur/submit, not every keystroke
+  const [confirmedName, setConfirmedName] = useState("");
 
   // Load tester name from localStorage
   useEffect(() => {
-    try { setTesterName(localStorage.getItem("qa_tester_name") ?? ""); } catch {}
+    try {
+      const saved = localStorage.getItem("qa_tester_name") ?? "";
+      setTesterName(saved);
+      setConfirmedName(saved);
+    } catch {}
   }, []);
 
-  // Fetch results
+  // Fetch results (filters out locally deleted items)
   const fetchResults = useCallback(async () => {
     try {
       const res = await fetch("/api/qa", { cache: "no-store" });
       const json = await res.json();
-      if (Array.isArray(json?.data)) setResults(json.data);
+      if (Array.isArray(json?.data)) {
+        const dk = deletedKeys.current;
+        if (dk.size > 0) {
+          setResults(json.data.filter((r: CheckResult) => !dk.has(`${r.page_id}|${r.check_index}|${r.tester_name}`)));
+        } else {
+          setResults(json.data);
+        }
+      }
     } catch {} finally { setLoading(false); }
   }, []);
 
@@ -287,15 +302,19 @@ export default function QABoard() {
     return () => clearInterval(iv);
   }, [fetchResults]);
 
-  // Save name
+  // Save name (confirmedName updates on blur, not every keystroke)
   function handleNameChange(name: string) {
     setTesterName(name);
     try { localStorage.setItem("qa_tester_name", name); } catch {}
+  }
+  function handleNameBlur() {
+    setConfirmedName(testerName.trim());
   }
 
   // Submit a check
   async function submitCheck(pageId: string, checkIndex: number, status: "pass" | "fail" | "skip") {
     if (!testerName.trim()) return;
+    setConfirmedName(testerName.trim());
     const key = `${pageId}-${checkIndex}`;
     setSubmitting(prev => new Set(prev).add(key));
 
@@ -335,18 +354,23 @@ export default function QABoard() {
   }
 
   // Delete a check result
-  async function deleteCheck(pageId: string, checkIndex: number, testerName: string) {
+  async function deleteCheck(pageId: string, checkIndex: number, name: string) {
+    const dk = `${pageId}|${checkIndex}|${name}`;
+    // Mark as deleted so polling won't resurrect it
+    deletedKeys.current.add(dk);
     // Optimistic removal
-    setResults(prev => prev.filter(r => !(r.page_id === pageId && r.check_index === checkIndex && r.tester_name === testerName)));
+    setResults(prev => prev.filter(r => !(r.page_id === pageId && r.check_index === checkIndex && r.tester_name === name)));
 
     try {
-      const params = new URLSearchParams({ page_id: pageId, check_index: String(checkIndex), tester_name: testerName });
+      const params = new URLSearchParams({ page_id: pageId, check_index: String(checkIndex), tester_name: name });
       const res = await fetch(`/api/qa?${params}`, { method: "DELETE" });
       if (!res.ok) {
-        // Rollback: re-fetch
+        // Server rejected — un-suppress and re-fetch
+        deletedKeys.current.delete(dk);
         fetchResults();
       }
     } catch {
+      deletedKeys.current.delete(dk);
       fetchResults();
     }
   }
@@ -507,6 +531,7 @@ export default function QABoard() {
             type="text"
             value={testerName}
             onChange={e => handleNameChange(e.target.value)}
+            onBlur={handleNameBlur}
             placeholder="e.g. Sarah"
             maxLength={50}
             style={{
@@ -671,7 +696,7 @@ export default function QABoard() {
                                 const colors = r.status === "pass" ? T.pass : r.status === "fail" ? T.fail : T.skip;
                                 const noteKey = `${r.page_id}-${r.check_index}-${r.tester_name}`;
                                 const hasNote = r.status === "fail" && r.note;
-                                const isMine = testerName.trim() && r.tester_name === testerName.trim();
+                                const isMine = confirmedName && r.tester_name === confirmedName;
                                 return (
                                   <span key={r.id}>
                                     <span
