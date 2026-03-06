@@ -5,6 +5,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import SessionPrepCard from "@/app/components/SessionPrepCard";
+import THSScoreWidget from "@/app/components/THSScoreWidget";
+import TherapistRatingsForm from "@/app/components/TherapistRatingsForm";
 
 type SourcedBullet = { text: string; source: string };
 
@@ -148,6 +151,7 @@ export default function CaseDetailClient({ caseId }: { caseId: string }) {
   const [ctxError, setCtxError] = useState<string | null>(null);
   const [ai, setAi] = useState<AiSummaryResponse | null>(null);
   const [ctx, setCtx] = useState<CaseContextResponse | null>(null);
+  const [showRatingsForm, setShowRatingsForm] = useState(false);
 
   const practiceIdFromCtx = ctx?.practice?.id ?? null;
   const backHref = useMemo(() => {
@@ -241,6 +245,9 @@ export default function CaseDetailClient({ caseId }: { caseId: string }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 14, alignItems: "start" }}>
 
+        {/* ── Left column: Case context + THS ── */}
+        <div style={{ display: "grid", gap: 14 }}>
+
         {/* ── Left: Case context ── */}
         <div style={{ borderRadius: 12, border: "1px solid #1a1e2a", background: "#0d1018", overflow: "hidden" }}>
           <div style={{ padding: "12px 16px", borderBottom: "1px solid #131720" }}>
@@ -278,6 +285,22 @@ export default function CaseDetailClient({ caseId }: { caseId: string }) {
           </div>
         </div>
 
+        {/* ── Left below: THS Score + Ratings ── */}
+        <THSScoreWidget
+          caseId={caseId}
+          weekIndex={null}
+          onOpenRatingsForm={() => setShowRatingsForm(true)}
+        />
+        {showRatingsForm && (
+          <TherapistRatingsForm
+            caseId={caseId}
+            weekIndex={1}
+            onClose={() => setShowRatingsForm(false)}
+          />
+        )}
+
+        </div>{/* end left column */}
+
         {/* ── Right: AI Session Prep ── */}
         <div style={{ display: "grid", gap: 10 }}>
           {/* Header */}
@@ -305,6 +328,9 @@ export default function CaseDetailClient({ caseId }: { caseId: string }) {
 
           {/* Session focus — full width */}
           <AiSection icon="→" label="Suggested session focus" color="#4ade80" items={ai?.session_focus} loading={loadingAi} />
+
+          {/* ── Structured Session Prep (new AI output) ── */}
+          <SessionPrepCard caseId={caseId} weekStart={weekStartISO} />
         </div>
       </div>
     </main>

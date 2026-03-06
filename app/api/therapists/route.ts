@@ -29,11 +29,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ data, error: null });
   }
 
-  console.log("[/api/therapists] GET called");
-  console.log("[/api/therapists] SUPABASE_URL set:", !!process.env.NEXT_PUBLIC_SUPABASE_URL);
-  console.log("[/api/therapists] ANON_KEY set:", !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-  console.log("[/api/therapists] SERVICE_ROLE_KEY set:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
-
   try {
     const { searchParams } = new URL(request.url);
     const practiceId = searchParams.get("practice_id");

@@ -26,6 +26,19 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   const caseId = await getIdFromContext(ctx);
   if (!caseId) return bad("Missing case id");
 
+  if (isDemoMode(req.url)) {
+    // Demo mode: create locally
+    const body: any = await req.json().catch(() => ({}));
+    return ok({
+      id: `demo-goal-${Date.now()}`,
+      case_id: caseId,
+      title: body.title ?? "",
+      status: body.status ?? "active",
+      target_date: body.target_date ?? null,
+      created_at: new Date().toISOString(),
+    });
+  }
+
   let body: any;
   try {
     body = await req.json();
@@ -42,6 +55,40 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   const { data, error } = await supabase
     .from("goals")
     .insert([{ case_id: caseId, title, status, target_date }])
+    .select()
+    .single();
+
+  if (error) return bad(error.message, 400, error);
+  return ok(data);
+}
+
+export async function PATCH(req: Request, ctx: RouteContextWithId) {
+  const caseId = await getIdFromContext(ctx);
+  if (!caseId) return bad("Missing case id");
+
+  if (isDemoMode(req.url)) return ok({ success: true });
+
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return bad("Invalid JSON body");
+  }
+
+  const goalId = body.goalId;
+  if (!goalId) return bad("Missing goalId");
+
+  const patch: Record<string, any> = {};
+  if (body.status !== undefined) patch.status = String(body.status).trim();
+  if (body.title !== undefined) patch.title = String(body.title).trim();
+
+  if (Object.keys(patch).length === 0) return bad("No fields to update");
+
+  const { data, error } = await supabase
+    .from("goals")
+    .update(patch)
+    .eq("id", goalId)
+    .eq("case_id", caseId)
     .select()
     .single();
 

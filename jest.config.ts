@@ -7,6 +7,13 @@ const config: Config = {
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
   },
+  transformIgnorePatterns: [
+    "node_modules/(?!jose)",
+  ],
+  transform: {
+    "^.+\\.tsx?$": "ts-jest",
+    "node_modules/jose/.+\\.js$": "ts-jest",
+  },
 };
 
 export default config;

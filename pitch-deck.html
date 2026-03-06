@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EmpathAI — Pitch Deck</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/theme/black.min.css">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700&family=Sora:wght@400;600;700;800&display=swap');
+
+  :root {
+    --green: #4ade80;
+    --green-dim: rgba(74,222,128,0.15);
+    --blue: #38bdf8;
+    --blue-dim: rgba(56,189,248,0.12);
+    --surface: #0d1018;
+    --surface-raised: #111420;
+    --border: #1a1e2a;
+    --text-primary: rgba(255,255,255,0.92);
+    --text-secondary: rgba(255,255,255,0.55);
+    --text-muted: rgba(255,255,255,0.35);
+    --red: #f87171;
+    --orange: #fb923c;
+    --purple: #a5b4fc;
+    --tan: #c4b5a0;
+  }
+
+  .reveal-viewport { background: #080b12; }
+  .reveal { font-family: 'DM Sans', system-ui, sans-serif; color: var(--text-primary); }
+  .reveal .slides { text-align: left; }
+  .reveal .slides section { padding: 40px 60px; }
+
+  .reveal h1, .reveal h2, .reveal h3 {
+    font-family: 'Sora', system-ui, sans-serif;
+    text-transform: none;
+    letter-spacing: -0.5px;
+    color: var(--text-primary);
+  }
+  .reveal h1 { font-size: 2.6em; font-weight: 800; }
+  .reveal h2 { font-size: 1.8em; font-weight: 800; margin-bottom: 0.3em; }
+  .reveal h3 { font-size: 1.1em; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.5em; }
+
+  .hero-stat {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.15em;
+    font-weight: 500;
+    color: var(--green);
+    margin-bottom: 1.2em;
+    line-height: 1.5;
+  }
+
+  .reveal ul { list-style: none; padding: 0; margin: 0; }
+  .reveal ul li {
+    position: relative;
+    padding-left: 24px;
+    margin-bottom: 0.7em;
+    font-size: 0.82em;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+  .reveal ul li::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 10px;
+    width: 8px; height: 8px;
+    border-radius: 2px;
+    background: var(--green-dim);
+    border: 1px solid rgba(74,222,128,0.3);
+  }
+  .reveal ul li strong { color: var(--text-primary); font-weight: 700; }
+
+  .slide-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.55em;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 1em;
+    display: block;
+  }
+
+  .accent-green { color: var(--green); }
+  .accent-blue { color: var(--blue); }
+  .accent-purple { color: var(--purple); }
+
+  .divider {
+    width: 48px; height: 3px;
+    background: linear-gradient(90deg, var(--green), transparent);
+    border-radius: 2px;
+    margin: 1em 0;
+  }
+
+  /* Title slide special */
+  .title-slide { text-align: center !important; }
+  .title-slide h1 { font-size: 3.2em; margin-bottom: 0.1em; }
+  .title-slide .subtitle {
+    font-family: 'Sora', system-ui, sans-serif;
+    font-size: 1.2em;
+    font-weight: 600;
+    color: var(--green);
+    margin-bottom: 1.5em;
+  }
+  .title-slide ul { display: inline-block; text-align: left; }
+
+  /* Two-column layout */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    margin-top: 0.8em;
+  }
+  .two-col .col {
+    padding: 24px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface-raised);
+  }
+  .two-col .col h3 {
+    font-family: 'Sora', system-ui, sans-serif;
+    font-size: 1em;
+    font-weight: 800;
+    margin-bottom: 0.6em;
+  }
+  .two-col .col .milestone {
+    margin-top: 0.8em;
+    padding-top: 0.8em;
+    border-top: 1px solid var(--border);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72em;
+    color: var(--green);
+    line-height: 1.5;
+  }
+
+  /* Three-panel flow */
+  .flow-panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    margin-top: 1em;
+  }
+  .flow-panel {
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface-raised);
+  }
+  .flow-panel .role {
+    font-family: 'Sora', system-ui, sans-serif;
+    font-size: 0.8em;
+    font-weight: 800;
+    margin-bottom: 0.5em;
+  }
+  .flow-panel .desc {
+    font-size: 0.72em;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+  .flow-arrow {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 1.4em;
+  }
+
+  /* Flywheel */
+  .flywheel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 1em;
+  }
+  .flywheel-node {
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 0.7em;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+  }
+  .flywheel-arrow {
+    display: flex; align-items: center;
+    color: var(--text-muted); font-size: 0.9em;
+  }
+
+  /* Stat highlight */
+  .stat-row {
+    display: flex;
+    gap: 32px;
+    margin: 1em 0;
+  }
+  .stat-box {
+    flex: 1;
+    padding: 16px 20px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface-raised);
+  }
+  .stat-box .num {
+    font-family: 'Sora', system-ui, sans-serif;
+    font-size: 1.6em;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+  .stat-box .label {
+    font-size: 0.65em;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* Progress bar */
+  .reveal .progress { height: 3px; color: var(--green); }
+
+  /* Speaker notes indicator */
+  .reveal .slide-number {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* Override reveal's centering */
+  .reveal .slides section.center-slide {
+    text-align: center !important;
+  }
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- SLIDE 1: TITLE -->
+<section class="title-slide center-slide">
+  <h1>Empath<span class="accent-green">AI</span></h1>
+  <div class="subtitle">Practice Intelligence for Therapy</div>
+  <div class="divider" style="margin: 0 auto 1.2em;"></div>
+  <ul>
+    <li>Turning patient check-ins into clinical insight</li>
+    <li>So group practices deliver better care, keep their therapists</li>
+  </ul>
+  <aside class="notes">
+    EmpathAI is the intelligence layer for therapy group practices. We turn a 30-second weekly patient check-in into structured session prep, practice health scores, and early-warning signals — so practice owners can actually see whether their practice is healthy before a therapist burns out or a patient drops off.
+  </aside>
+</section>
+
+<!-- SLIDE 2: PROBLEM -->
+<section>
+  <span class="slide-label">The Problem</span>
+  <h2>Therapists Are Drowning</h2>
+  <div class="hero-stat">93% of behavioral health professionals report burnout.</div>
+  <ul>
+    <li>One-third of therapist time goes to admin, not patients</li>
+    <li>40% are considering leaving the field entirely</li>
+    <li>Practice managers have zero visibility into clinical health</li>
+  </ul>
+  <aside class="notes">
+    The mental health workforce is short 31,000 practitioners and attrition now outpaces new entrants. A third of every therapist's week is paperwork. Practice owners can tell you how many appointments happened — they cannot tell you whether patients are progressing, whether caseloads are balanced, or which therapist is about to quit. Existing tools handle scheduling and billing. Nothing measures whether therapy is actually working.
+  </aside>
+</section>
+
+<!-- SLIDE 3: SOLUTION -->
+<section>
+  <span class="slide-label">The Solution</span>
+  <h2>Practice Intelligence, Not Paperwork</h2>
+  <div class="hero-stat">One check-in. Two intelligence layers. Zero patient data exposed.</div>
+  <ul>
+    <li>Patients check in weekly — <strong>30 seconds, no app required</strong></li>
+    <li>AI turns check-ins into <strong>structured session prep</strong> for therapists</li>
+    <li>Practice Health Score gives managers <strong>a single number to track</strong></li>
+  </ul>
+  <aside class="notes">
+    Patients enter a join code, rate how they're doing 1 to 10, optionally leave a note, and they're done. That feeds two things: first, an AI-generated session prep brief the therapist reviews before the next session — themes, trends, suggested focus. Second, a composite Practice Health Score that blends wellbeing, engagement, outcomes, and caseload balance into one number the practice manager watches weekly. Everything is privacy-first by design — no names, no diagnoses, no identifiable data ever reach the AI layer.
+  </aside>
+</section>
+
+<!-- SLIDE 4: HOW IT WORKS -->
+<section>
+  <span class="slide-label">How It Works</span>
+  <h2>Three Roles, One Workflow</h2>
+  <div class="flow-panels">
+    <div class="flow-panel">
+      <div class="role accent-blue">Patient</div>
+      <div class="desc">30-second check-in via join code. Crisis detection built in. No app, no account.</div>
+    </div>
+    <div class="flow-panel">
+      <div class="role accent-green">Therapist</div>
+      <div class="desc">AI session prep with review gate. One-tap session ratings. No chart-diving.</div>
+    </div>
+    <div class="flow-panel">
+      <div class="role accent-purple">Practice Manager</div>
+      <div class="desc">Practice Health Score. At-risk alerts. Caseload analytics. One dashboard.</div>
+    </div>
+  </div>
+  <div style="text-align: center; margin-top: 1em;">
+    <span style="font-family: 'DM Mono', monospace; font-size: 0.7em; color: var(--text-muted);">
+      Patient check-in &nbsp;&rarr;&nbsp; AI session prep &nbsp;&rarr;&nbsp; Practice Health Score
+    </span>
+  </div>
+  <aside class="notes">
+    The patient experience is deliberately minimal — join code entry, a rating, an optional note. Crisis language is detected in real-time and surfaces a national helpline. On the therapist side, check-in data flows into a structured session prep card — rating trends, behavioral themes, a suggested focus area. But the AI content stays blurred until the therapist marks it reviewed. We never let AI output bypass clinical judgment. The therapist also submits a 30-second session rating after each session. All of this rolls up to the practice manager as a Practice Health Score — a weighted composite of patient wellbeing, session engagement, outcome progress, and therapeutic alliance.
+  </aside>
+</section>
+
+<!-- SLIDE 5: MARKET OPPORTUNITY -->
+<section>
+  <span class="slide-label">Market Opportunity</span>
+  <h2>$2.1B and Undifferentiated</h2>
+  <div class="hero-stat">Practice management software: $2.1B, growing 12.4% CAGR.</div>
+  <div class="stat-row">
+    <div class="stat-box">
+      <div class="num accent-green">$1.5–2.0B</div>
+      <div class="label">U.S. behavioral health software today</div>
+    </div>
+    <div class="stat-box">
+      <div class="num accent-blue">$18B</div>
+      <div class="label">Global mental health software by 2033</div>
+    </div>
+    <div class="stat-box">
+      <div class="num accent-purple">12–17%</div>
+      <div class="label">Annual growth rate</div>
+    </div>
+  </div>
+  <ul>
+    <li>Incumbents handle billing and scheduling — <strong>none measure outcomes</strong></li>
+    <li>Group practices (5–50 therapists) are underserved by enterprise tools</li>
+  </ul>
+  <aside class="notes">
+    The broader mental health software market hits $18 billion by 2033. But zoom into practice management specifically and you find a $2.1 billion market where every product does the same thing — scheduling, billing, insurance claims. Not one of them answers the question: is this practice actually delivering good care? That's the category we're creating. We call it practice intelligence. Our beachhead is group practices with 5 to 50 therapists — large enough to have real operational complexity, small enough that enterprise systems ignore them. They're spending $50 to $350 per provider per month on tools that don't give them clinical visibility.
+  </aside>
+</section>
+
+<!-- SLIDE 6: BUSINESS MODEL -->
+<section>
+  <span class="slide-label">Business Model</span>
+  <h2>Per-Provider SaaS Pricing</h2>
+  <div class="hero-stat">AI cost per session prep: $0.007. Gross margins exceed 95%.</div>
+  <div class="stat-row">
+    <div class="stat-box">
+      <div class="num" style="font-size: 1.2em;">Starter</div>
+      <div class="label" style="color: var(--text-secondary); font-size: 0.75em; margin-top: 8px;">&le;5 therapists</div>
+      <div class="num accent-green" style="margin-top: 8px;">$79<span style="font-size: 0.5em; color: var(--text-muted);">/mo</span></div>
+    </div>
+    <div class="stat-box">
+      <div class="num" style="font-size: 1.2em;">Growth</div>
+      <div class="label" style="color: var(--text-secondary); font-size: 0.75em; margin-top: 8px;">6–25 therapists</div>
+      <div class="num accent-green" style="margin-top: 8px;">$49<span style="font-size: 0.5em; color: var(--text-muted);">/provider/mo</span></div>
+    </div>
+    <div class="stat-box">
+      <div class="num" style="font-size: 1.2em;">Enterprise</div>
+      <div class="label" style="color: var(--text-secondary); font-size: 0.75em; margin-top: 8px;">25+ therapists</div>
+      <div class="num accent-green" style="margin-top: 8px;">Custom</div>
+    </div>
+  </div>
+  <ul>
+    <li>Patients never pay — <strong>zero adoption friction</strong></li>
+  </ul>
+  <aside class="notes">
+    The patient portal is free, always. That's a deliberate design choice — it removes the biggest adoption barrier and aligns incentives. The practice pays because the system makes their therapists more effective. Unit economics are strong: each AI-generated session prep costs seven-tenths of a cent. At 50 therapists generating 250 preps a week, our AI infrastructure cost is about $7 a month against roughly $2,450 in subscription revenue. Enterprise tier is custom pricing for 25-plus therapist organizations — multi-practice rollups, API access, SSO.
+  </aside>
+</section>
+
+<!-- SLIDE 7: TRACTION -->
+<section>
+  <span class="slide-label">Traction</span>
+  <h2>Built, Not Promised</h2>
+  <div class="hero-stat">Full workflow live across all three user roles.</div>
+  <ul>
+    <li>Patient check-in with <strong>crisis detection and PHI safeguards</strong> — shipped</li>
+    <li>AI session prep, Practice Health Score, therapist ratings — <strong>shipped</strong></li>
+    <li>Production infrastructure: rate limiting, monitoring, cost controls — <strong>shipped</strong></li>
+  </ul>
+  <div class="divider"></div>
+  <div style="font-size: 0.78em; color: var(--green); font-weight: 700; font-family: 'Sora', system-ui, sans-serif;">
+    Now opening our founding practice cohort.
+  </div>
+  <div style="font-size: 0.65em; color: var(--text-muted); margin-top: 4px;">
+    3–5 group practices &middot; 5–15 therapists each &middot; validating engagement + outcomes
+  </div>
+  <aside class="notes">
+    This is not a prototype. The platform handles the full patient-to-practice-manager loop today. Patients onboard via join code, complete weekly check-ins with real-time crisis detection and privacy guards. Therapists get AI session prep with automated redaction — no identifiable data ever reaches the model — plus a therapist review gate on every AI output. The Practice Health Score is a deterministic formula weighting wellbeing, session engagement, outcome progress, and therapeutic alliance. We have rate limiting, health monitoring, incident response runbooks, and a $25-a-month AI cost ceiling already in place. We are now opening our founding practice cohort to validate check-in engagement rates, time-to-session-prep reduction, and whether the Practice Health Score predicts patient retention.
+  </aside>
+</section>
+
+<!-- SLIDE 8: DEFENSIBILITY -->
+<section>
+  <span class="slide-label">Defensibility</span>
+  <h2>Data Moat Deepens Weekly</h2>
+  <div class="flywheel">
+    <div class="flywheel-node">More check-ins</div>
+    <div class="flywheel-arrow">&rarr;</div>
+    <div class="flywheel-node">Better session prep</div>
+    <div class="flywheel-arrow">&rarr;</div>
+    <div class="flywheel-node">Higher engagement</div>
+    <div class="flywheel-arrow">&rarr;</div>
+    <div class="flywheel-node">More data</div>
+    <div class="flywheel-arrow">&rarr;</div>
+    <div class="flywheel-node" style="border-color: rgba(74,222,128,0.3); color: var(--green);">Stronger benchmarks</div>
+  </div>
+  <div style="margin-top: 1.2em;"></div>
+  <ul>
+    <li>Longitudinal engagement data <strong>no scheduling tool captures today</strong></li>
+    <li>Privacy-first architecture creates <strong>trust-based switching costs</strong></li>
+    <li>Embedded in the pre-session routine — <strong>used weekly, not occasionally</strong></li>
+  </ul>
+  <aside class="notes">
+    Every week a patient checks in, the session prep gets more precise, the risk detection gets earlier, and the practice benchmarks get stronger. No new entrant can replicate months of longitudinal patient engagement data on day one. The privacy-first architecture compounds this — once a practice verifies that we handle sensitive data correctly, the compliance and retraining cost of switching is real. And because therapists use this before every session, we're not a dashboard they check quarterly. We're in the weekly clinical workflow.
+  </aside>
+</section>
+
+<!-- SLIDE 9: THE ASK -->
+<section>
+  <span class="slide-label">The Ask</span>
+  <h2>Opening the Founding Cohort</h2>
+  <div class="hero-stat">Raising $500K to prove it. $1.5M to scale it.</div>
+  <div class="two-col">
+    <div class="col">
+      <h3 class="accent-blue">$500K Pre-Seed</h3>
+      <ul>
+        <li><strong>60% engineering:</strong> server-side persistence, audit logging, infrastructure</li>
+        <li><strong>25% pilot ops:</strong> practice recruitment, onboarding, outcome measurement</li>
+        <li><strong>15% infra:</strong> Supabase Pro, Vercel Pro, AI compute</li>
+      </ul>
+      <div class="milestone">Milestone: 5 paying practices, &gt;60% weekly check-in rate, therapist NPS &gt;50</div>
+    </div>
+    <div class="col">
+      <h3 class="accent-green">$1.5M Seed</h3>
+      <ul>
+        <li><strong>50% team:</strong> 2 engineers, EHR integrations, mobile check-in</li>
+        <li><strong>30% GTM:</strong> head of sales, top-10 metros, conference presence</li>
+        <li><strong>20% ops:</strong> SOC 2 Type II, dedicated support, scaled infra</li>
+      </ul>
+      <div class="milestone">Milestone: 50 practices, $150K+ ARR, published outcome data</div>
+    </div>
+  </div>
+  <aside class="notes">
+    At $500K, we run a six-month pilot with five founding practices and reach general availability. The exit milestone is five paying practices with validated engagement — greater than 60% weekly check-in completion, therapist NPS above 50, and a clear signal on whether the Practice Health Score predicts patient retention. At $1.5M, we scale to 50 practices, hire two engineers and a head of sales, pursue SOC 2 Type II, and publish the outcome data that defines the practice intelligence category. Either raise gets us to a defensible position — the question is how fast we want to build the dataset.
+  </aside>
+</section>
+
+</div><!-- .slides -->
+</div><!-- .reveal -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.js"></script>
+<script>
+Reveal.initialize({
+  hash: true,
+  slideNumber: 'c/t',
+  showNotes: false,
+  width: 1280,
+  height: 720,
+  margin: 0.04,
+  transition: 'fade',
+  transitionSpeed: 'fast',
+  backgroundTransition: 'fade',
+  controls: true,
+  controlsTutorial: false,
+  progress: true,
+  center: false,
+  keyboard: true,
+});
+</script>
+</body>
+</html>

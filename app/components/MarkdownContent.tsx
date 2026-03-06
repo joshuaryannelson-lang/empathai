@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 
 type Props = {
@@ -8,6 +9,18 @@ type Props = {
 };
 
 export default function MarkdownContent({ children, className }: Props) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted) {
+    return (
+      <div className={`md-content ${className ?? ""}`}>
+        <div style={{ height: 16, width: "70%", background: "rgba(255,255,255,0.04)", borderRadius: 4, marginBottom: 8 }} />
+        <div style={{ height: 16, width: "85%", background: "rgba(255,255,255,0.04)", borderRadius: 4 }} />
+      </div>
+    );
+  }
+
   return (
     <div className={`md-content ${className ?? ""}`}>
       <ReactMarkdown>{children}</ReactMarkdown>

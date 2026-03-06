@@ -2,8 +2,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { isDemoMode } from "@/lib/demo/demoMode";
 import { RISK_THRESHOLDS } from "@/lib/services/risk";
 import MarkdownContent from "@/app/components/MarkdownContent";
 
@@ -159,16 +160,33 @@ export default function CasePage() {
   const [aiError, setAiError]     = useState<string | null>(null);
   const aiSectionRef = useRef<HTMLDivElement>(null);
 
+  // Clinical notes state
+  const [clinicalNotes, setClinicalNotes] = useState("");
+  const [clinicalNotesEditing, setClinicalNotesEditing] = useState(false);
+  const [clinicalNotesSaved, setClinicalNotesSaved] = useState(false);
+  const clinicalNotesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Goals add state
+  const [showAddGoal, setShowAddGoal] = useState(false);
+  const [newGoalTitle, setNewGoalTitle] = useState("");
+
+  // Demo mode detection (client side)
+  const [isDemo, setIsDemo] = useState(false);
+  useEffect(() => { setIsDemo(isDemoMode()); }, []);
+
   useEffect(() => {
     if (!id) { setLoading(false); return; }
     Promise.all([
       fetch(`/api/cases/${id}/timeline`, { cache: "no-store" }).then(r => r.json()).catch(() => null),
       fetch(`/api/cases/${id}/goals`,    { cache: "no-store" }).then(r => r.json()).catch(() => null),
       fetch(`/api/cases/${id}/tasks`,    { cache: "no-store" }).then(r => r.json()).catch(() => null),
-    ]).then(([timelineJson, goalsJson, tasksJson]) => {
+      fetch(`/api/cases/${id}`,          { cache: "no-store" }).then(r => r.json()).catch(() => null),
+    ]).then(([timelineJson, goalsJson, tasksJson, caseJson]) => {
       if (timelineJson) setD(timelineJson?.data ?? timelineJson);
       setGoals(goalsJson?.data ?? []);
       setTasks(tasksJson?.data ?? []);
+      const caseData = caseJson?.data;
+      if (caseData?.clinical_notes) setClinicalNotes(caseData.clinical_notes);
     }).finally(() => setLoading(false));
   }, [id]);
 
@@ -219,21 +237,26 @@ export default function CasePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ trigger: "ai", therapistId: d?.therapist?.name ?? "" }),
       });
-      if (res.ok) {
-        const json = await res.json().catch(() => ({}));
-        const generated = json?.data?.tasks;
-        if (Array.isArray(generated) && generated.length > 0) {
-          setTasks(prev => [...generated, ...prev]);
-        } else {
-          await loadTasks();
-        }
+      if (!res.ok) {
+        console.error("[generateTasksAI] POST failed:", res.status);
+        return;
       }
-    } catch { /* ignore */ }
+      const json = await res.json().catch(() => ({}));
+      const generated = json?.data?.tasks;
+      if (Array.isArray(generated) && generated.length > 0) {
+        console.log("[generateTasksAI] Got", generated.length, "tasks from POST response");
+        setTasks(prev => [...generated, ...prev]);
+      } else {
+        console.log("[generateTasksAI] No tasks in POST response, re-fetching...");
+        await loadTasks();
+      }
+    } catch (e) { console.error("[generateTasksAI] Error:", e); }
     finally { setTaskGenLoading(false); }
   }
 
   async function addManualTask() {
     if (!newTaskTitle.trim()) return;
+    const taskData = { title: newTaskTitle, description: newTaskDesc || undefined, assignedToRole: newTaskRole };
     try {
       const res = await fetch(`/api/cases/${id}/tasks`, {
         method: "POST",
@@ -241,13 +264,33 @@ export default function CasePage() {
         body: JSON.stringify({
           trigger: "manual",
           therapistId: d?.therapist?.name ?? "",
-          task: { title: newTaskTitle, description: newTaskDesc || undefined, assignedToRole: newTaskRole },
+          task: taskData,
         }),
       });
       if (res.ok) {
-        setNewTaskTitle(""); setNewTaskDesc(""); setShowAddTask(false);
-        await loadTasks();
+        const json = await res.json().catch(() => ({}));
+        const created = json?.data;
+        if (created?.id) {
+          setTasks(prev => [created, ...prev]);
+        } else {
+          await loadTasks();
+        }
+      } else {
+        // Demo mode returns 403 — create task locally
+        const localTask: TaskRow = {
+          id: `local-${Date.now()}`,
+          case_id: id as string,
+          assigned_to_role: newTaskRole,
+          created_by: "therapist",
+          title: newTaskTitle,
+          description: newTaskDesc || null,
+          status: "pending",
+          due_date: null,
+          created_at: new Date().toISOString(),
+        };
+        setTasks(prev => [localTask, ...prev]);
       }
+      setNewTaskTitle(""); setNewTaskDesc(""); setShowAddTask(false);
     } catch { /* ignore */ }
   }
 
@@ -267,6 +310,73 @@ export default function CasePage() {
 
   const therapistTasks = tasks.filter(t => t.assigned_to_role === "therapist");
   const patientTasks = tasks.filter(t => t.assigned_to_role === "patient");
+
+  // Clinical notes — debounced auto-save
+  const saveClinicalNotes = useCallback(async (text: string) => {
+    try {
+      if (isDemo) {
+        setClinicalNotesSaved(true);
+        setTimeout(() => setClinicalNotesSaved(false), 2000);
+        return;
+      }
+      const res = await fetch(`/api/cases/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clinical_notes: text }),
+      });
+      if (res.ok) {
+        setClinicalNotesSaved(true);
+        setTimeout(() => setClinicalNotesSaved(false), 2000);
+      }
+    } catch { /* ignore */ }
+  }, [id, isDemo]);
+
+  function handleClinicalNotesChange(text: string) {
+    setClinicalNotes(text);
+    if (clinicalNotesTimer.current) clearTimeout(clinicalNotesTimer.current);
+    clinicalNotesTimer.current = setTimeout(() => saveClinicalNotes(text), 2000);
+  }
+
+  // Goal management
+  async function addGoal() {
+    if (!newGoalTitle.trim()) return;
+    try {
+      const res = await fetch(`/api/cases/${id}/goals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newGoalTitle, status: "active" }),
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => ({}));
+        const created = json?.data;
+        if (created?.id) {
+          setGoals(prev => [created, ...prev]);
+        }
+      } else if (isDemo) {
+        setGoals(prev => [{
+          id: `local-goal-${Date.now()}`,
+          case_id: id as string,
+          title: newGoalTitle,
+          status: "active",
+          target_date: null,
+          created_at: new Date().toISOString(),
+        }, ...prev]);
+      }
+      setNewGoalTitle(""); setShowAddGoal(false);
+    } catch { /* ignore */ }
+  }
+
+  async function toggleGoalStatus(goal: Goal) {
+    const next = goal.status === "active" ? "completed" : "active";
+    setGoals(prev => prev.map(g => g.id === goal.id ? { ...g, status: next } : g));
+    try {
+      await fetch(`/api/cases/${id}/goals`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goalId: goal.id, status: next }),
+      });
+    } catch { /* ignore — optimistic update already applied */ }
+  }
 
   async function generateAI(data: TimelineResponse, goalList: Goal[]) {
     setAiLoading(true); setAiText(""); setAiDone(false); setAiError(null);
@@ -531,6 +641,40 @@ export default function CasePage() {
         .task-role-select { padding: 6px 10px; border-radius: 6px; border: 1px solid #1f2533; background: #111420; color: #9ca3af; font-size: 12px; font-family: inherit; cursor: pointer; }
         .task-submit-btn { padding: 6px 14px; border-radius: 7px; border: 1px solid #0e2e1a; background: #061a0b; color: #4ade80; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all .15s; }
         .task-submit-btn:hover { background: #0a2412; }
+
+        /* ── CLINICAL NOTES EDITABLE ── */
+        .cn-wrap { border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; animation: fadeUp .3s ease .09s both; }
+        .cn-head { padding: 12px 16px; border-bottom: 1px solid #131720; display: flex; align-items: center; justify-content: space-between; }
+        .cn-title { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; }
+        .cn-saved { font-size: 10px; font-weight: 600; color: #4ade80; transition: opacity .3s; }
+        .cn-body { padding: 14px 16px; }
+        .cn-textarea { width: 100%; min-height: 120px; padding: 10px 12px; border-radius: 8px; border: 1px solid #1f2533; background: #080c12; color: #c8d0e0; font-size: 13px; font-family: inherit; line-height: 1.7; resize: vertical; outline: none; transition: border-color .15s; }
+        .cn-textarea:focus { border-color: #2a3560; }
+        .cn-textarea::placeholder { color: #374151; }
+        .cn-display { font-size: 13px; color: #9ca3af; line-height: 1.75; white-space: pre-wrap; }
+        .cn-btn { font-size: 11px; font-weight: 600; color: #4b5563; background: none; border: 1px solid #1f2533; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-family: inherit; transition: all .15s; }
+        .cn-btn:hover { color: #9ca3af; border-color: #2a3050; }
+
+        /* ── GOAL ADD FORM ── */
+        .goal-add-row { display: flex; gap: 8px; margin-top: 10px; }
+        .goal-add-input { flex: 1; padding: 7px 10px; border-radius: 7px; border: 1px solid #1f2533; background: #0a0c12; color: #e2e8f0; font-size: 12px; font-family: inherit; outline: none; }
+        .goal-add-input:focus { border-color: #2a3560; }
+        .goal-add-input::placeholder { color: #374151; }
+        .goal-add-btn { padding: 7px 14px; border-radius: 7px; border: 1px solid #0e2e1a; background: #061a0b; color: #4ade80; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+        .goal-add-btn:hover { background: #0a2412; }
+
+        /* ── MESSAGES PLACEHOLDER ── */
+        .msg-wrap { border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; animation: fadeUp .3s ease .18s both; }
+        .msg-head { padding: 12px 16px; border-bottom: 1px solid #131720; }
+        .msg-title { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; }
+        .msg-body { padding: 14px 16px; }
+        .msg-bubble { padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.55; max-width: 85%; margin-bottom: 10px; }
+        .msg-bubble--patient { background: #111420; border: 1px solid #1f2533; color: #c8d0e0; margin-right: auto; border-bottom-left-radius: 4px; }
+        .msg-bubble--therapist { background: #0d1220; border: 1px solid #1a2240; color: #9ca3af; margin-left: auto; border-bottom-right-radius: 4px; }
+        .msg-sender { font-size: 10px; font-weight: 700; color: #4b5563; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .05em; }
+        .msg-placeholder { text-align: center; padding: 24px 16px; }
+        .msg-placeholder-icon { font-size: 28px; margin-bottom: 8px; opacity: 0.3; }
+        .msg-placeholder-text { font-size: 13px; color: #374151; line-height: 1.6; }
       `}</style>
 
       <div className="shell">
@@ -668,42 +812,81 @@ export default function CasePage() {
                 ))}
               </div>
 
-              {/* Clinical notes + Treatment goals */}
-              <div className="context-row">
-
-                <div className="ctx-card">
-                  <div className="ctx-head">
-                    <div className="ctx-title">Clinical notes</div>
-                    {sessionNotes.length > 0 && <div className="ctx-badge">{sessionNotes.length} sessions</div>}
-                  </div>
-                  <div className="ctx-body">
-                    {ep.clinical_notes
-                      ? <p className="notes-text">{ep.clinical_notes}</p>
-                      : <p className="notes-empty">No clinical notes on file.</p>}
-
-                    {sessionNotes.length > 0 && (
-                      <>
-                        <button className="sn-toggle" onClick={() => setNotesOpen(o => !o)}>
-                          <span className={`chevron ${notesOpen ? "chevron--open" : ""}`}>▾</span>
-                          Session notes ({sessionNotes.length})
-                        </button>
-                        {notesOpen && sessionNotes.map((n, i) => (
-                          <div key={i} className="sn-entry">
-                            <div className="sn-date">{fmtDate(n.date)}</div>
-                            <div className="sn-text">{n.text}</div>
-                          </div>
-                        ))}
-                      </>
-                    )}
+              {/* Clinical notes (editable) */}
+              <div className="cn-wrap">
+                <div className="cn-head">
+                  <div className="cn-title">Clinical Notes</div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {clinicalNotesSaved && <span className="cn-saved">✓ Saved</span>}
+                    <button className="cn-btn" onClick={() => {
+                      if (clinicalNotesEditing) {
+                        saveClinicalNotes(clinicalNotes);
+                      }
+                      setClinicalNotesEditing(e => !e);
+                    }}>
+                      {clinicalNotesEditing ? "Done" : "Edit"}
+                    </button>
                   </div>
                 </div>
+                <div className="cn-body">
+                  {clinicalNotesEditing ? (
+                    <textarea
+                      className="cn-textarea"
+                      value={clinicalNotes}
+                      onChange={e => handleClinicalNotesChange(e.target.value)}
+                      placeholder="Add clinical observations, session notes, or treatment context here..."
+                      autoFocus
+                    />
+                  ) : clinicalNotes ? (
+                    <div className="cn-display">{clinicalNotes}</div>
+                  ) : (
+                    <p className="notes-empty" style={{ cursor: "pointer" }} onClick={() => setClinicalNotesEditing(true)}>
+                      Add clinical observations, session notes, or treatment context here...
+                    </p>
+                  )}
 
+                  {sessionNotes.length > 0 && (
+                    <>
+                      <button className="sn-toggle" onClick={() => setNotesOpen(o => !o)}>
+                        <span className={`chevron ${notesOpen ? "chevron--open" : ""}`}>▾</span>
+                        Session notes ({sessionNotes.length})
+                      </button>
+                      {notesOpen && sessionNotes.map((n, i) => (
+                        <div key={i} className="sn-entry">
+                          <div className="sn-date">{fmtDate(n.date)}</div>
+                          <div className="sn-text">{n.text}</div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Treatment goals + Messages */}
+              <div className="context-row">
                 <div className="ctx-card">
                   <div className="ctx-head">
                     <div className="ctx-title">Treatment goals</div>
-                    {goalsTotal > 0 && <div className="ctx-badge">{goalsDone}/{goalsTotal} complete</div>}
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      {goalsTotal > 0 && <div className="ctx-badge">{goalsDone}/{goalsTotal} complete</div>}
+                      <button className="cn-btn" onClick={() => setShowAddGoal(v => !v)}>
+                        {showAddGoal ? "Cancel" : "+ Add"}
+                      </button>
+                    </div>
                   </div>
                   <div className="ctx-body">
+                    {showAddGoal && (
+                      <div className="goal-add-row" style={{ marginBottom: 10 }}>
+                        <input
+                          className="goal-add-input"
+                          placeholder="Goal title..."
+                          value={newGoalTitle}
+                          onChange={e => setNewGoalTitle(e.target.value)}
+                          onKeyDown={e => e.key === "Enter" && addGoal()}
+                        />
+                        <button className="goal-add-btn" onClick={addGoal}>Add</button>
+                      </div>
+                    )}
                     {goalsTotal > 0 && (
                       <div className="goals-bar">
                         {goals.map(g => {
@@ -712,13 +895,17 @@ export default function CasePage() {
                         })}
                       </div>
                     )}
-                    {goals.length === 0
+                    {goals.length === 0 && !showAddGoal
                       ? <p className="notes-empty">No goals set yet.</p>
                       : goals.map(g => {
                           const done = g.status === "done" || g.status === "completed";
                           return (
                             <div key={g.id} className="goal-item">
-                              <div className={`goal-check ${done ? "goal-check--done" : "goal-check--open"}`}>
+                              <div
+                                className={`goal-check ${done ? "goal-check--done" : "goal-check--open"}`}
+                                style={{ cursor: "pointer" }}
+                                onClick={() => toggleGoalStatus(g)}
+                              >
                                 {done ? "✓" : ""}
                               </div>
                               <div>
@@ -728,6 +915,38 @@ export default function CasePage() {
                             </div>
                           );
                         })}
+                  </div>
+                </div>
+
+                {/* Messages placeholder */}
+                <div className="msg-wrap">
+                  <div className="msg-head">
+                    <div className="msg-title">Messages</div>
+                  </div>
+                  <div className="msg-body">
+                    {isDemo ? (
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <div className="msg-bubble msg-bubble--patient">
+                          <div className="msg-sender">Patient</div>
+                          Had a rough week, feeling anxious about work
+                        </div>
+                        <div className="msg-bubble msg-bubble--therapist">
+                          <div className="msg-sender">Therapist</div>
+                          Thanks for checking in. We&apos;ll talk through this in our next session.
+                        </div>
+                        <div className="msg-bubble msg-bubble--patient">
+                          <div className="msg-sender">Patient</div>
+                          That helps, see you Thursday
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="msg-placeholder">
+                        <div className="msg-placeholder-icon">💬</div>
+                        <div className="msg-placeholder-text">
+                          Patient messaging is coming soon. You&apos;ll be able to send check-in prompts and follow-ups directly here.
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -861,7 +1080,7 @@ export default function CasePage() {
                   </div>
                 </div>
 
-                <div className="ai-grid" style={{ minHeight: 100, transition: "all 0.2s ease" }}>
+                <div className="ai-grid" style={{ minHeight: 120, transition: "all 0.3s ease" }}>
                   {/* Skeleton loading state */}
                   {aiLoading && !aiText && [
                     ["55%","85%","70%"], ["50%","90%","65%"],

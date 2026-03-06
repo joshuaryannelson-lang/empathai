@@ -39,9 +39,10 @@ export async function PATCH(req: Request, ctx: RouteContextWithId) {
   if (body.status !== undefined) patch.status = String(body.status).trim();
   if (body.practice_id !== undefined) patch.practice_id = body.practice_id || null;
   if (body.therapist_id !== undefined) patch.therapist_id = body.therapist_id || null;
+  if (body.clinical_notes !== undefined) patch.clinical_notes = String(body.clinical_notes);
 
   if (Object.keys(patch).length === 0) {
-    return bad("No fields to update (send title, status, practice_id, and/or therapist_id)");
+    return bad("No fields to update (send title, status, practice_id, therapist_id, and/or clinical_notes)");
   }
 
   const { data, error } = await supabase

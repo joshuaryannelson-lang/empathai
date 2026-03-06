@@ -323,7 +323,7 @@ function GuidedDemoPanel({ router }: { router: ReturnType<typeof useRouter> }) {
       }
 
       setNavData({
-        patientHref: "/patient",
+        patientHref: "/portal",
         therapistHref: therapist ? `/dashboard/therapists/${therapist.id}/care?week_start=${weekStart}` : undefined,
         caseHref,
         practiceHref: practice ? `/practices/${practice.id}/health-score?week_start=${weekStart}` : undefined,
@@ -482,7 +482,7 @@ export default function DemoLanding() {
   function handlePersonaSelect(id: string) {
     if (id === "patient") {
       setSelected(id); setLaunched(true);
-      setTimeout(() => router.push("/patient"), 300);
+      setTimeout(() => router.push("/portal"), 300);
       return;
     }
     if (id === "admin") {
@@ -542,7 +542,7 @@ function handleLaunch() {
       setTimeout(() => router.push("/admin"), 300);
     } else if (selected === "patient") {
       setLaunched(true);
-      setTimeout(() => router.push("/patient"), 300);
+      setTimeout(() => router.push("/portal"), 300);
     }
   }
 

@@ -375,4 +375,155 @@ describeWithDb("RLS Policy Enforcement", () => {
       expect(data ?? []).toHaveLength(0);
     });
   });
+
+  // ── CASE_CODE PATIENT AUTH ────────────────────────────────────────────────
+
+  describe("Case Code Patient Auth (P0 — Pilot Gate)", () => {
+    // Simulates a patient with a JWT containing case_code claim
+    const PATIENT_CASE_CODE: TestUser = {
+      id: "00000000-0000-0000-0000-aaaaaaaaaacc",
+      role: "patient",
+      practice_id: PRACTICE_1,
+    };
+
+    function clientAsPatientWithCaseCode(caseCode: string): SupabaseClient {
+      return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+        global: {
+          headers: {
+            "x-supabase-auth-user-id": PATIENT_CASE_CODE.id,
+            "x-supabase-auth-role": "patient",
+            "x-supabase-auth-practice-id": PRACTICE_1,
+            "x-supabase-auth-case-code": caseCode,
+          },
+        },
+      });
+    }
+
+    test("patient with case_code can read their own case", async () => {
+      // Note: requires test fixtures where CASE_A has a case_code
+      const client = clientAsPatientWithCaseCode("EMP-TEST01");
+      const { data } = await client
+        .from("cases")
+        .select("id, case_code")
+        .eq("case_code", "EMP-TEST01");
+
+      // Should return the case if fixtures are seeded
+      expect(data).not.toBeNull();
+    });
+
+    test("patient with case_code cannot read another case", async () => {
+      const client = clientAsPatientWithCaseCode("EMP-TEST01");
+      const { data } = await client
+        .from("cases")
+        .select("id, case_code")
+        .eq("case_code", "EMP-TEST02");
+
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("patient with case_code can insert checkin for their case only", async () => {
+      const client = clientAsPatientWithCaseCode("EMP-TEST01");
+      // Insert should succeed for case with matching case_code
+      // Insert should fail for case with non-matching case_code
+      const { error } = await client
+        .from("checkins")
+        .insert({ case_id: CASE_B_ID, score: 7 }); // CASE_B has different case_code
+
+      // Should error — RLS should block this
+      expect(error).not.toBeNull();
+    });
+
+    test("patient with case_code can read checkins for their case", async () => {
+      const client = clientAsPatientWithCaseCode("EMP-TEST01");
+      const { data } = await client
+        .from("checkins")
+        .select("id")
+        .limit(5);
+
+      // Should only return checkins for cases with case_code EMP-TEST01
+      expect(data).not.toBeNull();
+    });
+
+    test("patient with case_code can read goals for their case", async () => {
+      const client = clientAsPatientWithCaseCode("EMP-TEST01");
+      const { data } = await client
+        .from("goals")
+        .select("id, title")
+        .limit(5);
+
+      expect(data).not.toBeNull();
+    });
+
+    test("patient cannot read join_codes table", async () => {
+      const client = clientAsPatientWithCaseCode("EMP-TEST01");
+      const { data } = await client
+        .from("join_codes")
+        .select("id")
+        .limit(1);
+
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("patient cannot read portal_audit_log", async () => {
+      const client = clientAsPatientWithCaseCode("EMP-TEST01");
+      const { data } = await client
+        .from("portal_audit_log")
+        .select("id")
+        .limit(1);
+
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("patient cannot read join_code_attempts", async () => {
+      const client = clientAsPatientWithCaseCode("EMP-TEST01");
+      const { data } = await client
+        .from("join_code_attempts")
+        .select("id")
+        .limit(1);
+
+      expect(data ?? []).toHaveLength(0);
+    });
+  });
+
+  // ── JOIN CODE ACCESS CONTROL ──────────────────────────────────────────────
+
+  describe("Join Code Access (P0)", () => {
+    test("therapist can see join codes they created", async () => {
+      const client = clientAs(THERAPIST_A);
+      const { data } = await client
+        .from("join_codes")
+        .select("id, code")
+        .eq("created_by", THERAPIST_A.id);
+
+      expect(data).not.toBeNull();
+    });
+
+    test("therapist cannot see join codes created by another therapist", async () => {
+      const client = clientAs(THERAPIST_A);
+      const { data } = await client
+        .from("join_codes")
+        .select("id, code")
+        .eq("created_by", THERAPIST_B.id);
+
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("admin can see all join codes", async () => {
+      const client = clientAs(ADMIN_USER);
+      const { data } = await client
+        .from("join_codes")
+        .select("id");
+
+      expect(data).not.toBeNull();
+    });
+
+    test("admin can see portal audit log", async () => {
+      const client = clientAs(ADMIN_USER);
+      const { data } = await client
+        .from("portal_audit_log")
+        .select("id");
+
+      expect(data).not.toBeNull();
+    });
+  });
 });

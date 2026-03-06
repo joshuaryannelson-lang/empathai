@@ -31,7 +31,7 @@ Key API domains:
 - **Cases** (`/api/cases/[id]/...`) — Core entity linking patients to therapists. Sub-routes for check-ins, goals, timeline, session-prep, AI summary, context, and assignment.
 - **Therapists** (`/api/therapists/[id]/...`) — Therapist profiles, care dashboards, case signals.
 - **Practices** (`/api/practices/[id]/...`) — Practice-level views: therapist overview, at-risk cases, THS, summary.
-- **Patients** (`/api/patients/...`) — Patient profiles and patient-facing check-in flow (`/api/patient/[caseId]/checkin`).
+- **Patients** (`/api/patients/...`) — Patient profiles. Patient check-in uses `/api/portal/checkin` (JWT-authenticated via join code).
 - **Admin** (`/api/admin/...`) — Overview, stats, AI briefing, seed data (demo data generation).
 
 ### Shared Libraries (`lib/`)

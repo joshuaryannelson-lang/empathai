@@ -8,7 +8,7 @@ test.describe("Patient portal (demo)", () => {
 
   test("patient page loads", async ({ page }) => {
     const console = trackConsoleErrors(page);
-    await page.goto("/patient?demo=true");
+    await page.goto("/portal/onboarding?demo=true");
     await page.waitForLoadState("networkidle");
 
     // Page should render content
