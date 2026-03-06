@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { DEMO_CONFIG } from "@/lib/demo/demoMode";
 import { TOUR_STEPS, TOUR_SS_KEY } from "@/lib/demo/tourSteps";
@@ -41,13 +42,193 @@ const PERSONAS = [
   },
 ];
 
+function readTourComplete(): boolean {
+  if (typeof window === "undefined") return false;
+  try { return sessionStorage.getItem("empathai_tour_complete") === "1"; } catch { return false; }
+}
+
 export default function DemoPage() {
   const router = useRouter();
+  const [tourComplete, setTourComplete] = useState(readTourComplete);
 
   function startTour() {
     const first = TOUR_STEPS[0];
-    try { sessionStorage.setItem(TOUR_SS_KEY, "1"); } catch {}
+    try {
+      sessionStorage.setItem(TOUR_SS_KEY, "1");
+      sessionStorage.removeItem("empathai_tour_complete");
+    } catch {}
+    setTourComplete(false);
     router.push(first.href);
+  }
+
+  function dismissComplete() {
+    try { sessionStorage.removeItem("empathai_tour_complete"); } catch {}
+    setTourComplete(false);
+  }
+
+  if (tourComplete) {
+    return (
+      <>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600;700&display=swap');
+          *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+          body { background: #080810; }
+          @keyframes fadeUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
+          @keyframes scaleIn { from { opacity:0; transform:scale(0.9); } to { opacity:1; transform:scale(1); } }
+        `}</style>
+        <div style={{
+          minHeight: "100vh",
+          background: "#080810",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px 24px",
+          fontFamily: "'DM Sans', system-ui",
+        }}>
+          <div style={{
+            maxWidth: 520,
+            width: "100%",
+            textAlign: "center",
+            animation: "scaleIn 0.4s cubic-bezier(0.16,1,0.3,1) both",
+          }}>
+            <div style={{
+              borderRadius: 20,
+              border: "1px solid rgba(74,222,128,0.2)",
+              background: "radial-gradient(ellipse at 50% 0%, rgba(74,222,128,0.06) 0%, transparent 60%), rgba(255,255,255,0.02)",
+              padding: "48px 36px 40px",
+            }}>
+              {/* Green checkmark */}
+              <div style={{
+                width: 64,
+                height: 64,
+                borderRadius: "50%",
+                background: "rgba(74,222,128,0.12)",
+                border: "2px solid rgba(74,222,128,0.3)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 24px",
+                fontSize: 32,
+                color: "#4ade80",
+                animation: "fadeUp 0.4s 0.1s cubic-bezier(0.16,1,0.3,1) both",
+              }}>
+                &#10003;
+              </div>
+
+              <h1 style={{
+                fontSize: 24,
+                fontWeight: 900,
+                letterSpacing: -0.8,
+                color: "rgba(255,255,255,0.95)",
+                fontFamily: "'Sora', system-ui",
+                marginBottom: 12,
+                animation: "fadeUp 0.4s 0.15s cubic-bezier(0.16,1,0.3,1) both",
+              }}>
+                You&apos;ve seen EmpathAI in action
+              </h1>
+
+              <p style={{
+                fontSize: 14,
+                color: "rgba(255,255,255,0.45)",
+                lineHeight: 1.6,
+                marginBottom: 28,
+                animation: "fadeUp 0.4s 0.2s cubic-bezier(0.16,1,0.3,1) both",
+              }}>
+                From a manager&apos;s Monday briefing to a patient&apos;s 60-second check-in &mdash; every signal connected, every action tracked.
+              </p>
+
+              {/* Value props */}
+              <div style={{
+                display: "grid",
+                gap: 12,
+                textAlign: "left",
+                marginBottom: 32,
+                animation: "fadeUp 0.4s 0.25s cubic-bezier(0.16,1,0.3,1) both",
+              }}>
+                {[
+                  { icon: "\u2B21", color: "#00c8a0", text: "Practice-wide visibility into every case, every risk signal" },
+                  { icon: "\u2726", color: "#f5a623", text: "AI-powered session prep and task generation — zero manual work" },
+                  { icon: "\u2661", color: "#38bdf8", text: "Patient check-ins that take 60 seconds, no app required" },
+                ].map((v, i) => (
+                  <div key={i} style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 12,
+                    padding: "12px 14px",
+                    borderRadius: 12,
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    background: "rgba(255,255,255,0.02)",
+                  }}>
+                    <span style={{ fontSize: 16, color: v.color, flexShrink: 0, marginTop: 1 }}>{v.icon}</span>
+                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.5 }}>{v.text}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* CTAs */}
+              <div style={{
+                display: "flex",
+                gap: 12,
+                justifyContent: "center",
+                flexWrap: "wrap",
+                animation: "fadeUp 0.4s 0.3s cubic-bezier(0.16,1,0.3,1) both",
+              }}>
+                <a
+                  href="mailto:hello@empathai.care"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "12px 28px",
+                    borderRadius: 12,
+                    background: "#4ade80",
+                    border: "1px solid #4ade80",
+                    color: "#080810",
+                    fontSize: 14,
+                    fontWeight: 800,
+                    textDecoration: "none",
+                    fontFamily: "'Sora', system-ui",
+                    letterSpacing: -0.2,
+                    cursor: "pointer",
+                  }}
+                >
+                  Get in touch &#8594;
+                </a>
+                <button
+                  type="button"
+                  onClick={dismissComplete}
+                  style={{
+                    padding: "12px 24px",
+                    borderRadius: 12,
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.04)",
+                    color: "rgba(255,255,255,0.5)",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    fontFamily: "'Sora', system-ui",
+                    letterSpacing: -0.2,
+                  }}
+                >
+                  Back to demo
+                </button>
+              </div>
+            </div>
+
+            {/* Contact info */}
+            <div style={{
+              marginTop: 24,
+              fontSize: 12,
+              color: "rgba(255,255,255,0.25)",
+              fontFamily: "'DM Mono', monospace",
+              animation: "fadeUp 0.4s 0.35s cubic-bezier(0.16,1,0.3,1) both",
+            }}>
+              hello@empathai.care &middot; We&apos;re onboarding pilot practices now
+            </div>
+          </div>
+        </div>
+      </>
+    );
   }
 
   return (

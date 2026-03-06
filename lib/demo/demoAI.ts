@@ -53,6 +53,61 @@ export function getDemoSessionPrep(caseId: string): string {
   return SESSION_PREPS[caseId] ?? DEFAULT_SESSION_PREP;
 }
 
+/** Structured session prep matching SessionPrepOutput shape */
+export type DemoSessionPrepStructured = {
+  rating_trend: string;
+  rating_delta: number | null;
+  notable_themes: string[];
+  suggested_focus: string;
+  data_source: string;
+  confidence: "high" | "medium" | "low";
+  flags: string[];
+};
+
+const STRUCTURED_SESSION_PREPS: Record<string, DemoSessionPrepStructured> = {
+  "demo-case-03": {
+    rating_trend: "declining",
+    rating_delta: -4,
+    notable_themes: ["Overwhelm", "Hopelessness language", "Missed appointment"],
+    suggested_focus: "Review safety plan collaboratively. Explore what changed between weeks — patient dropped from 6 to 2 over three check-ins. Validate feelings before problem-solving.",
+    data_source: "from last 4 check-ins",
+    confidence: "high",
+    flags: ["declining_trajectory", "critical_score"],
+  },
+  "demo-case-01": {
+    rating_trend: "stable",
+    rating_delta: 0,
+    notable_themes: ["Sleep improvement", "Work stress (ongoing)", "Coping skills"],
+    suggested_focus: "Reinforce sleep gains. Introduce stress-inoculation for work scenarios — patient is stable and ready for skill-building.",
+    data_source: "from last 3 check-ins",
+    confidence: "high",
+    flags: [],
+  },
+  "demo-case-05": {
+    rating_trend: "declining",
+    rating_delta: -3,
+    notable_themes: ["Relationship conflict", "Fatigue", "Communication patterns"],
+    suggested_focus: "Address relationship stress as primary driver. Consider introducing Gottman soft-startup technique for difficult conversations.",
+    data_source: "from last 3 check-ins",
+    confidence: "medium",
+    flags: ["declining_trajectory"],
+  },
+};
+
+const DEFAULT_STRUCTURED_PREP: DemoSessionPrepStructured = {
+  rating_trend: "stable",
+  rating_delta: null,
+  notable_themes: ["General progress", "Treatment engagement"],
+  suggested_focus: "Review progress on current treatment goals and adjust if needed.",
+  data_source: "from recent check-ins",
+  confidence: "medium",
+  flags: [],
+};
+
+export function getDemoSessionPrepStructured(caseId: string): DemoSessionPrepStructured {
+  return STRUCTURED_SESSION_PREPS[caseId] ?? DEFAULT_STRUCTURED_PREP;
+}
+
 // ── Task Generation ──────────────────────────────────────────────────────────
 
 const CASE_TASKS: Record<string, GeneratedTask[]> = {

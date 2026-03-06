@@ -308,11 +308,18 @@ export function getDemoPracticeTHS(practiceId: string) {
     week_start: weekStart,
     score: 6.8,
     band: "Balanced",
-    ths_components: { engagement: 2.0, stability: 1.8, workload: 1.5, coverage: 1.5, total: 6.8 },
+    ths_components: { workload: 7.2, satisfaction: 6.4, outcomes: 6.8, stability: 7.0, total: 6.8 },
     trend: { prior_week_start: null, prior_score: 6.5, delta: 0.3, direction: "up" },
-    movements: [],
+    movements: [
+      { direction: "up", label: "Engagement improved", detail: "100% check-in completion rate across all 12 cases this week" },
+      { direction: "down", label: "At-risk signals", detail: "2 patients with declining trajectories (Sam T. and Cameron F.)" },
+    ],
     recommendations: atRiskCount > 0
-      ? ["Review declining patients with Dr. Chen and Dr. Sharma", "Update safety plans for at-risk cases"]
+      ? [
+          { priority: "high", action: "Review declining patients with Dr. Chen and Dr. Sharma", reason: "Sam T. dropped to score 2 (critical) and Cameron F. declined to 3. Both need safety plan review." },
+          { priority: "medium", action: "Update safety plans for at-risk cases", reason: "Declining multi-week trajectories warrant proactive safety planning." },
+          { priority: "low", action: "Recognize strong engagement across the practice", reason: "100% check-in completion is excellent — consider sharing this with the team." },
+        ]
       : [],
     drivers: {
       avg_checkin_score: avgScore !== null ? Math.round(avgScore * 10) / 10 : null,

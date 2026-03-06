@@ -56,7 +56,7 @@ export const TOUR_STEPS: TourStep[] = [
     icon: "\u2661",
     title: "Patient Check-In",
     detail:
-      "The patient completes their weekly check-in \u2014 rating mood, logging sleep, and flagging a new stressor. It takes under 2 minutes.",
+      "This is what the patient sees. A simple weekly check-in \u2014 no app to download, no personal data stored. Takes about 60 seconds.",
     color: "#38bdf8",
     colorRgb: "56,189,248",
     href: "/portal/checkin?demo=true",

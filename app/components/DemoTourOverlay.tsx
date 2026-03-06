@@ -50,7 +50,13 @@ export default function DemoTourOverlay() {
   function handleNext() {
     if (step === null) return;
     if (isLast) {
-      exit();
+      try {
+        sessionStorage.removeItem(TOUR_SS_KEY);
+        sessionStorage.setItem("empathai_tour_complete", "1");
+      } catch {}
+      setVer((v) => v + 1);
+      router.push("/demo");
+      return;
     } else {
       goTo(step + 1);
     }

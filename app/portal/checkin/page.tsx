@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useContext, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { Suspense, useContext, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PortalIdentityContext } from "../layout";
 import CrisisBanner, { useCrisisDetection } from "../components/CrisisBanner";
 import { detectPHI, phiWarningMessage } from "../components/PHIGuard";
@@ -22,8 +22,10 @@ const SCORE_LABELS: Record<number, string> = {
   6: "Decent", 7: "Good", 8: "Great", 9: "Really good", 10: "Excellent",
 };
 
-export default function CheckinPage() {
+function CheckinPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isDemo = searchParams?.get("demo") === "true";
   const { session, authHeader } = useContext(PortalIdentityContext);
 
   const [score, setScore] = useState<number | null>(null);
@@ -38,16 +40,25 @@ export default function CheckinPage() {
   const blocked = isCrisis || phiViolations.length > 0;
 
   useEffect(() => {
-    if (!session) router.replace("/portal/onboarding");
-  }, [session, router]);
+    if (!session && !isDemo) router.replace("/portal/onboarding");
+  }, [session, isDemo, router]);
 
-  if (!session) return null;
+  if (!session && !isDemo) return null;
 
   async function handleSubmit() {
-    if (!score || blocked || !session) return;
+    if (!score || blocked) return;
     setLoading(true);
     setError(null);
     try {
+      if (isDemo) {
+        // Demo mode: simulate a short delay, no real API call
+        await new Promise(r => setTimeout(r, 600));
+        setDone(true);
+        setScore(null);
+        setNote("");
+        return;
+      }
+      if (!session) return;
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       const auth = authHeader();
       if (!auth) throw new Error("Not authenticated. Please sign in with your join code.");
@@ -78,19 +89,39 @@ export default function CheckinPage() {
     <div style={{ maxWidth: 600, margin: "0 auto", padding: "32px 20px 80px" }}>
       <div className="fade-in" style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5, color: "rgba(255,255,255,0.9)", fontFamily: "'Sora',system-ui" }}>
-          Weekly Check-in
+          {isDemo ? "Hi Jordan \uD83D\uDC4B" : "Weekly Check-in"}
         </h2>
         <p style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", marginTop: 4 }}>
-          Let your care team know how you&apos;re doing.
+          {isDemo ? "How are you feeling this week?" : "Let your care team know how you\u0027re doing."}
         </p>
+        {isDemo && (
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", marginTop: 6, lineHeight: 1.5 }}>
+            Your therapist Dr. Maya Chen will review your response before your next session.
+          </p>
+        )}
       </div>
 
       <div className="card fade-in-1" style={{ border: `1px solid rgba(${ACCENT_RGB},0.18)`, background: `linear-gradient(160deg, rgba(${ACCENT_RGB},0.05) 0%, #0d1018 60%)` }}>
         {done ? (
           <div style={{ textAlign: "center", padding: "12px 0" }}>
-            <div style={{ fontSize: 28, marginBottom: 10 }}>&#10003;</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: `rgb(${ACCENT_RGB})`, fontFamily: "'Sora',system-ui" }}>Check-in recorded</div>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 6, lineHeight: 1.5 }}>Thanks for sharing. Your care team will see this.</p>
+            {isDemo ? (
+              <>
+                <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: 24, color: "#4ade80" }}>&#10003;</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#4ade80", fontFamily: "'Sora',system-ui", letterSpacing: -0.3 }}>Thanks, Jordan</div>
+                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", marginTop: 8, lineHeight: 1.6, maxWidth: 340, margin: "8px auto 0" }}>
+                  Your check-in has been recorded. Dr. Chen will review it before your next session on Thursday.
+                </p>
+                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", marginTop: 10, lineHeight: 1.5 }}>
+                  That took about 60 seconds &mdash; no app to download, no personal data stored.
+                </p>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 28, marginBottom: 10 }}>&#10003;</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: `rgb(${ACCENT_RGB})`, fontFamily: "'Sora',system-ui" }}>Check-in recorded</div>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 6, lineHeight: 1.5 }}>Thanks for sharing. Your care team will see this.</p>
+              </>
+            )}
             <div style={{ marginTop: 16, display: "flex", gap: 10, justifyContent: "center" }}>
               <button onClick={() => setDone(false)} style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.35)", background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, padding: "6px 14px", cursor: "pointer", fontFamily: "inherit" }}>
                 Log another
@@ -183,5 +214,13 @@ export default function CheckinPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function CheckinPage() {
+  return (
+    <Suspense fallback={null}>
+      <CheckinPageInner />
+    </Suspense>
   );
 }

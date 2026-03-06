@@ -4,7 +4,7 @@
 import { supabase } from "@/lib/supabase";
 import { bad, getIdFromContext, ok, RouteContextWithId } from "@/lib/route-helpers";
 import { isDemoMode } from "@/lib/demo/demoMode";
-import { getDemoSessionPrep } from "@/lib/demo/demoAI";
+import { getDemoSessionPrep, getDemoSessionPrepStructured } from "@/lib/demo/demoAI";
 import { checkRateLimit } from "@/lib/rateLimit";
 import {
   buildSessionPrepPrompt,
@@ -23,9 +23,24 @@ const MAX_TOKENS = 400;
 const INPUT_COST_PER_TOKEN = 1 / 1_000_000;
 const OUTPUT_COST_PER_TOKEN = 5 / 1_000_000;
 
-export async function GET(_req: Request, ctx: RouteContextWithId) {
+export async function GET(req: Request, ctx: RouteContextWithId) {
   const caseId = await getIdFromContext(ctx);
   if (!caseId) return bad("Missing case id");
+
+  // Demo mode: return fixture data without DB calls
+  if (isDemoMode(req.url)) {
+    const { getDemoCase, getDemoCaseCheckins, getDemoCaseGoals } = await import("@/lib/demo/demoData");
+    const c = getDemoCase(caseId);
+    if (!c) return bad("Case not found", 404);
+    const checkins = getDemoCaseCheckins(caseId).slice(0, 4).map(ci => ({ ...ci, notes: ci.note, week_start: ci.created_at.slice(0, 10) }));
+    const goals = getDemoCaseGoals(caseId).filter(g => g.status === "active");
+    return ok({
+      case: { id: c.id, title: c.title, status: c.status, created_at: c.created_at, patient_id: c.patient_id, therapist_id: c.therapist_id, practice_id: c.practice_id },
+      checkins,
+      latest_checkin: checkins[0] ?? null,
+      active_goals: goals,
+    });
+  }
 
   const caseRes = await supabase.from("cases").select("id, title, status, created_at, patient_id, therapist_id, practice_id").eq("id", caseId).single();
   if (caseRes.error) return bad(caseRes.error.message, 400, caseRes.error);
@@ -60,9 +75,10 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   const caseId = await getIdFromContext(ctx);
   if (!caseId) return bad("Missing case id");
 
-  // Demo mode: return canned session prep
+  // Demo mode: return canned session prep (structured + text)
   if (isDemoMode(req.url)) {
-    return ok({ text: getDemoSessionPrep(caseId) });
+    const structured = getDemoSessionPrepStructured(caseId);
+    return ok({ ...structured, text: getDemoSessionPrep(caseId) });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;

@@ -3,8 +3,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 
 type THSComponents = {
   total: number;
@@ -103,9 +103,11 @@ function DriverBar({ label, value, weight, color }: { label: string; value: numb
   );
 }
 
-export default function PracticeThsPage() {
+function PracticeThsPageInner() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const practiceId = params?.id as string;
+  const isDemo = searchParams?.get("demo") === "true";
 
   const defaultWeekStartISO = useMemo(() => toMondayYYYYMMDD(toYYYYMMDD(new Date())), []);
   const [pickedDateISO, setPickedDateISO] = useState(defaultWeekStartISO);
@@ -121,7 +123,7 @@ export default function PracticeThsPage() {
     if (!practiceId) return;
     setLoading(true);
     try {
-      const json = await fetchJson(`/api/practices/${encodeURIComponent(practiceId)}/ths?week_start=${encodeURIComponent(weekStartISO)}`);
+      const json = await fetchJson(`/api/practices/${encodeURIComponent(practiceId)}/ths?week_start=${encodeURIComponent(weekStartISO)}${isDemo ? "&demo=true" : ""}`);
       setThs(json.data ?? null);
     } catch {
       setThs(null);
@@ -133,7 +135,7 @@ export default function PracticeThsPage() {
   async function loadTherapistNames() {
     if (!practiceId) return;
     try {
-      const json = await fetchJson(`/api/therapists?practice_id=${encodeURIComponent(practiceId)}`);
+      const json = await fetchJson(`/api/therapists?practice_id=${encodeURIComponent(practiceId)}${isDemo ? "&demo=true" : ""}`);
       const list: Therapist[] = json?.data ?? [];
       const map: Record<string, string> = {};
       list.forEach((t) => (map[t.id] = t.name));
@@ -283,18 +285,22 @@ export default function PracticeThsPage() {
         ) : !loading && (
           <div style={{ gridColumn: "1 / -1", padding: "28px 24px", borderRadius: 12, border: "1px solid #1a1e2a", background: "#0d1018", textAlign: "center" }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: "#4b5563", marginBottom: 8 }}>No check-in data this week</div>
-            <div style={{ fontSize: 13, color: "#374151", marginBottom: 20 }}>THS requires at least one patient check-in to compute. Load demo data to see the dashboard in action.</div>
-            {seedMsg && (
-              <div style={{ fontSize: 12, marginBottom: 12, padding: "8px 10px", borderRadius: 8, display: "inline-block", background: seedStatus === "error" ? "#1a0808" : "#061a0b", border: `1px solid ${seedStatus === "error" ? "#3d1a1a" : "#0e2e1a"}`, color: seedStatus === "error" ? "#f87171" : "#4ade80", fontFamily: "monospace" }}>
-                {seedMsg}
-              </div>
+            <div style={{ fontSize: 13, color: "#374151", marginBottom: 20 }}>THS requires at least one patient check-in to compute.</div>
+            {!isDemo && (
+              <>
+                {seedMsg && (
+                  <div style={{ fontSize: 12, marginBottom: 12, padding: "8px 10px", borderRadius: 8, display: "inline-block", background: seedStatus === "error" ? "#1a0808" : "#061a0b", border: `1px solid ${seedStatus === "error" ? "#3d1a1a" : "#0e2e1a"}`, color: seedStatus === "error" ? "#f87171" : "#4ade80", fontFamily: "monospace" }}>
+                    {seedMsg}
+                  </div>
+                )}
+                <div>
+                  <button onClick={seedDemo} disabled={seedStatus === "loading"}
+                    style={{ fontSize: 13, fontWeight: 700, color: "#f5a623", background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.35)", borderRadius: 9, padding: "10px 20px", cursor: seedStatus === "loading" ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+                    {seedStatus === "loading" ? "Seeding…" : "⚡ Load Demo Data"}
+                  </button>
+                </div>
+              </>
             )}
-            <div>
-              <button onClick={seedDemo} disabled={seedStatus === "loading"}
-                style={{ fontSize: 13, fontWeight: 700, color: "#f5a623", background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.35)", borderRadius: 9, padding: "10px 20px", cursor: seedStatus === "loading" ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-                {seedStatus === "loading" ? "Seeding…" : "⚡ Load Demo Data"}
-              </button>
-            </div>
           </div>
         )}
       </div>
@@ -401,5 +407,13 @@ export default function PracticeThsPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function PracticeThsPage() {
+  return (
+    <Suspense fallback={null}>
+      <PracticeThsPageInner />
+    </Suspense>
   );
 }
