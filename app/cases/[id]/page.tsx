@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { RISK_THRESHOLDS } from "@/lib/services/risk";
+import SessionPrepCard from "@/app/components/SessionPrepCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ExtendedPatient = {
@@ -937,6 +938,8 @@ export default function CasePage() {
                 )}
               </div>
 
+              {/* ── SESSION PREP (4-card AI panel) ── */}
+              <SessionPrepCard caseId={id} weekStart={new Date().toISOString().slice(0, 10)} />
 
             </div>
 
