@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { safeDisplayText, containsBannedClinicalTerm } from "@/lib/phiDisplayGuard";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -174,6 +175,8 @@ function ConfidenceRow({ confidence, dataSource }: { confidence: "high" | "mediu
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardProps) {
+  const searchParams = useSearchParams();
+  const isDemo = searchParams?.get("demo") === "true";
   const [data, setData] = useState<SessionPrepOutput | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -194,7 +197,8 @@ export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardPr
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}/session-prep`, {
+      const demoSuffix = isDemo ? "?demo=true" : "";
+      const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}/session-prep${demoSuffix}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -209,7 +213,7 @@ export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardPr
     } finally {
       setLoading(false);
     }
-  }, [caseId]);
+  }, [caseId, isDemo]);
 
   useEffect(() => { loadPrep(); }, [loadPrep]);
 

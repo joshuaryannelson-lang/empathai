@@ -382,7 +382,8 @@ export default function CasePage() {
     setAiLoading(true); setAiText(""); setAiDone(false); setAiError(null);
     setTimeout(() => aiSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
     try {
-      const res = await fetch(`/api/cases/${id}/session-prep`, {
+      const spUrl = isDemo ? `/api/cases/${id}/session-prep?demo=true` : `/api/cases/${id}/session-prep`;
+      const res = await fetch(spUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: buildPrompt(data, goalList), stream: true }),
