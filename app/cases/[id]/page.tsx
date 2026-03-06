@@ -75,6 +75,10 @@ export default function CasePage() {
 
   const [notesOpen, setNotesOpen]     = useState(false);
   const [copied, setCopied]     = useState<string | null>(null);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [clinicalNotesCollapsed, setClinicalNotesCollapsed] = useState(true);
+  const [activitiesExpanded, setActivitiesExpanded] = useState(false);
+  const [sessionPrepReviewed, setSessionPrepReviewed] = useState(false);
 
   // Tasks state
   type TaskRow = {
@@ -91,6 +95,7 @@ export default function CasePage() {
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [taskGenLoading, setTaskGenLoading] = useState(false);
+  const [taskGenError, setTaskGenError] = useState<string | null>(null);
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDesc, setNewTaskDesc] = useState("");
@@ -194,27 +199,30 @@ export default function CasePage() {
 
   async function generateTasksAI() {
     setTaskGenLoading(true);
+    setTaskGenError(null);
     try {
-      const res = await fetch(`/api/cases/${id}/tasks`, {
+      const demoSuffix = isDemo ? "?demo=true" : "";
+      const res = await fetch(`/api/cases/${id}/tasks${demoSuffix}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ trigger: "ai", therapistId: d?.therapist?.name ?? "" }),
       });
-      if (!res.ok) {
-        console.error("[generateTasksAI] POST failed:", res.status);
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.error) {
+        setTaskGenError(json?.error?.message ?? "Couldn't generate tasks — try again");
         return;
       }
-      const json = await res.json().catch(() => ({}));
       const generated = json?.data?.tasks;
       if (Array.isArray(generated) && generated.length > 0) {
-        console.log("[generateTasksAI] Got", generated.length, "tasks from POST response");
         setTasks(prev => [...generated, ...prev]);
       } else {
-        console.log("[generateTasksAI] No tasks in POST response, re-fetching...");
         await loadTasks();
       }
-    } catch (e) { console.error("[generateTasksAI] Error:", e); }
-    finally { setTaskGenLoading(false); }
+    } catch {
+      setTaskGenError("Couldn't generate tasks — try again");
+    } finally {
+      setTaskGenLoading(false);
+    }
   }
 
   async function addManualTask() {
@@ -442,7 +450,7 @@ export default function CasePage() {
         .info-key { font-size: 10px; font-weight: 600; color: #4b5563; text-transform: uppercase; letter-spacing: .05em; flex-shrink: 0; }
         .info-val { font-size: 11px; color: #9ca3af; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
 
-        .diag-chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 20px; border: 1px solid #2a3050; background: #0d1220; color: #6b82d4; font-size: 10px; font-weight: 600; margin: 2px 2px 2px 0; }
+        .diag-chip { display: inline-flex; align-items: center; padding: 2px 6px; border-radius: 10px; border: 1px solid #1f2533; background: #111420; color: #6b7280; font-size: 9px; font-weight: 600; margin: 2px 2px 2px 0; }
         .mod-chip  { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 20px; border: 1px solid #0e2e1a; background: #061a0b; color: #4ade80; font-size: 10px; font-weight: 600; margin: 2px 2px 2px 0; }
 
         .info-card { border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; padding: 14px 16px; animation: fadeUp .3s ease .05s both; }
@@ -468,9 +476,9 @@ export default function CasePage() {
 
         .trend-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; animation: fadeUp .3s ease .08s both; }
         @media (max-width: 500px) { .trend-row { grid-template-columns: 1fr; } }
-        .trend-card { padding: 14px 16px; border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; }
+        .trend-card { padding: 10px 14px; border-radius: 10px; border: 1px solid #1a1e2a; background: #0d1018; }
         .trend-label { font-size: 10px; font-weight: 600; color: #4b5563; text-transform: uppercase; letter-spacing: .06em; }
-        .trend-value { font-size: 22px; font-weight: 700; letter-spacing: -.02em; margin: 4px 0 2px; }
+        .trend-value { font-size: 20px; font-weight: 700; letter-spacing: -.02em; margin: 2px 0 1px; }
         .trend-sub   { font-size: 11px; color: #374151; }
 
         .context-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; animation: fadeUp .3s ease .11s both; }
@@ -480,7 +488,7 @@ export default function CasePage() {
         .ctx-head { padding: 12px 16px; border-bottom: 1px solid #131720; display: flex; align-items: center; justify-content: space-between; }
         .ctx-title { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; }
         .ctx-badge { font-size: 11px; font-weight: 600; color: #4b5563; }
-        .ctx-body { padding: 14px 16px; }
+        .ctx-body { padding: 10px 14px; }
         .notes-text { font-size: 13px; color: #9ca3af; line-height: 1.75; }
         .notes-empty { font-size: 12px; color: #374151; font-style: italic; }
 
@@ -575,7 +583,7 @@ export default function CasePage() {
         .cn-head { padding: 12px 16px; border-bottom: 1px solid #131720; display: flex; align-items: center; justify-content: space-between; }
         .cn-title { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; }
         .cn-saved { font-size: 10px; font-weight: 600; color: #4ade80; transition: opacity .3s; }
-        .cn-body { padding: 14px 16px; }
+        .cn-body { padding: 10px 14px; }
         .cn-textarea { width: 100%; min-height: 120px; padding: 10px 12px; border-radius: 8px; border: 1px solid #1f2533; background: #080c12; color: #c8d0e0; font-size: 13px; font-family: inherit; line-height: 1.7; resize: vertical; outline: none; transition: border-color .15s; }
         .cn-textarea:focus { border-color: #2a3560; }
         .cn-textarea::placeholder { color: #374151; }
@@ -669,9 +677,9 @@ export default function CasePage() {
                 </div>
               )}
 
-              {/* DSM codes — therapist/admin only */}
+              {/* Diagnostic codes — below therapist card */}
               <div className="info-card">
-                <div className="info-card-title">DSM Codes</div>
+                <div className="info-card-title">Diagnostic codes</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: dsmCodes.length > 0 ? 8 : 0 }}>
                   {dsmCodes.map(code => (
                     <span key={code} className="diag-chip" style={{ gap: 4 }}>
@@ -713,10 +721,10 @@ export default function CasePage() {
                 </div>
               )}
 
-              {/* SESSION PREP — always first in main column */}
-              <SessionPrepCard caseId={id} weekStart={new Date().toISOString().slice(0, 10)} />
+              {/* 1. SESSION PREP — always first */}
+              <SessionPrepCard caseId={id} weekStart={new Date().toISOString().slice(0, 10)} onReviewedChange={setSessionPrepReviewed} />
 
-              {/* Trend row */}
+              {/* 2. Stats row */}
               <div className="trend-row">
                 {[
                   { label: "Previous",   value: prev?.score?.toString() ?? "—",  sub: prev?.created_at ? fmtShort(prev.created_at) : "—", color: scoreHue(prev?.score ?? null).fg },
@@ -731,57 +739,47 @@ export default function CasePage() {
                 ))}
               </div>
 
-              {/* Clinical notes (editable) */}
-              <div className="cn-wrap">
-                <div className="cn-head">
-                  <div className="cn-title">Clinical Notes</div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    {clinicalNotesSaved && <span className="cn-saved">✓ Saved</span>}
-                    <button className="cn-btn" onClick={() => {
-                      if (clinicalNotesEditing) {
-                        saveClinicalNotes(clinicalNotes);
-                      }
-                      setClinicalNotesEditing(e => !e);
-                    }}>
-                      {clinicalNotesEditing ? "Done" : "Edit"}
-                    </button>
-                  </div>
+              {/* 3. Check-in history — 3 expanded, rest collapsed */}
+              <div className="history-wrap">
+                <div className="feed-head">
+                  <span className="feed-title">Check-in history</span>
+                  <span className="feed-count">{checkins.length} entries</span>
                 </div>
-                <div className="cn-body">
-                  {clinicalNotesEditing ? (
-                    <textarea
-                      className="cn-textarea"
-                      value={clinicalNotes}
-                      onChange={e => handleClinicalNotesChange(e.target.value)}
-                      placeholder="Add clinical observations, session notes, or treatment context here..."
-                      autoFocus
-                    />
-                  ) : clinicalNotes ? (
-                    <div className="cn-display">{clinicalNotes}</div>
+                <div style={{ padding: "4px 0 8px" }}>
+                  {checkins.length === 0 ? (
+                    <div className="feed-empty">No check-ins recorded yet</div>
                   ) : (
-                    <p className="notes-empty" style={{ cursor: "pointer" }} onClick={() => setClinicalNotesEditing(true)}>
-                      Add clinical observations, session notes, or treatment context here...
-                    </p>
-                  )}
-
-                  {sessionNotes.length > 0 && (
                     <>
-                      <button className="sn-toggle" onClick={() => setNotesOpen(o => !o)}>
-                        <span className={`chevron ${notesOpen ? "chevron--open" : ""}`}>▾</span>
-                        Session notes ({sessionNotes.length})
-                      </button>
-                      {notesOpen && sessionNotes.map((n, i) => (
-                        <div key={i} className="sn-entry">
-                          <div className="sn-date">{fmtDate(n.date)}</div>
-                          <div className="sn-text">{n.text}</div>
-                        </div>
-                      ))}
+                      {(historyExpanded ? checkins : checkins.slice(0, 3)).map((ci, idx) => {
+                        const h = scoreHue(ci.score);
+                        return (
+                          <div key={ci.id} className="feed-item">
+                            <div className="feed-score" style={{ background: h.bg, border: `1px solid ${h.border}`, color: h.fg }}>
+                              {ci.score ?? "—"}
+                            </div>
+                            <div className="feed-info">
+                              <div className="feed-date">{fmtFull(ci.created_at)}{idx === 0 ? " · latest" : ""}</div>
+                              {noteText(ci)
+                                ? <div className="feed-note">&quot;{noteText(ci)}&quot;</div>
+                                : <div className="feed-note" style={{ opacity: 0.3 }}>No note</div>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {checkins.length > 3 && (
+                        <button
+                          onClick={() => setHistoryExpanded(v => !v)}
+                          style={{ width: "100%", padding: "8px 14px", background: "none", border: "none", borderTop: "1px solid #0f1218", color: "#4b5563", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", letterSpacing: ".03em" }}
+                        >
+                          {historyExpanded ? "Show less" : `Show all ${checkins.length} check-ins`}
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
               </div>
 
-              {/* Treatment goals */}
+              {/* 4. Treatment goals — compact checklist */}
               <div className="ctx-card">
                 <div className="ctx-head">
                   <div className="ctx-title">Treatment goals</div>
@@ -836,57 +834,106 @@ export default function CasePage() {
                 </div>
               </div>
 
-              {/* Activities */}
-              {(ep.activities ?? []).length > 0 && (
-                <div className="ctx-card" style={{ animation: "fadeUp .3s ease .12s both" }}>
-                  <div className="ctx-head">
-                    <div className="ctx-title">Activities &amp; Homework</div>
-                    <div className="ctx-badge">{ep.activities!.length} entries</div>
+              {/* 5. Clinical notes — collapsed by default, 100-char preview */}
+              <div className="cn-wrap">
+                <div className="cn-head" style={{ cursor: clinicalNotesEditing ? "default" : "pointer" }} onClick={() => { if (!clinicalNotesEditing) setClinicalNotesCollapsed(v => !v); }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span className={`chevron ${!clinicalNotesCollapsed ? "chevron--open" : ""}`} style={{ fontSize: 10, color: "#4b5563" }}>▾</span>
+                    <div className="cn-title">Clinical Notes</div>
                   </div>
-                  <div className="ctx-body">
-                    <div style={{ display: "grid", gap: 10 }}>
-                      {[...(ep.activities ?? [])].sort((a, b) => b.date.localeCompare(a.date)).map((act, i) => (
-                        <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "#4b5563", whiteSpace: "nowrap", paddingTop: 2, minWidth: 72 }}>{fmtDate(act.date)}</div>
-                          <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.55 }}>{act.description}</div>
-                        </div>
-                      ))}
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {clinicalNotesSaved && <span className="cn-saved">✓ Saved</span>}
+                    <button className="cn-btn" onClick={(e) => {
+                      e.stopPropagation();
+                      if (clinicalNotesEditing) {
+                        saveClinicalNotes(clinicalNotes);
+                      }
+                      setClinicalNotesEditing(v => !v);
+                      if (!clinicalNotesEditing) setClinicalNotesCollapsed(false);
+                    }}>
+                      {clinicalNotesEditing ? "Done" : "Edit"}
+                    </button>
+                  </div>
+                </div>
+                {clinicalNotesCollapsed && !clinicalNotesEditing ? (
+                  clinicalNotes ? (
+                    <div className="cn-body" style={{ cursor: "pointer" }} onClick={() => setClinicalNotesCollapsed(false)}>
+                      <div className="cn-display" style={{ color: "#6b7280", fontSize: 12 }}>{clinicalNotes.slice(0, 100)}{clinicalNotes.length > 100 ? "…" : ""}</div>
+                    </div>
+                  ) : null
+                ) : (
+                  <div className="cn-body">
+                    {clinicalNotesEditing ? (
+                      <textarea
+                        className="cn-textarea"
+                        value={clinicalNotes}
+                        onChange={e => handleClinicalNotesChange(e.target.value)}
+                        placeholder="Add clinical observations, session notes, or treatment context here..."
+                        autoFocus
+                      />
+                    ) : clinicalNotes ? (
+                      <div className="cn-display">{clinicalNotes}</div>
+                    ) : (
+                      <p className="notes-empty" style={{ cursor: "pointer" }} onClick={() => setClinicalNotesEditing(true)}>
+                        Add clinical observations, session notes, or treatment context here...
+                      </p>
+                    )}
+
+                    {sessionNotes.length > 0 && (
+                      <>
+                        <button className="sn-toggle" onClick={() => setNotesOpen(o => !o)}>
+                          <span className={`chevron ${notesOpen ? "chevron--open" : ""}`}>▾</span>
+                          Session notes ({sessionNotes.length})
+                        </button>
+                        {notesOpen && sessionNotes.map((n, i) => (
+                          <div key={i} className="sn-entry">
+                            <div className="sn-date">{fmtDate(n.date)}</div>
+                            <div className="sn-text">{n.text}</div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* 6. Activities — collapsed by default, 2 visible */}
+              {(ep.activities ?? []).length > 0 && (() => {
+                const sortedActivities = [...(ep.activities ?? [])].sort((a, b) => b.date.localeCompare(a.date));
+                return (
+                  <div className="ctx-card" style={{ animation: "fadeUp .3s ease .12s both" }}>
+                    <div className="ctx-head" style={{ cursor: "pointer" }} onClick={() => setActivitiesExpanded(v => !v)}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span className={`chevron ${activitiesExpanded ? "chevron--open" : ""}`} style={{ fontSize: 10, color: "#4b5563" }}>▾</span>
+                        <div className="ctx-title">Activities &amp; Homework</div>
+                      </div>
+                      <div className="ctx-badge">{sortedActivities.length} entries</div>
+                    </div>
+                    <div className="ctx-body">
+                      <div style={{ display: "grid", gap: 10 }}>
+                        {(activitiesExpanded ? sortedActivities : sortedActivities.slice(0, 2)).map((act, i) => (
+                          <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: "#4b5563", whiteSpace: "nowrap", paddingTop: 2, minWidth: 72 }}>{fmtDate(act.date)}</div>
+                            <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.55 }}>{act.description}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {sortedActivities.length > 2 && (
+                        <button
+                          onClick={() => setActivitiesExpanded(v => !v)}
+                          style={{ width: "100%", padding: "8px 0 0", background: "none", border: "none", color: "#4b5563", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                        >
+                          {activitiesExpanded ? "Show less" : `Show all ${sortedActivities.length} activities`}
+                        </button>
+                      )}
                     </div>
                   </div>
-                </div>
-              )}
-
-              {/* Check-in history (inline in main for context) */}
-              <div className="history-wrap">
-                <div className="feed-head">
-                  <span className="feed-title">Check-in history</span>
-                  <span className="feed-count">{checkins.length} entries</span>
-                </div>
-                <div style={{ padding: "4px 0 8px" }}>
-                  {checkins.length === 0 ? (
-                    <div className="feed-empty">No check-ins recorded yet</div>
-                  ) : checkins.map((ci, idx) => {
-                    const h = scoreHue(ci.score);
-                    return (
-                      <div key={ci.id} className="feed-item">
-                        <div className="feed-score" style={{ background: h.bg, border: `1px solid ${h.border}`, color: h.fg }}>
-                          {ci.score ?? "—"}
-                        </div>
-                        <div className="feed-info">
-                          <div className="feed-date">{fmtFull(ci.created_at)}{idx === 0 ? " · latest" : ""}</div>
-                          {noteText(ci)
-                            ? <div className="feed-note">&quot;{noteText(ci)}&quot;</div>
-                            : <div className="feed-note" style={{ opacity: 0.3 }}>No note</div>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+                );
+              })()}
 
             </div>
 
-            {/* ── RIGHT COLUMN (actions, tasks, messages) ── */}
+            {/* ── RIGHT COLUMN ── */}
             <div className="right-col">
 
               {/* Action card */}
@@ -907,14 +954,24 @@ export default function CasePage() {
                     </div>
                   </div>
                 </div>
-                <button
-                  className={`action-btn ${isLow || isDropping ? "action-btn--alert" : "action-btn--stable"} ${copied === "action" ? "action-btn--done" : ""}`}
-                  onClick={() => copy(outreachText, "action")}
-                  style={{ width: "100%", marginTop: 8 }}
-                >
-                  {copied === "action" ? "✓ Copied" : "Copy outreach"}
-                </button>
               </div>
+
+              {/* Copy outreach — only active after session prep reviewed */}
+              <button
+                className={`action-btn ${sessionPrepReviewed ? (isLow || isDropping ? "action-btn--alert" : "action-btn--stable") : ""} ${copied === "action" ? "action-btn--done" : ""}`}
+                onClick={() => sessionPrepReviewed && copy(outreachText, "action")}
+                disabled={!sessionPrepReviewed}
+                title={sessionPrepReviewed ? "Copy outreach message" : "Review session prep first"}
+                style={{
+                  width: "100%", padding: "10px 18px", borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: sessionPrepReviewed ? "pointer" : "not-allowed", fontFamily: "inherit", transition: "all .15s",
+                  border: sessionPrepReviewed ? undefined : "1px solid #1f2533",
+                  background: sessionPrepReviewed ? undefined : "#111420",
+                  color: sessionPrepReviewed ? undefined : "#4b5563",
+                  opacity: sessionPrepReviewed ? 1 : 0.6,
+                }}
+              >
+                {copied === "action" ? "✓ Copied" : sessionPrepReviewed ? "Copy outreach" : "Review prep to copy outreach"}
+              </button>
 
               {/* Tasks */}
               <div className="tasks-wrap">
@@ -932,6 +989,12 @@ export default function CasePage() {
                     </button>
                   </div>
                 </div>
+
+                {taskGenError && (
+                  <div style={{ padding: "8px 14px", fontSize: 12, color: "#fb923c", background: "#1a1000", borderBottom: "1px solid #131720" }}>
+                    {taskGenError}
+                  </div>
+                )}
 
                 {showAddTask && (
                   <div className="task-add-form">
@@ -1003,36 +1066,9 @@ export default function CasePage() {
                 )}
               </div>
 
-              {/* Messages */}
-              <div className="msg-wrap">
-                <div className="msg-head">
-                  <div className="msg-title">Messages</div>
-                </div>
-                <div className="msg-body">
-                  {isDemo ? (
-                    <div style={{ display: "flex", flexDirection: "column" }}>
-                      <div className="msg-bubble msg-bubble--patient">
-                        <div className="msg-sender">Patient</div>
-                        Had a rough week, feeling anxious about work
-                      </div>
-                      <div className="msg-bubble msg-bubble--therapist">
-                        <div className="msg-sender">Therapist</div>
-                        Thanks for checking in. We&apos;ll talk through this in our next session.
-                      </div>
-                      <div className="msg-bubble msg-bubble--patient">
-                        <div className="msg-sender">Patient</div>
-                        That helps, see you Thursday
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="msg-placeholder">
-                      <div className="msg-placeholder-icon">💬</div>
-                      <div className="msg-placeholder-text">
-                        Patient messaging is coming soon.
-                      </div>
-                    </div>
-                  )}
-                </div>
+              {/* Messages — collapsed placeholder */}
+              <div style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #1a1e2a", background: "#0d1018", fontSize: 11, color: "#374151", textAlign: "center" }}>
+                Patient messaging coming soon
               </div>
 
             </div>

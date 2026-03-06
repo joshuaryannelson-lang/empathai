@@ -22,6 +22,7 @@ export interface SessionPrepOutput {
 interface SessionPrepCardProps {
   caseId: string;
   weekStart: string;
+  onReviewedChange?: (reviewed: boolean) => void;
 }
 
 // ── Design tokens ────────────────────────────────────────────────────────────
@@ -114,7 +115,7 @@ function contentHash(d: SessionPrepOutput): string {
   return h.toString(36);
 }
 
-export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardProps) {
+export default function SessionPrepCard({ caseId, weekStart, onReviewedChange }: SessionPrepCardProps) {
   const searchParams = useSearchParams();
   const isDemo = searchParams?.get("demo") === "true";
   const [data, setData] = useState<SessionPrepOutput | null>(null);
@@ -131,18 +132,25 @@ export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardPr
       const stored = localStorage.getItem(storageKey);
       if (stored) {
         const parsed = JSON.parse(stored);
-        setReviewed(parsed.hash === contentHash(data));
+        const isReviewed = parsed.hash === contentHash(data);
+        setReviewed(isReviewed);
+        onReviewedChange?.(isReviewed);
       } else {
         setReviewed(false);
+        onReviewedChange?.(false);
       }
-    } catch { setReviewed(false); }
-  }, [storageKey, data]);
+    } catch {
+      setReviewed(false);
+      onReviewedChange?.(false);
+    }
+  }, [storageKey, data, onReviewedChange]);
 
   const markReviewed = useCallback(() => {
     if (!data) return;
     setReviewed(true);
+    onReviewedChange?.(true);
     try { localStorage.setItem(storageKey, JSON.stringify({ hash: contentHash(data), reviewed: true })); } catch { /* noop */ }
-  }, [storageKey, data]);
+  }, [storageKey, data, onReviewedChange]);
 
   const loadPrep = useCallback(async () => {
     setLoading(true);
@@ -347,8 +355,8 @@ export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardPr
             </div>
           )}
 
-          {/* Reviewed badge */}
-          {reviewed && (
+          {/* Reviewed badge — only show when all 4 cards have content */}
+          {reviewed && data.rating_trend !== "insufficient_data" && data.open_with && data.watch_for && data.try_this && data.send_this && (
             <div style={{ padding: "0 18px 14px", display: "flex", justifyContent: "flex-end" }}>
               <span style={{
                 display: "inline-flex",

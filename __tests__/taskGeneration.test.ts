@@ -145,7 +145,7 @@ describe("generateTasks", () => {
     expect(therapistTask).toBeDefined();
   });
 
-  it("never returns more than 4 tasks", async () => {
+  it("never returns more than 5 tasks", async () => {
     const riskSignal: RiskSignal = { level: "stable", signal: "OK", reasons: [] };
 
     mockLLMResponse([
@@ -154,10 +154,11 @@ describe("generateTasks", () => {
       { title: "Task 3", description: "d3", assignedToRole: "therapist" },
       { title: "Task 4", description: "d4", assignedToRole: "patient" },
       { title: "Task 5", description: "d5", assignedToRole: "therapist" },
+      { title: "Task 6", description: "d6", assignedToRole: "patient" },
     ]);
 
     const result = await generateTasks({ ...baseInput, riskSignal });
-    expect(result.tasks.length).toBeLessThanOrEqual(4);
+    expect(result.tasks.length).toBeLessThanOrEqual(5);
   });
 
   it("all outputs pass scrubOutput with no PII leaks", async () => {
@@ -192,6 +193,86 @@ describe("generateTasks", () => {
     const result = await generateTasks({ ...baseInput, riskSignal });
     expect(result.tasks).toEqual([]);
     expect(result.blocked).toBe(false);
+  });
+
+  it("generates tasks when goals exist", async () => {
+    const riskSignal: RiskSignal = { level: "stable", signal: "OK", reasons: [] };
+
+    mockLLMResponse([
+      { title: "Practice coping skills daily", description: "10 min journaling", assignedToRole: "patient" },
+      { title: "Review progress on coping goal", description: "Check in next session", assignedToRole: "therapist" },
+    ]);
+
+    const result = await generateTasks({
+      ...baseInput,
+      goals: [
+        { id: "g1", title: "Improve coping skills", status: "active" },
+        { id: "g2", title: "Reduce anxiety", status: "active" },
+      ],
+      riskSignal,
+    });
+
+    expect(result.tasks.length).toBeGreaterThanOrEqual(1);
+    expect(result.blocked).toBe(false);
+  });
+
+  it("returns empty tasks when no goals or checkins", async () => {
+    const riskSignal: RiskSignal = { level: "stable", signal: "OK", reasons: [] };
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        content: [{ text: JSON.stringify({ tasks: [] }) }],
+        usage: { output_tokens: 20 },
+      }),
+    });
+
+    const result = await generateTasks({
+      caseId: "case-1",
+      checkins: [],
+      goals: [],
+      therapistId: "therapist-1",
+      riskSignal,
+    });
+
+    expect(result.tasks).toEqual([]);
+    expect(result.blocked).toBe(false);
+  });
+
+  it("scrubs PII from generated task titles and descriptions", async () => {
+    const riskSignal: RiskSignal = { level: "stable", signal: "OK", reasons: [] };
+
+    mockLLMResponse([
+      { title: "Call patient about homework", description: "Follow up on exercises", assignedToRole: "therapist" },
+    ]);
+
+    const result = await generateTasks({ ...baseInput, riskSignal });
+
+    for (const task of result.tasks) {
+      expect(task.title).not.toMatch(/\b\d{3}-\d{2}-\d{4}\b/);
+      expect(task.title).not.toMatch(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      if (task.description) {
+        expect(task.description).not.toMatch(/\b\d{3}-\d{2}-\d{4}\b/);
+        expect(task.description).not.toMatch(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      }
+    }
+  });
+
+  it("caps at 5 tasks maximum", async () => {
+    const riskSignal: RiskSignal = { level: "stable", signal: "OK", reasons: [] };
+
+    mockLLMResponse([
+      { title: "Task 1", description: "d1", assignedToRole: "therapist" },
+      { title: "Task 2", description: "d2", assignedToRole: "patient" },
+      { title: "Task 3", description: "d3", assignedToRole: "therapist" },
+      { title: "Task 4", description: "d4", assignedToRole: "patient" },
+      { title: "Task 5", description: "d5", assignedToRole: "therapist" },
+      { title: "Task 6", description: "d6", assignedToRole: "patient" },
+      { title: "Task 7", description: "d7", assignedToRole: "therapist" },
+    ]);
+
+    const result = await generateTasks({ ...baseInput, riskSignal });
+    expect(result.tasks.length).toBeLessThanOrEqual(5);
   });
 });
 

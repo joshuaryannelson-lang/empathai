@@ -158,8 +158,8 @@ function parseTasks(raw: string): Array<{
     const parsed = JSON.parse(jsonMatch[0]);
     const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
 
-    // Validate and cap at 4
-    return tasks.slice(0, 4).map((t: Record<string, unknown>) => ({
+    // Validate and cap at 5
+    return tasks.slice(0, 5).map((t: Record<string, unknown>) => ({
       title: String(t.title ?? "").trim(),
       description: String(t.description ?? "").trim(),
       assignedToRole: t.assignedToRole === "patient" ? "patient" as const : "therapist" as const,
