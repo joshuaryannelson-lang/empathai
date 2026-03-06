@@ -1,7 +1,7 @@
 // app/api/cases/[id]/session-prep/route.ts
 // Session preparation: GET returns raw data, POST generates AI-powered structured summary.
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 import { bad, getIdFromContext, ok, RouteContextWithId } from "@/lib/route-helpers";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoSessionPrepStructured } from "@/lib/demo/demoAI";
@@ -51,17 +51,19 @@ export async function GET(req: Request, ctx: RouteContextWithId) {
     });
   }
 
-  const caseRes = await supabase.from("cases").select("id, title, status, created_at, patient_id, therapist_id, practice_id").eq("id", caseId).single();
+  // Use supabaseAdmin (service role) to bypass RLS — anon key returns 0 rows
+  // when checkins/goals RLS policies restrict SELECT to authenticated users.
+  const caseRes = await supabaseAdmin.from("cases").select("id, title, status, created_at, patient_id, therapist_id, practice_id").eq("id", caseId).single();
   if (caseRes.error) return bad(caseRes.error.message, 400, caseRes.error);
 
-  const checkinsRes = await supabase
+  const checkinsRes = await supabaseAdmin
     .from("checkins")
     .select("id, score, mood, created_at, note, notes, week_start")
     .eq("case_id", caseId)
     .order("created_at", { ascending: false })
     .limit(4);
 
-  const goalsRes = await supabase
+  const goalsRes = await supabaseAdmin
     .from("goals")
     .select("id, title, status, target_date")
     .eq("case_id", caseId)
@@ -101,24 +103,25 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   const startTime = Date.now();
 
   // ── Fetch case data for prompt ──
-  // FIX 3: include clinical_notes for prompt context (~150 extra tokens typical)
-  const caseRes = await supabase
+  // Use supabaseAdmin (service role) — anon key returns 0 rows when RLS
+  // restricts SELECT to authenticated users (checkins_select, goals_select).
+  const caseRes = await supabaseAdmin
     .from("cases")
     .select("patient_id, therapist_id, dsm_codes, clinical_notes")
     .eq("id", caseId)
     .single();
 
-  const checkinsRes = await supabase
+  const checkinsRes = await supabaseAdmin
     .from("checkins")
     .select("score, note, notes, week_start, created_at")
     .eq("case_id", caseId)
     .order("created_at", { ascending: false })
     .limit(4);
 
-  console.log(`[session-prep] case=${caseId} checkins_found=${checkinsRes.data?.length ?? 0}`);
+  console.log(`[session-prep] case=${caseId} checkins_found=${checkinsRes.data?.length ?? 0} checkins_error=${checkinsRes.error?.message ?? "none"}`);
 
   // FIX 2: fetch all goals (active + completed) so model can reference recent wins
-  const goalsRes = await supabase
+  const goalsRes = await supabaseAdmin
     .from("goals")
     .select("title, status")
     .eq("case_id", caseId)
@@ -130,7 +133,7 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   // Fetch patient first name for send_this personalization
   let patientFirstName: string | undefined;
   if (caseRes.data?.patient_id) {
-    const patientRes = await supabase
+    const patientRes = await supabaseAdmin
       .from("patients")
       .select("first_name")
       .eq("id", caseRes.data.patient_id)
@@ -141,7 +144,7 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   // Fetch therapist modalities for TRY THIS personalization
   let modalities: string[] | undefined;
   if (caseRes.data?.therapist_id) {
-    const therapistRes = await supabase
+    const therapistRes = await supabaseAdmin
       .from("therapists")
       .select("extended_profile")
       .eq("id", caseRes.data.therapist_id)
