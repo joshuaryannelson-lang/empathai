@@ -98,7 +98,6 @@ export async function POST(req: Request) {
       .from("join_codes")
       .update({
         redeemed_at: new Date().toISOString(),
-        redeemed_by_ip: ip,
       })
       .eq("id", joinCode.id)
       .is("redeemed_at", null); // Double-check not already redeemed (race condition guard)
