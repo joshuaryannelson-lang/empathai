@@ -82,15 +82,17 @@ export async function POST(req: Request) {
 
   console.log(`[join] code="${code}" found=${!!joinCode} error=${lookupError?.message ?? "none"} expires_at=${joinCode?.expires_at ?? "null"} redeemed_at=${joinCode?.redeemed_at ?? "null"}`);
 
-  if (lookupError || !joinCode) {
-    await logAudit("join_code_failed", null, ip, { code_prefix: code.slice(0, 4) });
-    return NextResponse.json(
-      { data: null, error: { message: "Invalid or expired join code." } },
-      { status: 404 }
-    );
-  }
-
   try {
+    console.log("[join] entering post-lookup block");
+
+    if (lookupError || !joinCode) {
+      await logAudit("join_code_failed", null, ip, { code_prefix: code.slice(0, 4) });
+      return NextResponse.json(
+        { data: null, error: { message: "Invalid or expired join code." } },
+        { status: 404 }
+      );
+    }
+
     // ── Mark code as redeemed ──
     const { error: redeemError } = await supabaseAdmin
       .from("join_codes")
