@@ -2,11 +2,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { RISK_THRESHOLDS } from "@/lib/services/risk";
-import MarkdownContent from "@/app/components/MarkdownContent";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ExtendedPatient = {
@@ -73,55 +72,6 @@ const scoreHue = (s: number | null) => {
   return           { fg: "#4ade80", bg: "#061a0b", border: "#0e2e1a" };
 };
 
-// ─── AI Prompt ────────────────────────────────────────────────────────────────
-function buildPrompt(d: TimelineResponse, goals: Goal[]): string {
-  const name = fullName(d.patient?.first_name);
-  const ep = d.patient?.extended_profile ?? {};
-  const te = d.therapist?.extended_profile ?? {};
-  const history = d.checkins.slice(0, 6).map((c, i) =>
-    `  ${i === 0 ? "latest" : `-${i}w`}: score ${c.score ?? "—"}, note: "${noteText(c) ?? "none"}"`
-  ).join("\n");
-  const latest = d.checkins[0];
-
-  const diagLine        = ep.primary_diagnosis ? `Diagnosis: ${ep.primary_diagnosis}` : "";
-  const secDx           = (ep.secondary_diagnoses ?? []).length ? `Secondary: ${ep.secondary_diagnoses!.join(", ")}` : "";
-  const clinicalNotes   = ep.clinical_notes ? `\nClinical notes:\n${ep.clinical_notes}` : "";
-  const recentSessions  = (ep.session_notes ?? []).slice(0, 3).map(n => `  [${n.date}] ${n.text}`).join("\n");
-  const sessionBlock    = recentSessions ? `\nRecent session notes:\n${recentSessions}` : "";
-  const recentActs      = (ep.activities ?? []).slice(-4).map(a => `  [${a.date}] ${a.description}`).join("\n");
-  const activitiesBlock = recentActs ? `\nRecent activities/homework:\n${recentActs}` : "";
-  const goalsBlock      = goals.length ? `\nTreatment goals:\n${goals.map(g => `  [${g.status}] ${g.title}`).join("\n")}` : "";
-  const modalitiesLine  = (te.therapy_modalities ?? []).length ? `Therapist modalities: ${te.therapy_modalities!.join(", ")}` : "";
-  const specLine        = (te.specializations ?? []).length ? `Specializations: ${te.specializations!.join(", ")}` : "";
-
-  return `You are a clinical AI assistant helping a therapist prepare for a session in under 2 minutes.
-
-Patient: ${name}
-Case: ${d.case?.title ?? "—"}
-${diagLine}
-${secDx}
-${modalitiesLine}
-${specLine}
-
-Latest score: ${latest?.score ?? "—"}/10 (${latest?.created_at ? daysSince(latest.created_at) + " days ago" : "unknown"})
-Latest note: "${noteText(latest) ?? "none"}"
-
-Score history:
-${history}
-${clinicalNotes}
-${sessionBlock}
-${activitiesBlock}
-${goalsBlock}
-
-Reply with EXACTLY these four labeled lines (label in ALL CAPS, colon, then content on same line):
-OPEN WITH: One specific opening question tailored to this patient right now.
-WATCH FOR: One clinical pattern or risk to keep in mind this session.
-TRY THIS: One concrete technique or intervention suited to this patient.
-SEND THIS: A warm 1-2 sentence text to send before the session, first-person from therapist.
-
-Be specific. Be direct. No preamble or bullets within sections.`;
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function CasePage() {
   const params = useParams();
@@ -154,11 +104,6 @@ export default function CasePage() {
   const [newTaskDesc, setNewTaskDesc] = useState("");
   const [newTaskRole, setNewTaskRole] = useState<"therapist" | "patient">("patient");
 
-  const [aiText, setAiText]       = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiDone, setAiDone]       = useState(false);
-  const [aiError, setAiError]     = useState<string | null>(null);
-  const aiSectionRef = useRef<HTMLDivElement>(null);
 
   // Clinical notes state
   const [clinicalNotes, setClinicalNotes] = useState("");
@@ -378,54 +323,6 @@ export default function CasePage() {
     } catch { /* ignore — optimistic update already applied */ }
   }
 
-  async function generateAI(data: TimelineResponse, goalList: Goal[]) {
-    setAiLoading(true); setAiText(""); setAiDone(false); setAiError(null);
-    setTimeout(() => aiSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
-    try {
-      const spUrl = isDemo ? `/api/cases/${id}/session-prep?demo=true` : `/api/cases/${id}/session-prep`;
-      const res = await fetch(spUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: buildPrompt(data, goalList), stream: true }),
-      });
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(`API ${res.status}: ${(errJson as any)?.error ?? JSON.stringify(errJson)}`);
-      }
-
-      // Stream text from ReadableStream
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No response stream");
-
-      const decoder = new TextDecoder();
-      let accumulated = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        accumulated += decoder.decode(value, { stream: true });
-        setAiText(accumulated);
-      }
-
-      if (!accumulated.trim()) throw new Error("Empty response");
-    } catch (e: any) {
-      setAiError(e?.message ?? String(e));
-    } finally {
-      setAiLoading(false); setAiDone(true);
-    }
-  }
-
-  const aiSections = useMemo(() => {
-    if (!aiText || !aiDone) return null;
-    const keys = ["OPEN WITH", "WATCH FOR", "TRY THIS", "SEND THIS"];
-    const out: Record<string, string> = {};
-    for (const k of keys) {
-      const m = aiText.match(new RegExp(`${k}:\\s*(.+?)(?=\\n[A-Z ]+:|$)`, "s"));
-      if (m) out[k] = m[1].trim();
-    }
-    return Object.keys(out).length >= 2 ? out : null;
-  }, [aiText, aiDone]);
-
   return (
     <>
       <style>{`
@@ -556,27 +453,8 @@ export default function CasePage() {
         .goal-text--open { color: #c8d0e0; }
         .goal-date { font-size: 10px; color: #4b5563; margin-top: 2px; }
 
-        .ai-wrap { border-radius: 14px; border: 1px solid #1a2240; background: linear-gradient(160deg, #0a0e1c, #0d1018); overflow: hidden; animation: fadeUp .3s ease .14s both; }
-        .ai-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; border-bottom: 1px solid #131a30; }
-        .ai-head-left { display: flex; align-items: center; gap: 10px; }
-        .ai-gem { width: 26px; height: 26px; border-radius: 7px; background: linear-gradient(135deg, #3b4fd4, #6d3fc4); display: flex; align-items: center; justify-content: center; font-size: 13px; }
-        .ai-head-title { font-size: 12px; font-weight: 600; color: #9ca3af; letter-spacing: .05em; text-transform: uppercase; }
-        .ai-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #1a2240; border: 1px solid #2a3560; color: #6b82d4; }
-        .ai-regen { font-size: 11px; font-weight: 600; color: #4b5563; background: none; border: 1px solid #1f2533; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-family: inherit; transition: all .15s; }
-        .ai-regen:hover { color: #9ca3af; border-color: #2a3050; }
-        .ai-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px; }
-        @media (max-width: 500px) { .ai-grid { grid-template-columns: 1fr; } }
-        .ai-card { padding: 14px 16px; border-radius: 10px; border: 1px solid #131a30; background: #080c18; }
-        .ai-card-label { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
-        .ai-card-text { font-size: 13px; line-height: 1.65; color: #c8d0e0; }
-        .ai-cursor { display: inline-block; width: 2px; height: 13px; background: #6d3fc4; margin-left: 2px; vertical-align: middle; animation: blink 1s step-end infinite; }
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-        .ai-foot { padding: 9px 18px 12px; display: flex; align-items: center; gap: 6px; border-top: 1px solid #0f1428; font-size: 11px; color: #374151; }
-        .ai-foot-dot { width: 5px; height: 5px; border-radius: 50%; background: #6d3fc4; flex-shrink: 0; }
 
-        .copy-btn { margin-top: 10px; padding: 5px 12px; border-radius: 7px; border: 1px solid #1f2533; background: #111420; color: #9ca3af; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s; }
-        .copy-btn:hover { border-color: #2e3650; color: #e8eaf0; }
-        .copy-btn--done { color: #4ade80 !important; border-color: #0e2e1a !important; }
 
         .history-wrap { border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; animation: fadeUp .3s ease .17s both; }
         .history-toggle { width: 100%; padding: 13px 18px; display: flex; align-items: center; justify-content: space-between; background: none; border: none; color: #6b7280; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; letter-spacing: .05em; text-transform: uppercase; transition: color .15s; }
@@ -1059,98 +937,6 @@ export default function CasePage() {
                 )}
               </div>
 
-              {/* AI Session Prep */}
-              <div ref={aiSectionRef} className="ai-wrap" style={{ minHeight: 120 }}>
-                <div className="ai-head">
-                  <div className="ai-head-left">
-                    <div className="ai-gem">✦</div>
-                    <div className="ai-head-title">Session Prep</div>
-                    <div className="ai-badge">AI</div>
-                  </div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    {!aiText && !aiLoading && d && (
-                      <button className="ai-regen" style={{ background: "#1a2240", color: "#6b82d4", fontWeight: 700 }} onClick={() => generateAI(d, goals)}>
-                        Generate
-                      </button>
-                    )}
-                    {aiDone && d && (
-                      <button className="ai-regen" onClick={() => generateAI(d, goals)} disabled={aiLoading}>
-                        {aiLoading ? "Generating..." : "↻ Regenerate"}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="ai-grid" style={{ minHeight: 120, transition: "all 0.3s ease" }}>
-                  {/* Skeleton loading state */}
-                  {aiLoading && !aiText && [
-                    ["55%","85%","70%"], ["50%","90%","65%"],
-                    ["60%","80%","72%"], ["52%","88%","60%"],
-                  ].map((ws, i) => (
-                    <div key={i} className="ai-card" style={{ minHeight: 80 }}>
-                      <div className="skeleton" style={{ height: 10, width: ws[0], marginBottom: 12 }} />
-                      <div className="skeleton" style={{ height: 12, width: ws[1], marginBottom: 7 }} />
-                      <div className="skeleton" style={{ height: 12, width: ws[2] }} />
-                    </div>
-                  ))}
-
-                  {/* Empty state — user hasn't generated yet */}
-                  {!aiText && !aiLoading && !aiError && (
-                    <div style={{ gridColumn: "1/-1", padding: "24px 16px", textAlign: "center", fontSize: 13, color: "#374151" }}>
-                      Click Generate to create AI session prep notes
-                    </div>
-                  )}
-
-                  {aiError && (
-                    <div style={{ gridColumn: "1/-1", fontSize: 12, color: "#f87171", fontFamily: "DM Mono,monospace", background: "#1a0808", border: "1px solid #3d1a1a", borderRadius: 8, padding: "10px 12px" }}>
-                      {aiError}
-                      {d && (
-                        <button className="ai-regen" style={{ marginTop: 8, display: "block" }} onClick={() => generateAI(d, goals)}>
-                          Try again
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Streaming text before sections are parsed */}
-                  {aiText && !aiSections && (
-                    <div style={{ gridColumn: "1/-1", fontSize: 13, lineHeight: 1.8, color: "#c8d0e0", padding: "4px 2px", transition: "opacity 0.15s ease", opacity: 1 }}>
-                      <MarkdownContent>{aiText}</MarkdownContent>
-                      {aiLoading && <span className="ai-cursor" />}
-                    </div>
-                  )}
-
-                  {/* Parsed sections */}
-                  {aiSections && [
-                    { key: "OPEN WITH",  icon: "💬", color: "#6b82d4", label: "Open with" },
-                    { key: "WATCH FOR", icon: "👁",  color: "#fb923c", label: "Watch for" },
-                    { key: "TRY THIS",  icon: "🎯", color: "#4ade80", label: "Try this" },
-                    { key: "SEND THIS", icon: "✉️", color: "#a78bfa", label: "Send this" },
-                  ].map(({ key, icon, color, label }) => (
-                    <div key={key} className="ai-card" style={{ minHeight: 80, transition: "opacity 0.2s ease" }}>
-                      <div className="ai-card-label" style={{ color }}>
-                        <span>{icon}</span>{label}
-                      </div>
-                      <div className="ai-card-text">
-                        {aiSections[key] ? <MarkdownContent>{aiSections[key]}</MarkdownContent> : "—"}
-                        {aiLoading && key === "SEND THIS" && <span className="ai-cursor" />}
-                      </div>
-                      {key === "SEND THIS" && aiSections[key] && (
-                        <button className={`copy-btn ${copied === "ai-send" ? "copy-btn--done" : ""}`} onClick={() => copy(aiSections[key], "ai-send")}>
-                          {copied === "ai-send" ? "✓ Copied" : "Copy message"}
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {aiDone && !aiError && (
-                  <div className="ai-foot">
-                    <div className="ai-foot-dot" />
-                    {patientName} · {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                  </div>
-                )}
-              </div>
 
             </div>
 

@@ -4,7 +4,7 @@
 import { supabase } from "@/lib/supabase";
 import { bad, getIdFromContext, ok, RouteContextWithId } from "@/lib/route-helpers";
 import { isDemoMode } from "@/lib/demo/demoMode";
-import { getDemoSessionPrep, getDemoSessionPrepStructured } from "@/lib/demo/demoAI";
+import { getDemoSessionPrepStructured } from "@/lib/demo/demoAI";
 import { checkRateLimit } from "@/lib/rateLimit";
 import {
   buildSessionPrepPrompt,
@@ -16,12 +16,12 @@ import {
 } from "@/lib/ai/sessionPrepPrompt";
 import { hashPrompt, logAiCall } from "@/lib/services/audit";
 
-const MODEL = "claude-haiku-4-5-20251001";
-const MAX_TOKENS = 400;
+const MODEL = "claude-sonnet-4-6";
+const MAX_TOKENS = 800;
 
-// Haiku pricing: $1/M input, $5/M output
-const INPUT_COST_PER_TOKEN = 1 / 1_000_000;
-const OUTPUT_COST_PER_TOKEN = 5 / 1_000_000;
+// Sonnet pricing: $3/M input, $15/M output
+const INPUT_COST_PER_TOKEN = 3 / 1_000_000;
+const OUTPUT_COST_PER_TOKEN = 15 / 1_000_000;
 
 export async function GET(req: Request, ctx: RouteContextWithId) {
   const caseId = await getIdFromContext(ctx);
@@ -75,10 +75,10 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   const caseId = await getIdFromContext(ctx);
   if (!caseId) return bad("Missing case id");
 
-  // Demo mode: return canned session prep (structured + text)
+  // Demo mode: return canned session prep (structured 4-card)
   if (isDemoMode(req.url)) {
     const structured = getDemoSessionPrepStructured(caseId);
-    return ok({ ...structured, text: getDemoSessionPrep(caseId) });
+    return ok(structured);
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -93,6 +93,12 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   const startTime = Date.now();
 
   // ── Fetch case data for prompt ──
+  const caseRes = await supabase
+    .from("cases")
+    .select("patient_id")
+    .eq("id", caseId)
+    .single();
+
   const checkinsRes = await supabase
     .from("checkins")
     .select("score, note, notes, week_start")
@@ -110,6 +116,17 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   if (checkinsRes.error) return bad(checkinsRes.error.message, 400);
   if (goalsRes.error) return bad(goalsRes.error.message, 400);
 
+  // Fetch patient first name for send_this personalization
+  let patientFirstName: string | undefined;
+  if (caseRes.data?.patient_id) {
+    const patientRes = await supabase
+      .from("patients")
+      .select("first_name")
+      .eq("id", caseRes.data.patient_id)
+      .single();
+    patientFirstName = patientRes.data?.first_name ?? undefined;
+  }
+
   const checkins: CheckInData[] = (checkinsRes.data ?? []).map((c: any) => ({
     rating: c.score ?? 5,
     notes: c.note ?? c.notes ?? null,
@@ -123,7 +140,7 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   // ── Build prompt (includes server-side PHI scrub + assertion) ──
   let prompt: string;
   try {
-    prompt = buildSessionPrepPrompt({ checkins, goals });
+    prompt = buildSessionPrepPrompt({ checkins, goals, patientFirstName });
   } catch (e: any) {
     // PHI assertion failure — block the call
     console.error(`[session-prep] PHI assertion blocked call for case=${caseId}: ${e.message}`);
@@ -131,7 +148,7 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   }
 
   const estimatedInputTokens = estimateTokenCount(prompt);
-  console.log(`[session-prep] case=${caseId} estimated_input_tokens=${estimatedInputTokens}`);
+  console.log(`[session-prep] case=${caseId} model=${MODEL} estimated_input_tokens=${estimatedInputTokens}`);
 
   // ── Call Anthropic ──
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -163,15 +180,17 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   try {
     parsed = JSON.parse(rawText);
   } catch {
-    // If model didn't return valid JSON, wrap the text as a fallback
+    // If model didn't return valid JSON, create a fallback
     parsed = {
       rating_trend: "insufficient_data",
       rating_delta: null,
-      notable_themes: [],
-      suggested_focus: rawText.slice(0, 200),
       data_source: `from last ${checkins.length} check-ins`,
       confidence: "low",
       flags: [],
+      open_with: null,
+      watch_for: null,
+      try_this: null,
+      send_this: null,
     };
   }
 
@@ -179,12 +198,13 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   const violations = validateSessionPrepOutput(parsed);
   if (violations.length > 0) {
     console.error(`[session-prep] Output policy violations for case=${caseId}:`, violations);
-    // Redact the violating fields rather than blocking entirely
-    parsed.suggested_focus = "Review recent check-in data with the patient.";
-    parsed.notable_themes = parsed.notable_themes.filter((_t, i) => {
-      const themeLower = _t.toLowerCase();
-      return !violations.some(v => v.includes(themeLower));
-    });
+    // Null out the violating card fields
+    for (const v of violations) {
+      if (v.includes("open_with")) parsed.open_with = null;
+      if (v.includes("watch_for")) parsed.watch_for = null;
+      if (v.includes("try_this")) parsed.try_this = null;
+      if (v.includes("send_this")) parsed.send_this = null;
+    }
   }
 
   // ── Audit log (store only the artifact, never raw prompt) ──

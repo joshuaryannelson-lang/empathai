@@ -20,16 +20,22 @@ export interface GoalData {
 export interface SessionPrepInput {
   checkins: CheckInData[];
   goals: GoalData[];
+  patientFirstName?: string; // Used for send_this personalization only
 }
 
 export interface SessionPrepOutput {
+  // Trend & metadata
   rating_trend: "improving" | "stable" | "declining" | "insufficient_data";
   rating_delta: number | null;
-  notable_themes: string[];
-  suggested_focus: string;
   data_source: string;
   confidence: "high" | "medium" | "low";
   flags: string[];
+
+  // The 4 high-value cards
+  open_with: string | null;
+  watch_for: string | null;
+  try_this: string | null;
+  send_this: string | null;
 }
 
 // ── PHI assertion ────────────────────────────────────────────────────────────
@@ -53,7 +59,7 @@ export function assertNoPHI(text: string): void {
 // ── Prompt builder ───────────────────────────────────────────────────────────
 
 export function buildSessionPrepPrompt(input: SessionPrepInput): string {
-  const { checkins, goals } = input;
+  const { checkins, goals, patientFirstName } = input;
 
   // Server-side redaction pass on all notes
   const scrubbed = checkins.map(c => ({
@@ -78,10 +84,20 @@ export function buildSessionPrepPrompt(input: SessionPrepInput): string {
     ? goals.map(g => `- ${g.label}`).join("\n")
     : "- No active goals set";
 
-  return `You are a clinical data summarizer for a therapist's session preparation.
+  const insufficientData = checkins.length < 2;
+  const patientNameLine = patientFirstName
+    ? `Patient first name (for send_this only): ${patientFirstName}`
+    : "Patient first name: unknown";
+
+  return `You are a clinical co-pilot helping a therapist prepare for their next session.
 You will receive de-identified check-in data (ratings and notes) and active goals.
-Your job is to produce a structured JSON summary. You must NEVER diagnose, prescribe,
-recommend medication, or use clinical/diagnostic terminology.
+Your job is to produce a structured JSON summary with 4 actionable cards.
+
+ABSOLUTE RULES:
+- NEVER use these words: diagnose, prescribe, disorder, symptom, clinical, treatment plan, medication
+- NEVER use DSM diagnostic labels (depression, anxiety disorder, bipolar, PTSD, OCD, etc.)
+- All content must be observational and non-prescriptive
+- Be SPECIFIC to this patient's data — never generic
 
 DATA:
 Check-ins (most recent first):
@@ -90,28 +106,43 @@ ${checkinLines}
 Active goals:
 ${goalLines}
 
-INSTRUCTIONS:
-1. Analyze the rating trend across check-ins.
-2. Extract up to 3 behavioral themes from the notes (e.g., "reported difficulty sleeping",
-   "engaged in social activities"). Never use diagnostic labels.
-3. Write one non-prescriptive suggested_focus sentence for the therapist.
-4. If fewer than 2 check-ins exist, set confidence to "low" and rating_trend to "insufficient_data".
+${patientNameLine}
+
+${insufficientData ? `NOTE: Fewer than 2 check-ins exist. Set open_with, watch_for, and try_this to null. Set confidence to "low". You may still generate send_this if goals exist.` : ""}
+
+INSTRUCTIONS FOR EACH FIELD:
+
+rating_trend: Analyze the rating trajectory. Use "improving", "stable", "declining", or "insufficient_data" (if < 2 check-ins).
+rating_delta: Numeric difference between most recent and earliest rating, or null if only 1 check-in.
+data_source: Brief citation like "from last N check-ins".
+confidence: "high" (3+ check-ins), "medium" (2 check-ins), "low" (< 2 check-ins).
+flags: Array of string flags (e.g. "declining_trajectory", "critical_score"). Empty array if none.
+
+open_with: One specific opening question for the session. MUST reference something from the patient's recent check-in notes or goals — never a generic question like "how was your week?". ${insufficientData ? "Set to null." : ""}
+
+watch_for: One clinical observation to stay alert to during the session. Based on the rating trend and check-in notes. Observational only — never diagnostic. ${insufficientData ? "Set to null." : ""}
+
+try_this: One concrete technique or intervention for this session. Must name a specific method (CBT thought record, behavioral activation, Gottman soft-startup, worry window, grounding exercise, etc.). Never say "consider exploring" without naming the technique. ${insufficientData ? "Set to null." : ""}
+
+send_this: A warm pre-session outreach message written in first person from the therapist. 2-3 sentences max. Must include the patient's first name. Warm and encouraging, never clinical. Reference something specific from check-ins or goals.
 
 Respond with ONLY valid JSON matching this exact schema:
 {
   "rating_trend": "improving" | "stable" | "declining" | "insufficient_data",
   "rating_delta": <number or null>,
-  "notable_themes": ["string", ...],
-  "suggested_focus": "string",
-  "data_source": "from last N check-ins",
+  "data_source": "string",
   "confidence": "high" | "medium" | "low",
-  "flags": []
+  "flags": [],
+  "open_with": "string or null",
+  "watch_for": "string or null",
+  "try_this": "string or null",
+  "send_this": "string or null"
 }`;
 }
 
 // ── Banned term validation ───────────────────────────────────────────────────
 
-const BANNED_FOCUS_TERMS = [
+const BANNED_TERMS = [
   "diagnose", "treat", "prescribe", "recommend medication",
   "clinical", "disorder", "symptom",
 ];
@@ -126,27 +157,27 @@ const BANNED_THEME_TERMS = [
   "anorexia", "bulimia", "dissociative",
 ];
 
+const ALL_BANNED = [...BANNED_TERMS, ...BANNED_THEME_TERMS];
+
 export function validateSessionPrepOutput(output: SessionPrepOutput): string[] {
   const errors: string[] = [];
 
-  const focusLower = output.suggested_focus.toLowerCase();
-  for (const term of BANNED_FOCUS_TERMS) {
-    if (focusLower.includes(term)) {
-      errors.push(`suggested_focus contains banned term: "${term}"`);
-    }
-  }
+  // Check all text card fields for banned terms
+  const textFields: { name: string; value: string | null }[] = [
+    { name: "open_with", value: output.open_with },
+    { name: "watch_for", value: output.watch_for },
+    { name: "try_this", value: output.try_this },
+    { name: "send_this", value: output.send_this },
+  ];
 
-  for (const theme of output.notable_themes) {
-    const themeLower = theme.toLowerCase();
-    for (const term of BANNED_THEME_TERMS) {
-      if (themeLower.includes(term)) {
-        errors.push(`notable_themes contains diagnostic label: "${term}" in theme "${theme}"`);
+  for (const field of textFields) {
+    if (!field.value) continue;
+    const lower = field.value.toLowerCase();
+    for (const term of ALL_BANNED) {
+      if (lower.includes(term)) {
+        errors.push(`${field.name} contains banned term: "${term}"`);
       }
     }
-  }
-
-  if (output.notable_themes.length > 3) {
-    errors.push(`notable_themes has ${output.notable_themes.length} items, max is 3`);
   }
 
   return errors;

@@ -4,6 +4,7 @@
 import type { GeneratedTask } from "@/lib/services/taskGeneration";
 import type { BriefingResult } from "@/lib/services/briefing";
 import type { TaskGenerationResult } from "@/lib/services/taskGeneration";
+import type { SessionPrepOutput } from "@/lib/ai/sessionPrepPrompt";
 
 // ── Briefings ────────────────────────────────────────────────────────────────
 
@@ -25,86 +26,57 @@ export function getDemoBriefing(role: "therapist" | "manager" | "network"): Brie
   };
 }
 
-// ── Session Prep ─────────────────────────────────────────────────────────────
+// ── Session Prep (4-card structured format) ──────────────────────────────────
 
-const SESSION_PREPS: Record<string, string> = {
-  "demo-case-03": `OPEN WITH: "I noticed your check-in this week was lower than usual — can you tell me what's been weighing on you the most?"
-WATCH FOR: Declining trajectory from 6 to 2 over three weeks suggests increasing distress. Monitor for hopelessness language and missed appointments.
-TRY THIS: Collaboratively review the safety plan and identify one small, concrete action the patient can take before the next session.
-SEND THIS: Hi Sam, I saw your check-in and wanted you to know I'm here. Let's talk through what's been going on — I'll make sure we have extra time in our next session.`,
-
-  "demo-case-01": `OPEN WITH: "Your sleep seems to be improving — what changes have you noticed in your daily routine?"
-WATCH FOR: Consistent 6-7 scores suggest stability but watch for plateau. Patient mentioned work stress as an ongoing trigger.
-TRY THIS: Introduce a brief stress-inoculation technique — have the patient rehearse a challenging work scenario and practice their coping response.
-SEND THIS: Hi Alex, glad to hear things are trending in the right direction. Looking forward to building on that momentum in our next session.`,
-
-  "demo-case-05": `OPEN WITH: "You mentioned relationship stress this week — would you like to start there, or is there something else on your mind?"
-WATCH FOR: Score dropped from 7 to 4 — relationship conflict appears to be the primary driver. Assess whether this is situational or part of a broader pattern.
-TRY THIS: Introduce the "soft startup" technique from Gottman research for approaching difficult conversations with a partner.
-SEND THIS: Hi Morgan, I appreciated you sharing what's going on. We'll work through some strategies together in our next session.`,
-};
-
-const DEFAULT_SESSION_PREP = `OPEN WITH: "How has your week been since we last spoke?"
-WATCH FOR: Check-in engagement and note content for any shifts in mood or functioning.
-TRY THIS: Review progress on current treatment goals and adjust if needed.
-SEND THIS: Looking forward to our session — I'll have your recent check-ins ready so we can track how things are going.`;
-
-export function getDemoSessionPrep(caseId: string): string {
-  return SESSION_PREPS[caseId] ?? DEFAULT_SESSION_PREP;
-}
-
-/** Structured session prep matching SessionPrepOutput shape */
-export type DemoSessionPrepStructured = {
-  rating_trend: string;
-  rating_delta: number | null;
-  notable_themes: string[];
-  suggested_focus: string;
-  data_source: string;
-  confidence: "high" | "medium" | "low";
-  flags: string[];
-};
-
-const STRUCTURED_SESSION_PREPS: Record<string, DemoSessionPrepStructured> = {
+const STRUCTURED_SESSION_PREPS: Record<string, SessionPrepOutput> = {
   "demo-case-03": {
     rating_trend: "declining",
     rating_delta: -4,
-    notable_themes: ["Overwhelm", "Hopelessness language", "Missed appointment"],
-    suggested_focus: "Review safety plan collaboratively. Explore what changed between weeks — patient dropped from 6 to 2 over three check-ins. Validate feelings before problem-solving.",
     data_source: "from last 4 check-ins",
     confidence: "high",
     flags: ["declining_trajectory", "critical_score"],
+    open_with: "I noticed your check-in score dropped quite a bit this week \u2014 can you tell me what\u2019s been weighing on you the most, and when you first started feeling that shift?",
+    watch_for: "Declining trajectory from 6 to 2 over three weeks with language suggesting overwhelm and hopelessness. Monitor for withdrawal patterns and whether Sam is still engaging with daily routines.",
+    try_this: "Collaboratively review the safety plan using a structured check-in: walk through each coping step together, identify which ones Sam has used this week, and agree on one small concrete action to try before the next session.",
+    send_this: "Hi Sam, I saw your check-in and wanted you to know I\u2019m thinking of you. We\u2019ll make sure to take things at your pace in our next session \u2014 no pressure, just space to talk through what\u2019s been going on.",
   },
   "demo-case-01": {
     rating_trend: "stable",
     rating_delta: 0,
-    notable_themes: ["Sleep improvement", "Work stress (ongoing)", "Coping skills"],
-    suggested_focus: "Reinforce sleep gains. Introduce stress-inoculation for work scenarios — patient is stable and ready for skill-building.",
     data_source: "from last 3 check-ins",
     confidence: "high",
     flags: [],
+    open_with: "Your sleep scores have been holding steady \u2014 what\u2019s one change in your wind-down routine that you think is making the biggest difference?",
+    watch_for: "Consistent 6\u20137 scores suggest stability but watch for plateau. Alex mentioned work stress as an ongoing trigger in two of the last three check-ins \u2014 assess whether this is manageable or starting to erode gains.",
+    try_this: "Introduce a stress-inoculation rehearsal: have Alex walk through a specific upcoming stressful work scenario and practice their coping response (deep breathing + cognitive reframe) in session before it happens.",
+    send_this: "Hi Alex, glad to see things trending in the right direction with your sleep. Looking forward to building on that momentum together \u2014 see you Thursday!",
   },
   "demo-case-05": {
     rating_trend: "declining",
     rating_delta: -3,
-    notable_themes: ["Relationship conflict", "Fatigue", "Communication patterns"],
-    suggested_focus: "Address relationship stress as primary driver. Consider introducing Gottman soft-startup technique for difficult conversations.",
     data_source: "from last 3 check-ins",
     confidence: "medium",
     flags: ["declining_trajectory"],
+    open_with: "You mentioned relationship stress in your last check-in \u2014 would you like to start there today, or is there something else that feels more pressing right now?",
+    watch_for: "Score dropped from 7 to 4 with relationship conflict as the primary driver. Assess whether this is a situational stressor or part of a broader communication pattern that\u2019s been building over time.",
+    try_this: "Introduce the Gottman \u201Csoft-startup\u201D technique: help Morgan practice opening a difficult conversation with their partner using \u201CI feel\u201D statements instead of criticism, and role-play one specific scenario from this week.",
+    send_this: "Hi Morgan, I really appreciated you being open about what\u2019s been going on. We\u2019ll work through some practical strategies together in our next session \u2014 you don\u2019t have to figure this out alone.",
   },
 };
 
-const DEFAULT_STRUCTURED_PREP: DemoSessionPrepStructured = {
+const DEFAULT_STRUCTURED_PREP: SessionPrepOutput = {
   rating_trend: "stable",
   rating_delta: null,
-  notable_themes: ["General progress", "Treatment engagement"],
-  suggested_focus: "Review progress on current treatment goals and adjust if needed.",
   data_source: "from recent check-ins",
   confidence: "medium",
   flags: [],
+  open_with: "Based on your recent check-ins, it looks like things have been relatively steady \u2014 what\u2019s felt most manageable this week, and where have you noticed the most effort?",
+  watch_for: "Overall stability in scores with no major red flags. Monitor engagement level and whether the patient is actively working on goals or coasting.",
+  try_this: "Review progress on current goals using a structured scaling question: \u201COn a scale of 1\u201310, how close are you to where you want to be on this goal?\u201D Then explore what would move it up by one point.",
+  send_this: "Looking forward to our session \u2014 I\u2019ll have your recent check-ins ready so we can see how things are tracking together.",
 };
 
-export function getDemoSessionPrepStructured(caseId: string): DemoSessionPrepStructured {
+export function getDemoSessionPrepStructured(caseId: string): SessionPrepOutput {
   return STRUCTURED_SESSION_PREPS[caseId] ?? DEFAULT_STRUCTURED_PREP;
 }
 
@@ -112,7 +84,7 @@ export function getDemoSessionPrepStructured(caseId: string): DemoSessionPrepStr
 
 const CASE_TASKS: Record<string, GeneratedTask[]> = {
   "demo-case-03": [
-    { title: "Follow up with patient before next session", description: "Patient's score dropped to 2 — check in via phone or message before the scheduled appointment.", assignedToRole: "therapist", dueDate: futureDate(2), sourceCheckinId: "demo-ci-03a", redactionFlags: [] },
+    { title: "Follow up with patient before next session", description: "Patient's score dropped to 2 \u2014 check in via phone or message before the scheduled appointment.", assignedToRole: "therapist", dueDate: futureDate(2), sourceCheckinId: "demo-ci-03a", redactionFlags: [] },
     { title: "Complete a brief mood check each morning", description: "Rate your mood 1-10 when you wake up. Bring the log to your next session.", assignedToRole: "patient", dueDate: futureDate(5), sourceCheckinId: "demo-ci-03a", redactionFlags: [] },
     { title: "Review and update safety plan", description: "Patient's declining trajectory warrants a safety plan review in the next session.", assignedToRole: "therapist", dueDate: futureDate(3), sourceCheckinId: "demo-ci-03a", redactionFlags: [] },
   ],
@@ -121,7 +93,7 @@ const CASE_TASKS: Record<string, GeneratedTask[]> = {
     { title: "Write down three things that went well today", description: "Practice positive reframing each evening this week.", assignedToRole: "patient", dueDate: futureDate(6), redactionFlags: [] },
   ],
   "demo-case-10": [
-    { title: "Assess workplace burnout risk", description: "Patient scored 3 — explore burnout symptoms and coping options.", assignedToRole: "therapist", dueDate: futureDate(3), redactionFlags: [] },
+    { title: "Assess workplace burnout risk", description: "Patient scored 3 \u2014 explore burnout coping options.", assignedToRole: "therapist", dueDate: futureDate(3), redactionFlags: [] },
     { title: "Identify one healthy boundary to set at work", description: "Choose one specific situation where you'll practice saying no this week.", assignedToRole: "patient", dueDate: futureDate(5), redactionFlags: [] },
   ],
 };

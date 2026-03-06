@@ -10,11 +10,13 @@ import { safeDisplayText, containsBannedClinicalTerm } from "@/lib/phiDisplayGua
 export interface SessionPrepOutput {
   rating_trend: "improving" | "stable" | "declining" | "insufficient_data";
   rating_delta: number | null;
-  notable_themes: string[];
-  suggested_focus: string;
   data_source: string;
   confidence: "high" | "medium" | "low";
   flags: string[];
+  open_with: string | null;
+  watch_for: string | null;
+  try_this: string | null;
+  send_this: string | null;
 }
 
 interface SessionPrepCardProps {
@@ -22,7 +24,7 @@ interface SessionPrepCardProps {
   weekStart: string;
 }
 
-// ── Design tokens (inline, matching design-system-tokens.ts) ─────────────────
+// ── Design tokens ────────────────────────────────────────────────────────────
 
 const TREND = {
   improving:         { arrow: "\u2191", label: "Improving",       fg: "#4ade80", bg: "#061a0b", border: "#0e2e1a" },
@@ -37,9 +39,16 @@ const CONFIDENCE = {
   low:    { fg: "#d4a574", bg: "#141008", border: "#2e2418", text: "Low confidence" },
 };
 
+const CARD_META = [
+  { key: "open_with" as const, icon: "\uD83D\uDCAC", label: "OPEN WITH",  accent: "#4ade80", accentBg: "rgba(74,222,128,0.06)",  accentBorder: "rgba(74,222,128,0.18)" },
+  { key: "watch_for" as const, icon: "\uD83D\uDC41",  label: "WATCH FOR", accent: "#fb923c", accentBg: "rgba(251,146,60,0.06)",  accentBorder: "rgba(251,146,60,0.18)" },
+  { key: "try_this"  as const, icon: "\uD83C\uDFAF", label: "TRY THIS",  accent: "#a78bfa", accentBg: "rgba(167,139,250,0.06)", accentBorder: "rgba(167,139,250,0.18)" },
+  { key: "send_this" as const, icon: "\uD83D\uDCE8", label: "SEND THIS", accent: "#38bdf8", accentBg: "rgba(56,189,248,0.06)",  accentBorder: "rgba(56,189,248,0.18)" },
+];
+
 const REVIEW_GATE = {
-  unreviewed: { borderLeft: "3px solid rgba(165,180,252,0.4)", bg: "rgba(165,180,252,0.04)", badgeBg: "rgba(165,180,252,0.12)", badgeFg: "#a5b4fc" },
-  reviewed:   { borderLeft: "3px solid rgba(74,222,128,0.3)",  bg: "rgba(74,222,128,0.02)",  badgeBg: "rgba(74,222,128,0.12)",  badgeFg: "#4ade80" },
+  unreviewed: { border: "1px solid rgba(165,180,252,0.25)", bg: "rgba(165,180,252,0.03)", badgeBg: "rgba(165,180,252,0.12)", badgeFg: "#a5b4fc" },
+  reviewed:   { border: "1px solid rgba(74,222,128,0.2)",   bg: "rgba(74,222,128,0.02)",  badgeBg: "rgba(74,222,128,0.12)",  badgeFg: "#4ade80" },
 };
 
 // ── Shimmer skeleton ─────────────────────────────────────────────────────────
@@ -50,125 +59,48 @@ function Shimmer({ width = "100%", height = 12 }: { width?: string | number; hei
   );
 }
 
-// ── Sub-components ───────────────────────────────────────────────────────────
+// ── Safe text helper ─────────────────────────────────────────────────────────
 
-function RatingTrendRow({ trend, delta }: { trend: SessionPrepOutput["rating_trend"]; delta: number | null }) {
-  const t = TREND[trend];
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px" }}>
-      <span
-        aria-label={`Rating trend: ${t.label}`}
-        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: t.bg, border: `1px solid ${t.border}`, color: t.fg, fontSize: 13, fontWeight: 700 }}
-      >
-        <span aria-hidden="true">{t.arrow}</span> {t.label}
-      </span>
-      {delta !== null ? (
-        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700, color: t.fg }}>
-          {delta > 0 ? "+" : ""}{delta}
-        </span>
-      ) : (
-        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.35)" }}>
-          First check-in
-        </span>
-      )}
-    </div>
-  );
+function safeCardText(text: string | null, context: string): string | null {
+  if (!text) return null;
+  if (containsBannedClinicalTerm(text)) {
+    console.error(`[SessionPrepCard] Banned clinical term in ${context}: "${text.slice(0, 50)}..."`);
+    return null;
+  }
+  return safeDisplayText(text, context);
 }
 
-function ThemeChips({ themes }: { themes: string[] }) {
-  return (
-    <div style={{ padding: "0 18px 8px" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "1.2px", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", fontFamily: "'DM Mono', monospace", marginBottom: 8 }}>
-        Key themes
-      </div>
-      {themes.length === 0 ? (
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)" }}>No patterns identified yet</div>
-      ) : (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {themes.slice(0, 3).map((theme, i) => {
-            const isBanned = containsBannedClinicalTerm(theme);
-            if (isBanned) console.error(`[SessionPrepCard] Banned clinical term detected in theme: "${theme}"`);
-            const displayText = isBanned ? "Pattern noted" : safeDisplayText(theme, "theme-chip");
-            return (
-              <span
-                key={i}
-                style={{ display: "inline-flex", padding: "5px 12px", borderRadius: 999, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.65)", fontSize: 13, fontWeight: 600 }}
-              >
-                {displayText}
-              </span>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
+// ── Copy button for SEND THIS ────────────────────────────────────────────────
 
-function SuggestedFocusBlock({ focus, isReviewed, onMarkReviewed }: { focus: string; isReviewed: boolean; onMarkReviewed: () => void }) {
-  const gate = isReviewed ? REVIEW_GATE.reviewed : REVIEW_GATE.unreviewed;
-  const safeFocus = safeDisplayText(focus, "suggested-focus");
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [text]);
 
   return (
-    <div style={{ margin: "0 18px", padding: 14, borderRadius: 10, borderLeft: gate.borderLeft, background: gate.bg }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "1.2px", textTransform: "uppercase", fontFamily: "'DM Mono', monospace", color: isReviewed ? REVIEW_GATE.reviewed.badgeFg : REVIEW_GATE.unreviewed.badgeFg }}>
-          AI-suggested focus
-        </span>
-        <span
-          aria-label={isReviewed ? "Reviewed" : "Unreviewed"}
-          style={{ display: "inline-flex", padding: "3px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700, background: gate.badgeBg, color: gate.badgeFg }}
-        >
-          {isReviewed ? "Reviewed \u2713" : "Unreviewed"}
-        </span>
-      </div>
-      <div style={{ position: "relative" }}>
-        <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.6, color: isReviewed ? "#e2e8f0" : "rgba(255,255,255,0.65)", filter: isReviewed ? "none" : "blur(2px)", userSelect: isReviewed ? "auto" : "none" }}>
-          {safeFocus}
-        </div>
-        {!isReviewed && (
-          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#a5b4fc" }}>Mark as reviewed to use this suggestion</span>
-            <button
-              onClick={onMarkReviewed}
-              aria-label="Mark session prep as reviewed"
-              style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #1f2533", background: "transparent", color: "#a5b4fc", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-            >
-              Mark as reviewed
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ConfidenceRow({ confidence, dataSource }: { confidence: "high" | "medium" | "low"; dataSource: string }) {
-  const c = CONFIDENCE[confidence];
-  const [showTooltip, setShowTooltip] = useState(false);
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 18px 14px" }}>
-      <span
-        tabIndex={confidence === "low" ? 0 : undefined}
-        role={confidence === "low" ? "button" : undefined}
-        aria-label={`${c.text}${confidence === "low" ? ". Based on fewer than 2 check-ins — more data needed for reliable trends." : ""}`}
-        onMouseEnter={() => confidence === "low" && setShowTooltip(true)}
-        onMouseLeave={() => setShowTooltip(false)}
-        onFocus={() => confidence === "low" && setShowTooltip(true)}
-        onBlur={() => setShowTooltip(false)}
-        style={{ position: "relative", display: "inline-flex", padding: "3px 8px", borderRadius: 999, border: `1px solid ${c.border}`, background: c.bg, color: c.fg, fontSize: 12, fontWeight: 800, lineHeight: 1.2, cursor: confidence === "low" ? "help" : "default" }}
-      >
-        {c.text}
-        {showTooltip && confidence === "low" && (
-          <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", background: "#1a1e2a", border: "1px solid #1f2533", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.65)", maxWidth: 240, whiteSpace: "normal", zIndex: 10 }}>
-            Based on fewer than 2 check-ins — more data needed for reliable trends.
-          </div>
-        )}
-      </span>
-      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.35)" }}>
-        {dataSource}
-      </span>
-    </div>
+    <button
+      onClick={handleCopy}
+      style={{
+        marginTop: 10,
+        padding: "6px 12px",
+        borderRadius: 7,
+        border: copied ? "1px solid rgba(74,222,128,0.3)" : "1px solid rgba(56,189,248,0.2)",
+        background: copied ? "rgba(74,222,128,0.08)" : "rgba(56,189,248,0.08)",
+        color: copied ? "#4ade80" : "#38bdf8",
+        fontSize: 11,
+        fontWeight: 700,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        transition: "all 0.15s ease",
+      }}
+    >
+      {copied ? "\u2713 Copied" : "Copy message"}
+    </button>
   );
 }
 
@@ -217,18 +149,34 @@ export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardPr
 
   useEffect(() => { loadPrep(); }, [loadPrep]);
 
+  const gate = reviewed ? REVIEW_GATE.reviewed : REVIEW_GATE.unreviewed;
+  const t = data ? TREND[data.rating_trend] : null;
+  const c = data ? CONFIDENCE[data.confidence] : null;
+
   return (
-    <div style={{ borderRadius: 12, border: "1px solid #1a1e2a", background: "#0d1018", overflow: "hidden" }}>
+    <div style={{ borderRadius: 12, border: gate.border, background: gate.bg, overflow: "hidden" }}>
       <style>{`@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`}</style>
 
-      {/* Header */}
+      {/* Panel header */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid #131720", background: "linear-gradient(160deg, #0a0e1c, #0d1018)" }}>
-        <div style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg, #3b4fd4, #6d3fc4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>{"\u2726"}</div>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: 0.8, textTransform: "uppercase" }}>Session Prep</div>
-          <div style={{ fontSize: 11, color: "#374151", marginTop: 1 }}>Structured insights from patient check-ins</div>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg, #3b4fd4, #6d3fc4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "white" }}>{"\u2726"}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: "#e2e8f0", letterSpacing: 0.5, textTransform: "uppercase" }}>Session Prep</span>
+            <span style={{ display: "inline-flex", padding: "2px 6px", borderRadius: 4, background: "rgba(107,130,212,0.15)", border: "1px solid rgba(107,130,212,0.25)", color: "#6b82d4", fontSize: 10, fontWeight: 800 }}>AI</span>
+          </div>
+          {data && c && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+              <span style={{ display: "inline-flex", padding: "2px 7px", borderRadius: 999, border: `1px solid ${c.border}`, background: c.bg, color: c.fg, fontSize: 10, fontWeight: 800 }}>
+                {c.text}
+              </span>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, fontWeight: 500, color: "rgba(255,255,255,0.3)" }}>
+                {data.data_source}
+              </span>
+            </div>
+          )}
         </div>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {loading && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#4b5563" }}>
               <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#6d3fc4", animation: "pulse 1.2s ease-in-out infinite" }} />
@@ -238,10 +186,10 @@ export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardPr
           <button
             onClick={loadPrep}
             disabled={loading}
-            aria-label="Refresh session prep"
+            aria-label="Regenerate session prep"
             style={{ padding: "8px 14px", borderRadius: 9, border: "1px solid #1f2533", background: "#0d1018", color: "inherit", cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.6 : 1, fontWeight: 600, fontFamily: "inherit", fontSize: 13 }}
           >
-            {"\u21BB"} Refresh
+            {"\u21BB"} Regenerate
           </button>
         </div>
       </div>
@@ -250,12 +198,18 @@ export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardPr
       {loading && !data ? (
         <div style={{ padding: 18, display: "grid", gap: 12 }}>
           <Shimmer width="40%" height={24} />
-          <div style={{ display: "flex", gap: 8 }}><Shimmer width={120} /><Shimmer width={100} /><Shimmer width={90} /></div>
-          <Shimmer width="85%" height={16} />
-          <Shimmer width="60%" />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {[1,2,3,4].map(i => (
+              <div key={i} style={{ borderRadius: 10, border: "1px solid #1a1e2a", padding: 14 }}>
+                <Shimmer width="50%" height={10} />
+                <div style={{ marginTop: 10 }}><Shimmer width="90%" height={12} /></div>
+                <div style={{ marginTop: 6 }}><Shimmer width="70%" /></div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : error ? (
-        <div style={{ marginTop: 12, margin: 14, borderRadius: 14, border: "1px solid #3d2800", background: "#1a1000", padding: 12, color: "#fb923c" }}>
+        <div style={{ margin: 14, borderRadius: 14, border: "1px solid #3d2800", background: "#1a1000", padding: 12, color: "#fb923c" }}>
           <div style={{ fontWeight: 900, marginBottom: 4 }}>Couldn&apos;t load session prep</div>
           <div style={{ opacity: 0.95, fontSize: 13, whiteSpace: "pre-wrap" }}>{error}</div>
         </div>
@@ -268,11 +222,125 @@ export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardPr
           </div>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <RatingTrendRow trend={data.rating_trend} delta={data.rating_delta} />
-          <ThemeChips themes={data.notable_themes} />
-          <SuggestedFocusBlock focus={data.suggested_focus} isReviewed={reviewed} onMarkReviewed={markReviewed} />
-          <ConfidenceRow confidence={data.confidence} dataSource={data.data_source} />
+        <div style={{ position: "relative" }}>
+          {/* Trend row */}
+          {t && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px" }}>
+              <span
+                aria-label={`Rating trend: ${t.label}`}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 999, background: t.bg, border: `1px solid ${t.border}`, color: t.fg, fontSize: 12, fontWeight: 700 }}
+              >
+                <span aria-hidden="true">{t.arrow}</span> {t.label}
+              </span>
+              {data.rating_delta !== null && (
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: t.fg }}>
+                  {data.rating_delta > 0 ? "+" : ""}{data.rating_delta}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* 4-card grid */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 10,
+            padding: "4px 18px 14px",
+            filter: reviewed ? "none" : "blur(3px)",
+            userSelect: reviewed ? "auto" : "none",
+            transition: "filter 0.2s ease",
+          }}>
+            {CARD_META.map(({ key, icon, label, accent, accentBg, accentBorder }) => {
+              const rawText = data[key];
+              const cardText = safeCardText(rawText, key);
+              if (cardText === null && key !== "open_with") return null;
+
+              return (
+                <div key={key} style={{
+                  borderRadius: 10,
+                  border: `1px solid ${accentBorder}`,
+                  background: accentBg,
+                  padding: 14,
+                  gridColumn: key === "send_this" ? "1 / -1" : undefined,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    <span style={{ fontSize: 14 }}>{icon}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "1px", textTransform: "uppercase", color: accent, fontFamily: "'DM Mono', monospace" }}>
+                      {label}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.65, color: "#d1d5db" }}>
+                    {cardText ?? "Not enough check-in data yet"}
+                  </div>
+                  {key === "send_this" && cardText && <CopyButton text={cardText} />}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Review gate overlay */}
+          {!reviewed && (
+            <div style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              background: "rgba(8,12,18,0.5)",
+              zIndex: 2,
+            }}>
+              <span style={{
+                display: "inline-flex",
+                padding: "3px 8px",
+                borderRadius: 999,
+                fontSize: 10,
+                fontWeight: 700,
+                background: REVIEW_GATE.unreviewed.badgeBg,
+                color: REVIEW_GATE.unreviewed.badgeFg,
+              }}>
+                Unreviewed
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#a5b4fc", textAlign: "center", maxWidth: 280 }}>
+                AI-generated content requires therapist review before use
+              </span>
+              <button
+                onClick={markReviewed}
+                aria-label="Mark session prep as reviewed"
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: 9,
+                  border: "1px solid #1f2533",
+                  background: "rgba(165,180,252,0.08)",
+                  color: "#a5b4fc",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Mark as reviewed
+              </button>
+            </div>
+          )}
+
+          {/* Reviewed badge */}
+          {reviewed && (
+            <div style={{ padding: "0 18px 14px", display: "flex", justifyContent: "flex-end" }}>
+              <span style={{
+                display: "inline-flex",
+                padding: "3px 8px",
+                borderRadius: 999,
+                fontSize: 10,
+                fontWeight: 700,
+                background: REVIEW_GATE.reviewed.badgeBg,
+                color: REVIEW_GATE.reviewed.badgeFg,
+              }}>
+                Reviewed {"\u2713"}
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>
