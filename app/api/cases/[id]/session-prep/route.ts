@@ -41,7 +41,7 @@ export async function GET(req: Request, ctx: RouteContextWithId) {
     const { getDemoCase, getDemoCaseCheckins, getDemoCaseGoals } = await import("@/lib/demo/demoData");
     const c = getDemoCase(caseId);
     if (!c) return bad("Case not found", 404);
-    const checkins = getDemoCaseCheckins(caseId).slice(0, 4).map(ci => ({ ...ci, notes: ci.note, week_start: ci.created_at.slice(0, 10) }));
+    const checkins = getDemoCaseCheckins(caseId).slice(0, 4).map(ci => ({ ...ci, week_start: ci.created_at.slice(0, 10) }));
     const goals = getDemoCaseGoals(caseId).filter(g => g.status === "active");
     return ok({
       case: { id: c.id, title: c.title, status: c.status, created_at: c.created_at, patient_id: c.patient_id, therapist_id: c.therapist_id, practice_id: c.practice_id },
@@ -58,7 +58,7 @@ export async function GET(req: Request, ctx: RouteContextWithId) {
 
   const checkinsRes = await supabaseAdmin
     .from("checkins")
-    .select("id, score, mood, created_at, note, notes, week_start")
+    .select("id, score, mood, created_at, note, week_start")
     .eq("case_id", caseId)
     .order("created_at", { ascending: false })
     .limit(4);
@@ -117,7 +117,7 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
 
   const checkinsRes = await supabaseAdmin
     .from("checkins")
-    .select("score, note, notes, week_start, created_at")
+    .select("score, note, week_start, created_at")
     .eq("case_id", caseId)
     .order("created_at", { ascending: false })
     .limit(4);
@@ -166,7 +166,7 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   // Format week label: prefer week_start, fall back to created_at date
   const checkins: CheckInData[] = (checkinsRes.data ?? []).map((c: any) => ({
     rating: c.score ?? 5,
-    notes: c.note ?? c.notes ?? null,
+    notes: c.note ?? null,
     week_label: c.week_start
       ? formatWeekLabel(c.week_start)
       : c.created_at

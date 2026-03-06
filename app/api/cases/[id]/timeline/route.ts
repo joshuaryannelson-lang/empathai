@@ -57,7 +57,7 @@ export async function GET(
   // 3) Load last N check-ins (this is your “timeline”)
   const { data: checkins, error: ciErr } = await supabaseAdmin
     .from("checkins")
-    .select("id, case_id, score, mood, created_at, note, notes")
+    .select("id, case_id, score, mood, created_at, note")
     .eq("case_id", caseId)
     .order("created_at", { ascending: false })
     .limit(14);

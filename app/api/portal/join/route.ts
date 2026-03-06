@@ -71,13 +71,16 @@ export async function POST(req: Request) {
     .insert({ ip });
 
   // ── Look up join code ──
+  // expires_at can be NULL (no expiry) or a future timestamp — both are valid.
   const { data: joinCode, error: lookupError } = await supabaseAdmin
     .from("join_codes")
     .select("id, code, case_code, expires_at, redeemed_at")
     .eq("code", code)
     .is("redeemed_at", null)
-    .gt("expires_at", new Date().toISOString())
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
     .maybeSingle();
+
+  console.log(`[join] code="${code}" found=${!!joinCode} error=${lookupError?.message ?? "none"} expires_at=${joinCode?.expires_at ?? "null"} redeemed_at=${joinCode?.redeemed_at ?? "null"}`);
 
   if (lookupError || !joinCode) {
     await logAudit("join_code_failed", null, ip, { code_prefix: code.slice(0, 4) });

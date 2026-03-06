@@ -18,7 +18,7 @@ export async function POST(req: Request, ctx: Ctx) {
     const body = await req.json().catch(() => ({}));
     const weekStartRaw = body.week_start;
     const score = body.score;
-    const notes = body.notes ?? null;
+    const note = body.notes ?? body.note ?? null;
 
     if (!weekStartRaw) {
       return NextResponse.json({ data: null, error: "Missing week_start" }, { status: 400 });
@@ -38,7 +38,7 @@ export async function POST(req: Request, ctx: Ctx) {
         case_id: caseId,
         week_start: weekStart,
         score: score ?? null,
-        notes,
+        note,
       })
       .select()
       .single();
@@ -66,7 +66,7 @@ export async function GET(_req: Request, ctx: Ctx) {
 
     const { data, error } = await supabaseAdmin
       .from("checkins")
-      .select("id, case_id, score, mood, note, notes, week_start, created_at")
+      .select("id, case_id, score, mood, note, week_start, created_at")
       .eq("case_id", caseId)
       .order("week_start", { ascending: false })
       .order("created_at", { ascending: false })

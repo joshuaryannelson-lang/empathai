@@ -28,13 +28,13 @@ type TimelineCheckin = {
   mood: number | null;
   created_at: string;
   note: string | null;
-  notes: string | null;
+  notes?: string | null;
 };
 
 type TimelineResponse = {
   case: { id: string; title: string | null; status: string | null; created_at: string };
   patient: { first_name: string | null; extended_profile?: ExtendedPatient } | null;
-  therapist: { name: string | null; extended_profile?: ExtendedTherapist } | null;
+  therapist: { id?: string; name: string | null; extended_profile?: ExtendedTherapist } | null;
   checkins: TimelineCheckin[];
 };
 
@@ -204,7 +204,7 @@ export default function CasePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           trigger: "manual",
-          therapistId: d?.therapist?.name ?? "",
+          therapistId: d?.therapist?.id ?? "",
           task: taskData,
         }),
       });
@@ -241,12 +241,24 @@ export default function CasePage() {
       const res = await fetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: next, userId: d?.therapist?.name ?? "" }),
+        body: JSON.stringify({ status: next, userId: d?.therapist?.id ?? "" }),
       });
       if (res.ok) {
         setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: next as TaskRow["status"] } : t));
       }
     } catch { /* ignore */ }
+  }
+
+  async function deleteTask(taskId: string) {
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+      if (!res.ok) {
+        await loadTasks();
+      }
+    } catch {
+      await loadTasks();
+    }
   }
 
   const therapistTasks = tasks.filter(t => t.assigned_to_role === "therapist");
@@ -545,6 +557,8 @@ export default function CasePage() {
         .task-role-select { padding: 6px 10px; border-radius: 6px; border: 1px solid #1f2533; background: #111420; color: #9ca3af; font-size: 12px; font-family: inherit; cursor: pointer; }
         .task-submit-btn { padding: 6px 14px; border-radius: 7px; border: 1px solid #0e2e1a; background: #061a0b; color: #4ade80; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all .15s; }
         .task-submit-btn:hover { background: #0a2412; }
+        .task-delete-btn { background: none; border: none; color: #374151; font-size: 16px; cursor: pointer; padding: 2px 4px; line-height: 1; flex-shrink: 0; transition: color .15s; }
+        .task-delete-btn:hover { color: #f87171; }
 
         /* ── CLINICAL NOTES EDITABLE ── */
         .cn-wrap { border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; animation: fadeUp .3s ease .09s both; }
@@ -993,6 +1007,7 @@ export default function CasePage() {
                               {t.description && <div className="task-desc">{t.description}</div>}
                               {t.due_date && <div className="task-meta">Due {fmtDate(t.due_date)}</div>}
                             </div>
+                            <button className="task-delete-btn" onClick={() => deleteTask(t.id)} title="Delete task">&times;</button>
                           </div>
                         ))}
                       </div>
@@ -1017,6 +1032,7 @@ export default function CasePage() {
                               {t.description && <div className="task-desc">{t.description}</div>}
                               {t.due_date && <div className="task-meta">Due {fmtDate(t.due_date)}</div>}
                             </div>
+                            <button className="task-delete-btn" onClick={() => deleteTask(t.id)} title="Delete task">&times;</button>
                           </div>
                         ))}
                       </div>
