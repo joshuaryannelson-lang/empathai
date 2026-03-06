@@ -48,7 +48,7 @@ export const TOUR_STEPS: TourStep[] = [
       "Before the session, EmpathAI generates structured prep: goal progress, barriers, suggested focus \u2014 all linked to the signals that drove them.",
     color: "#f5a623",
     colorRgb: "245,166,35",
-    href: `/cases/demo-case-03?demo=true`,
+    href: `/cases/demo-case-03/session-prep?demo=true`,
   },
   {
     step: 4,
