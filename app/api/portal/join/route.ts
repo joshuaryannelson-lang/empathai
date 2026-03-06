@@ -90,46 +90,60 @@ export async function POST(req: Request) {
     );
   }
 
-  // ── Mark code as redeemed ──
-  const { error: redeemError } = await supabaseAdmin
-    .from("join_codes")
-    .update({
-      redeemed_at: new Date().toISOString(),
-      redeemed_by_ip: ip,
-    })
-    .eq("id", joinCode.id)
-    .is("redeemed_at", null); // Double-check not already redeemed (race condition guard)
-
-  if (redeemError) {
-    return NextResponse.json(
-      { data: null, error: { message: "Failed to redeem join code." } },
-      { status: 500 }
-    );
-  }
-
-  // ── Mint patient JWT ──
-  let token: string;
   try {
-    token = await mintPatientJWT(joinCode.case_code);
+    // ── Mark code as redeemed ──
+    const { error: redeemError } = await supabaseAdmin
+      .from("join_codes")
+      .update({
+        redeemed_at: new Date().toISOString(),
+        redeemed_by_ip: ip,
+      })
+      .eq("id", joinCode.id)
+      .is("redeemed_at", null); // Double-check not already redeemed (race condition guard)
+
+    if (redeemError) {
+      console.error(`[join] redeem update failed for id=${joinCode.id}:`, redeemError.message);
+      return NextResponse.json(
+        { data: null, error: { message: "Failed to redeem join code." } },
+        { status: 500 }
+      );
+    }
+
+    // ── Mint patient JWT ──
+    console.log("[join] minting JWT for case_code=", joinCode.case_code);
+    let token: string;
+    try {
+      token = await mintPatientJWT(joinCode.case_code);
+    } catch (e: any) {
+      console.error(`[join] JWT mint failed for case_code=${joinCode.case_code}:`, e?.message ?? e);
+      return NextResponse.json(
+        { data: null, error: { message: "Authentication service error." } },
+        { status: 500 }
+      );
+    }
+    console.log("[join] JWT minted successfully");
+
+    // ── Audit log ──
+    await logAudit("join_code_redeemed", joinCode.case_code, ip, {
+      join_code_id: joinCode.id,
+    });
+
+    const response = {
+      data: {
+        token,
+        case_code: joinCode.case_code,
+      },
+      error: null,
+    };
+    console.log("[join] returning success response for case_code=", joinCode.case_code);
+    return NextResponse.json(response);
   } catch (e: any) {
+    console.error(`[join] unexpected error after lookup for code=${code}:`, e?.message ?? e, e?.stack);
     return NextResponse.json(
-      { data: null, error: { message: "Authentication service error." } },
+      { data: null, error: { message: "Internal server error." } },
       { status: 500 }
     );
   }
-
-  // ── Audit log ──
-  await logAudit("join_code_redeemed", joinCode.case_code, ip, {
-    join_code_id: joinCode.id,
-  });
-
-  return NextResponse.json({
-    data: {
-      token,
-      case_code: joinCode.case_code,
-    },
-    error: null,
-  });
 }
 
 // ── Helpers ──
