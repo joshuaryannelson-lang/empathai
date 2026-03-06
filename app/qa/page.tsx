@@ -264,8 +264,10 @@ export default function QABoard() {
   const [submitting, setSubmitting] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  // Track locally deleted results so polling doesn't resurrect them
+  // Track locally deleted results — permanent for the page session, never rolled back.
+  // deletedVersion bumps on each delete so useMemo recomputes resultsByPage.
   const deletedKeys = useRef<Set<string>>(new Set());
+  const [deletedVersion, setDeletedVersion] = useState(0);
   // Snapshot the tester name for × visibility — only updates on blur/submit, not every keystroke
   const [confirmedName, setConfirmedName] = useState("");
 
@@ -278,19 +280,12 @@ export default function QABoard() {
     } catch {}
   }, []);
 
-  // Fetch results (filters out locally deleted items)
+  // Fetch results — raw from server, deletedKeys filtering happens in resultsByPage
   const fetchResults = useCallback(async () => {
     try {
       const res = await fetch("/api/qa", { cache: "no-store" });
       const json = await res.json();
-      if (Array.isArray(json?.data)) {
-        const dk = deletedKeys.current;
-        if (dk.size > 0) {
-          setResults(json.data.filter((r: CheckResult) => !dk.has(`${r.page_id}|${r.check_index}|${r.tester_name}`)));
-        } else {
-          setResults(json.data);
-        }
-      }
+      if (Array.isArray(json?.data)) setResults(json.data);
     } catch {} finally { setLoading(false); }
   }, []);
 
@@ -354,24 +349,22 @@ export default function QABoard() {
   }
 
   // Delete a check result
+  // deletedKeys is permanent for the page session — never rolled back.
+  // If the server DELETE fails, the badge stays gone locally. User can
+  // refresh to get the truth back. This prevents every race condition.
   async function deleteCheck(pageId: string, checkIndex: number, name: string) {
     const dk = `${pageId}|${checkIndex}|${name}`;
-    // Mark as deleted so polling won't resurrect it
     deletedKeys.current.add(dk);
-    // Optimistic removal
+    setDeletedVersion(v => v + 1);
+    // Optimistic removal from state
     setResults(prev => prev.filter(r => !(r.page_id === pageId && r.check_index === checkIndex && r.tester_name === name)));
 
+    // Fire and forget — no rollback regardless of outcome
     try {
       const params = new URLSearchParams({ page_id: pageId, check_index: String(checkIndex), tester_name: name });
-      const res = await fetch(`/api/qa?${params}`, { method: "DELETE" });
-      if (!res.ok) {
-        // Server rejected — un-suppress and re-fetch
-        deletedKeys.current.delete(dk);
-        fetchResults();
-      }
+      await fetch(`/api/qa?${params}`, { method: "DELETE" });
     } catch {
-      deletedKeys.current.delete(dk);
-      fetchResults();
+      // Silently ignore — deletedKeys keeps it suppressed
     }
   }
 
@@ -390,14 +383,19 @@ export default function QABoard() {
     cardRefs.current[pageId]?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  // Results lookup helpers
+  // Results lookup — single enforcement point for deletedKeys.
+  // deletedVersion in deps ensures recalc after each delete even if
+  // results state hasn't changed yet (e.g. poll overwrites optimistic removal).
   const resultsByPage = useMemo(() => {
+    const dk = deletedKeys.current;
     const map: Record<string, CheckResult[]> = {};
     for (const r of results) {
+      if (dk.has(`${r.page_id}|${r.check_index}|${r.tester_name}`)) continue;
       (map[r.page_id] ??= []).push(r);
     }
     return map;
-  }, [results]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results, deletedVersion]);
 
   function getCheckResults(pageId: string, checkIndex: number): CheckResult[] {
     return (resultsByPage[pageId] ?? []).filter(r => r.check_index === checkIndex);
