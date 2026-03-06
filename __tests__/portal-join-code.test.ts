@@ -18,6 +18,7 @@ function chainMock(overrides: Record<string, jest.Mock> = {}) {
     update: overrides.update ?? jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
     is: jest.fn().mockReturnThis(),
+    or: jest.fn().mockReturnThis(),
     gt: jest.fn().mockReturnThis(),
     gte: jest.fn().mockReturnThis(),
     single: overrides.single ?? jest.fn().mockResolvedValue({ data: null, error: null }),
@@ -95,7 +96,7 @@ describe("Suite 1: Join Code Redemption", () => {
     joinCodesChain.select.mockReturnValue({
       eq: jest.fn().mockReturnValue({
         is: jest.fn().mockReturnValue({
-          gt: jest.fn().mockReturnValue({
+          or: jest.fn().mockReturnValue({
             maybeSingle: jest.fn().mockResolvedValue({
               data: { id: "jc-1", code: VALID_JOIN_CODE, case_code: TEST_CASE_CODE_A, expires_at: "2099-01-01", redeemed_at: null },
               error: null,
@@ -143,7 +144,7 @@ describe("Suite 1: Join Code Redemption", () => {
     joinCodesChain.select.mockReturnValue({
       eq: jest.fn().mockReturnValue({
         is: jest.fn().mockReturnValue({
-          gt: jest.fn().mockReturnValue({
+          or: jest.fn().mockReturnValue({
             maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
           }),
         }),
@@ -182,7 +183,7 @@ describe("Suite 1: Join Code Redemption", () => {
     joinCodesChain.select.mockReturnValue({
       eq: jest.fn().mockReturnValue({
         is: jest.fn().mockReturnValue({
-          gt: jest.fn().mockReturnValue({
+          or: jest.fn().mockReturnValue({
             maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
           }),
         }),
@@ -252,7 +253,7 @@ describe("Suite 1: Join Code Redemption", () => {
     joinCodesChain.select.mockReturnValue({
       eq: jest.fn().mockReturnValue({
         is: jest.fn().mockReturnValue({
-          gt: jest.fn().mockReturnValue({
+          or: jest.fn().mockReturnValue({
             maybeSingle: jest.fn().mockResolvedValue({
               data: { id: "jc-audit", code: VALID_JOIN_CODE, case_code: TEST_CASE_CODE_A, expires_at: "2099-01-01", redeemed_at: null },
               error: null,
