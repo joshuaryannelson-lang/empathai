@@ -58,7 +58,6 @@ export async function GET(req: Request, ctx: RouteContextWithId) {
     .from("checkins")
     .select("id, score, mood, created_at, note, notes, week_start")
     .eq("case_id", caseId)
-    .order("week_start", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(4);
 
@@ -111,11 +110,12 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
 
   const checkinsRes = await supabase
     .from("checkins")
-    .select("score, note, notes, week_start")
+    .select("score, note, notes, week_start, created_at")
     .eq("case_id", caseId)
-    .order("week_start", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(4);
+
+  console.log(`[session-prep] case=${caseId} checkins_found=${checkinsRes.data?.length ?? 0}`);
 
   // FIX 2: fetch all goals (active + completed) so model can reference recent wins
   const goalsRes = await supabase
@@ -156,11 +156,15 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   const rawDsmCodes: string[] = Array.isArray(caseRes.data?.dsm_codes) ? caseRes.data.dsm_codes : [];
   const dsmContext = rawDsmCodes.length > 0 ? describeDsmCodes(rawDsmCodes) : undefined;
 
-  // FIX 1: format week_start as readable label instead of null
+  // Format week label: prefer week_start, fall back to created_at date
   const checkins: CheckInData[] = (checkinsRes.data ?? []).map((c: any) => ({
     rating: c.score ?? 5,
     notes: c.note ?? c.notes ?? null,
-    week_label: c.week_start ? formatWeekLabel(c.week_start) : null,
+    week_label: c.week_start
+      ? formatWeekLabel(c.week_start)
+      : c.created_at
+        ? formatWeekLabel(c.created_at.slice(0, 10))
+        : null,
   }));
 
   // FIX 2: pass goal status so prompt shows [ACTIVE] / [COMPLETED] markers

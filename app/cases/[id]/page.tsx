@@ -9,14 +9,6 @@ import SessionPrepCard from "@/app/components/SessionPrepCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ExtendedPatient = {
-  email?: string;
-  phone?: string;
-  date_of_birth?: string;
-  primary_diagnosis?: string;
-  secondary_diagnoses?: string[];
-  emergency_contact_name?: string;
-  emergency_contact_phone?: string;
-  insurance_provider?: string;
   clinical_notes?: string;
   session_notes?: { date: string; text: string }[];
   activities?: { date: string; description: string }[];
@@ -636,14 +628,6 @@ export default function CasePage() {
                 <div className="p-name">{patientName}</div>
                 <div className="p-sub">{d?.therapist?.name ?? "Unassigned"}</div>
 
-                {/* Diagnosis badges */}
-                {(ep.primary_diagnosis || (ep.secondary_diagnoses ?? []).length > 0) && (
-                  <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap" }}>
-                    {ep.primary_diagnosis && <span className="diag-chip">{ep.primary_diagnosis}</span>}
-                    {(ep.secondary_diagnoses ?? []).map(dx => <span key={dx} className="diag-chip">{dx}</span>)}
-                  </div>
-                )}
-
                 <div className="score-row">
                   <div className="score-big">{latest?.score ?? "—"}</div>
                   <div className="score-aside">
@@ -668,24 +652,6 @@ export default function CasePage() {
                 <div className="info-row"><span className="info-key">Opened</span><span className="info-val">{d?.case?.created_at ? fmtShort(d.case.created_at) : "—"}</span></div>
                 <div className="info-row"><span className="info-key">Check-ins</span><span className="info-val">{checkins.length} recorded</span></div>
               </div>
-
-              {/* Contact info */}
-              {(ep.email || ep.phone || ep.date_of_birth || ep.insurance_provider || ep.emergency_contact_name) && (
-                <div className="info-card">
-                  <div className="info-card-title">Contact</div>
-                  {ep.email && <div className="info-row"><span className="info-key">Email</span><span className="info-val">{ep.email}</span></div>}
-                  {ep.phone && <div className="info-row"><span className="info-key">Phone</span><span className="info-val">{ep.phone}</span></div>}
-                  {ep.date_of_birth && <div className="info-row"><span className="info-key">DOB</span><span className="info-val">{fmtDate(ep.date_of_birth)}</span></div>}
-                  {ep.insurance_provider && <div className="info-row"><span className="info-key">Insurance</span><span className="info-val">{ep.insurance_provider}</span></div>}
-                  {ep.emergency_contact_name && (
-                    <>
-                      <div className="divider" />
-                      <div className="info-row"><span className="info-key">Emergency</span><span className="info-val">{ep.emergency_contact_name}</span></div>
-                      {ep.emergency_contact_phone && <div className="info-row"><span className="info-key">Emerg. ph.</span><span className="info-val">{ep.emergency_contact_phone}</span></div>}
-                    </>
-                  )}
-                </div>
-              )}
 
               {/* Therapist card */}
               {(te.license_type || (te.therapy_modalities ?? []).length > 0) && (
