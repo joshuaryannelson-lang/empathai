@@ -73,6 +73,7 @@ export default function CasePage() {
   const [loading, setLoading]   = useState(true);
   const [goals, setGoals]       = useState<Goal[]>([]);
 
+  const [sidebarTab, setSidebarTab] = useState<"care" | "notes">("care");
   const [notesOpen, setNotesOpen]     = useState(false);
   const [copied, setCopied]     = useState<string | null>(null);
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -365,8 +366,8 @@ export default function CasePage() {
         .back   { font-size: 12px; font-weight: 500; color: #4b5563; text-decoration: none; letter-spacing: .05em; text-transform: uppercase; transition: color .15s; display: inline-block; margin-bottom: 20px; }
         .back:hover { color: #9ca3af; }
 
-        .layout { display: grid; grid-template-columns: 240px 1fr 280px; gap: 16px; align-items: start; }
-        @media (max-width: 1100px) { .layout { grid-template-columns: 240px 1fr; } .right-col { display: none; } }
+        .layout { display: grid; grid-template-columns: 300px 1fr 280px; gap: 16px; align-items: start; }
+        @media (max-width: 1100px) { .layout { grid-template-columns: 300px 1fr; } .right-col { display: none; } }
         @media (max-width: 700px)  {
           .layout { grid-template-columns: 1fr; }
           .sidebar { position: static; }
@@ -590,6 +591,14 @@ export default function CasePage() {
         .msg-placeholder { text-align: center; padding: 24px 16px; }
         .msg-placeholder-icon { font-size: 28px; margin-bottom: 8px; opacity: 0.3; }
         .msg-placeholder-text { font-size: 13px; color: #374151; line-height: 1.6; }
+
+        /* ── SIDEBAR TABS ── */
+        .tab-panel { border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; animation: fadeUp .3s ease .05s both; }
+        .tab-bar { display: flex; gap: 4px; padding: 10px 14px 0; }
+        .tab-pill { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 6px 14px; border-radius: 20px; border: none; cursor: pointer; font-family: inherit; transition: all .15s; background: transparent; color: #4b5563; }
+        .tab-pill:hover { color: #9ca3af; }
+        .tab-pill--active { background: rgba(107,130,212,0.1); color: #6b82d4; border: 1px solid rgba(107,130,212,0.2); }
+        .tab-content { padding: 10px 14px 14px; }
       `}</style>
 
       <div className="shell">
@@ -687,6 +696,169 @@ export default function CasePage() {
                   </div>
                 )}
               </div>
+
+              {/* Sidebar tabs — Care Plan / Notes */}
+              <div className="tab-panel">
+                <div className="tab-bar">
+                  <button className={`tab-pill ${sidebarTab === "care" ? "tab-pill--active" : ""}`} onClick={() => setSidebarTab("care")}>Care Plan</button>
+                  <button className={`tab-pill ${sidebarTab === "notes" ? "tab-pill--active" : ""}`} onClick={() => setSidebarTab("notes")}>Notes</button>
+                </div>
+                <div className="tab-content">
+                  {sidebarTab === "care" ? (
+                    <>
+                      {/* Treatment goals — MOVED FROM MIDDLE COLUMN */}
+                      <div className="ctx-head" style={{ padding: "12px 0", borderBottom: "1px solid #131720" }}>
+                        <div className="ctx-title">Treatment goals</div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          {goalsTotal > 0 && <div className="ctx-badge">{goalsDone}/{goalsTotal} complete</div>}
+                          <button className="cn-btn" onClick={() => setShowAddGoal(v => !v)}>
+                            {showAddGoal ? "Cancel" : "+ Add"}
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ padding: "10px 0" }}>
+                        {showAddGoal && (
+                          <div className="goal-add-row" style={{ marginBottom: 10 }}>
+                            <input
+                              className="goal-add-input"
+                              placeholder="Goal title..."
+                              value={newGoalTitle}
+                              onChange={e => setNewGoalTitle(e.target.value)}
+                              onKeyDown={e => e.key === "Enter" && addGoal()}
+                            />
+                            <button className="goal-add-btn" onClick={addGoal}>Add</button>
+                          </div>
+                        )}
+                        {goalsTotal > 0 && (
+                          <div className="goals-bar">
+                            {goals.map(g => {
+                              const done = g.status === "done" || g.status === "completed";
+                              return <div key={g.id} className="goals-pip" style={{ background: done ? "#0e2e1a" : "#1a1e2a" }} />;
+                            })}
+                          </div>
+                        )}
+                        {goals.length === 0 && !showAddGoal
+                          ? <p className="notes-empty">No goals set yet.</p>
+                          : goals.map(g => {
+                              const done = g.status === "done" || g.status === "completed";
+                              return (
+                                <div key={g.id} className="goal-item">
+                                  <div
+                                    className={`goal-check ${done ? "goal-check--done" : "goal-check--open"}`}
+                                    style={{ cursor: "pointer" }}
+                                    onClick={() => toggleGoalStatus(g)}
+                                  >
+                                    {done ? "✓" : ""}
+                                  </div>
+                                  <div>
+                                    <div className={`goal-text ${done ? "goal-text--done" : "goal-text--open"}`}>{g.title}</div>
+                                    {g.target_date && <div className="goal-date">Target: {fmtDate(g.target_date)}</div>}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                      </div>
+
+                      {/* Activities — MOVED FROM MIDDLE COLUMN */}
+                      {(ep.activities ?? []).length > 0 && (() => {
+                        const sortedActivities = [...(ep.activities ?? [])].sort((a, b) => b.date.localeCompare(a.date));
+                        return (
+                          <>
+                            <div className="ctx-head" style={{ padding: "12px 0", borderBottom: "1px solid #131720", borderTop: "1px solid #131720", marginTop: 4 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span className={`chevron ${activitiesExpanded ? "chevron--open" : ""}`} style={{ fontSize: 10, color: "#4b5563", cursor: "pointer" }} onClick={() => setActivitiesExpanded(v => !v)}>▾</span>
+                                <div className="ctx-title" style={{ cursor: "pointer" }} onClick={() => setActivitiesExpanded(v => !v)}>Activities &amp; Homework</div>
+                              </div>
+                              <div className="ctx-badge">{sortedActivities.length} entries</div>
+                            </div>
+                            <div style={{ padding: "10px 0" }}>
+                              <div style={{ display: "grid", gap: 10 }}>
+                                {(activitiesExpanded ? sortedActivities : sortedActivities.slice(0, 2)).map((act, i) => (
+                                  <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: "#4b5563", whiteSpace: "nowrap", paddingTop: 2, minWidth: 72 }}>{fmtDate(act.date)}</div>
+                                    <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.55 }}>{act.description}</div>
+                                  </div>
+                                ))}
+                              </div>
+                              {sortedActivities.length > 2 && (
+                                <button
+                                  onClick={() => setActivitiesExpanded(v => !v)}
+                                  style={{ width: "100%", padding: "8px 0 0", background: "none", border: "none", color: "#4b5563", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                                >
+                                  {activitiesExpanded ? "Show less" : `Show all ${sortedActivities.length} activities`}
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </>
+                  ) : (
+                    <>
+                      {/* Clinical notes — MOVED FROM MIDDLE COLUMN */}
+                      <div className="cn-head" style={{ padding: "12px 0", borderBottom: "1px solid #131720" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span className={`chevron ${!clinicalNotesCollapsed ? "chevron--open" : ""}`} style={{ fontSize: 10, color: "#4b5563" }}>▾</span>
+                          <div className="cn-title">Clinical Notes</div>
+                        </div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          {clinicalNotesSaved && <span className="cn-saved">✓ Saved</span>}
+                          <button className="cn-btn" onClick={(e) => {
+                            e.stopPropagation();
+                            if (clinicalNotesEditing) {
+                              saveClinicalNotes(clinicalNotes);
+                            }
+                            setClinicalNotesEditing(v => !v);
+                            if (!clinicalNotesEditing) setClinicalNotesCollapsed(false);
+                          }}>
+                            {clinicalNotesEditing ? "Done" : "Edit"}
+                          </button>
+                        </div>
+                      </div>
+                      {clinicalNotesCollapsed && !clinicalNotesEditing ? (
+                        clinicalNotes ? (
+                          <div style={{ padding: "10px 0", cursor: "pointer" }} onClick={() => setClinicalNotesCollapsed(false)}>
+                            <div className="cn-display" style={{ color: "#6b7280", fontSize: 12 }}>{clinicalNotes.slice(0, 100)}{clinicalNotes.length > 100 ? "…" : ""}</div>
+                          </div>
+                        ) : null
+                      ) : (
+                        <div style={{ padding: "10px 0" }}>
+                          {clinicalNotesEditing ? (
+                            <textarea
+                              className="cn-textarea"
+                              value={clinicalNotes}
+                              onChange={e => handleClinicalNotesChange(e.target.value)}
+                              placeholder="Add clinical observations, session notes, or treatment context here..."
+                              autoFocus
+                            />
+                          ) : clinicalNotes ? (
+                            <div className="cn-display">{clinicalNotes}</div>
+                          ) : (
+                            <p className="notes-empty" style={{ cursor: "pointer" }} onClick={() => setClinicalNotesEditing(true)}>
+                              Add clinical observations, session notes, or treatment context here...
+                            </p>
+                          )}
+
+                          {sessionNotes.length > 0 && (
+                            <>
+                              <button className="sn-toggle" onClick={() => setNotesOpen(o => !o)}>
+                                <span className={`chevron ${notesOpen ? "chevron--open" : ""}`}>▾</span>
+                                Session notes ({sessionNotes.length})
+                              </button>
+                              {notesOpen && sessionNotes.map((n, i) => (
+                                <div key={i} className="sn-entry">
+                                  <div className="sn-date">{fmtDate(n.date)}</div>
+                                  <div className="sn-text">{n.text}</div>
+                                </div>
+                              ))}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
             </aside>
 
             {/* ── MAIN COLUMN ── */}
@@ -757,158 +929,6 @@ export default function CasePage() {
                   )}
                 </div>
               </div>
-
-              {/* 4. Treatment goals — compact checklist */}
-              <div className="ctx-card">
-                <div className="ctx-head">
-                  <div className="ctx-title">Treatment goals</div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    {goalsTotal > 0 && <div className="ctx-badge">{goalsDone}/{goalsTotal} complete</div>}
-                    <button className="cn-btn" onClick={() => setShowAddGoal(v => !v)}>
-                      {showAddGoal ? "Cancel" : "+ Add"}
-                    </button>
-                  </div>
-                </div>
-                <div className="ctx-body">
-                  {showAddGoal && (
-                    <div className="goal-add-row" style={{ marginBottom: 10 }}>
-                      <input
-                        className="goal-add-input"
-                        placeholder="Goal title..."
-                        value={newGoalTitle}
-                        onChange={e => setNewGoalTitle(e.target.value)}
-                        onKeyDown={e => e.key === "Enter" && addGoal()}
-                      />
-                      <button className="goal-add-btn" onClick={addGoal}>Add</button>
-                    </div>
-                  )}
-                  {goalsTotal > 0 && (
-                    <div className="goals-bar">
-                      {goals.map(g => {
-                        const done = g.status === "done" || g.status === "completed";
-                        return <div key={g.id} className="goals-pip" style={{ background: done ? "#0e2e1a" : "#1a1e2a" }} />;
-                      })}
-                    </div>
-                  )}
-                  {goals.length === 0 && !showAddGoal
-                    ? <p className="notes-empty">No goals set yet.</p>
-                    : goals.map(g => {
-                        const done = g.status === "done" || g.status === "completed";
-                        return (
-                          <div key={g.id} className="goal-item">
-                            <div
-                              className={`goal-check ${done ? "goal-check--done" : "goal-check--open"}`}
-                              style={{ cursor: "pointer" }}
-                              onClick={() => toggleGoalStatus(g)}
-                            >
-                              {done ? "✓" : ""}
-                            </div>
-                            <div>
-                              <div className={`goal-text ${done ? "goal-text--done" : "goal-text--open"}`}>{g.title}</div>
-                              {g.target_date && <div className="goal-date">Target: {fmtDate(g.target_date)}</div>}
-                            </div>
-                          </div>
-                        );
-                      })}
-                </div>
-              </div>
-
-              {/* 5. Clinical notes — collapsed by default, 100-char preview */}
-              <div className="cn-wrap">
-                <div className="cn-head" style={{ cursor: clinicalNotesEditing ? "default" : "pointer" }} onClick={() => { if (!clinicalNotesEditing) setClinicalNotesCollapsed(v => !v); }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span className={`chevron ${!clinicalNotesCollapsed ? "chevron--open" : ""}`} style={{ fontSize: 10, color: "#4b5563" }}>▾</span>
-                    <div className="cn-title">Clinical Notes</div>
-                  </div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    {clinicalNotesSaved && <span className="cn-saved">✓ Saved</span>}
-                    <button className="cn-btn" onClick={(e) => {
-                      e.stopPropagation();
-                      if (clinicalNotesEditing) {
-                        saveClinicalNotes(clinicalNotes);
-                      }
-                      setClinicalNotesEditing(v => !v);
-                      if (!clinicalNotesEditing) setClinicalNotesCollapsed(false);
-                    }}>
-                      {clinicalNotesEditing ? "Done" : "Edit"}
-                    </button>
-                  </div>
-                </div>
-                {clinicalNotesCollapsed && !clinicalNotesEditing ? (
-                  clinicalNotes ? (
-                    <div className="cn-body" style={{ cursor: "pointer" }} onClick={() => setClinicalNotesCollapsed(false)}>
-                      <div className="cn-display" style={{ color: "#6b7280", fontSize: 12 }}>{clinicalNotes.slice(0, 100)}{clinicalNotes.length > 100 ? "…" : ""}</div>
-                    </div>
-                  ) : null
-                ) : (
-                  <div className="cn-body">
-                    {clinicalNotesEditing ? (
-                      <textarea
-                        className="cn-textarea"
-                        value={clinicalNotes}
-                        onChange={e => handleClinicalNotesChange(e.target.value)}
-                        placeholder="Add clinical observations, session notes, or treatment context here..."
-                        autoFocus
-                      />
-                    ) : clinicalNotes ? (
-                      <div className="cn-display">{clinicalNotes}</div>
-                    ) : (
-                      <p className="notes-empty" style={{ cursor: "pointer" }} onClick={() => setClinicalNotesEditing(true)}>
-                        Add clinical observations, session notes, or treatment context here...
-                      </p>
-                    )}
-
-                    {sessionNotes.length > 0 && (
-                      <>
-                        <button className="sn-toggle" onClick={() => setNotesOpen(o => !o)}>
-                          <span className={`chevron ${notesOpen ? "chevron--open" : ""}`}>▾</span>
-                          Session notes ({sessionNotes.length})
-                        </button>
-                        {notesOpen && sessionNotes.map((n, i) => (
-                          <div key={i} className="sn-entry">
-                            <div className="sn-date">{fmtDate(n.date)}</div>
-                            <div className="sn-text">{n.text}</div>
-                          </div>
-                        ))}
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* 6. Activities — collapsed by default, 2 visible */}
-              {(ep.activities ?? []).length > 0 && (() => {
-                const sortedActivities = [...(ep.activities ?? [])].sort((a, b) => b.date.localeCompare(a.date));
-                return (
-                  <div className="ctx-card" style={{ animation: "fadeUp .3s ease .12s both" }}>
-                    <div className="ctx-head" style={{ cursor: "pointer" }} onClick={() => setActivitiesExpanded(v => !v)}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span className={`chevron ${activitiesExpanded ? "chevron--open" : ""}`} style={{ fontSize: 10, color: "#4b5563" }}>▾</span>
-                        <div className="ctx-title">Activities &amp; Homework</div>
-                      </div>
-                      <div className="ctx-badge">{sortedActivities.length} entries</div>
-                    </div>
-                    <div className="ctx-body">
-                      <div style={{ display: "grid", gap: 10 }}>
-                        {(activitiesExpanded ? sortedActivities : sortedActivities.slice(0, 2)).map((act, i) => (
-                          <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: "#4b5563", whiteSpace: "nowrap", paddingTop: 2, minWidth: 72 }}>{fmtDate(act.date)}</div>
-                            <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.55 }}>{act.description}</div>
-                          </div>
-                        ))}
-                      </div>
-                      {sortedActivities.length > 2 && (
-                        <button
-                          onClick={() => setActivitiesExpanded(v => !v)}
-                          style={{ width: "100%", padding: "8px 0 0", background: "none", border: "none", color: "#4b5563", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-                        >
-                          {activitiesExpanded ? "Show less" : `Show all ${sortedActivities.length} activities`}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
 
             </div>
 
