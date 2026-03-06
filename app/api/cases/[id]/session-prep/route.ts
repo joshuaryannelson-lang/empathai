@@ -220,13 +220,15 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   const promptTokens = json?.usage?.input_tokens ?? estimatedInputTokens;
   const completionTokens = json?.usage?.output_tokens ?? 0;
 
-  console.log(`[session-prep] case=${caseId} duration_ms=${durationMs} tokens=${completionTokens}`);
+  console.log(`[session-prep] case=${caseId} duration_ms=${durationMs} tokens=${completionTokens} raw_text_preview=${rawText.slice(0, 200)}`);
 
   // ── Parse structured output ──
   let parsed: SessionPrepOutput;
   try {
     parsed = JSON.parse(rawText);
-  } catch {
+    console.log(`[session-prep] case=${caseId} JSON parse OK, confidence=${parsed.confidence} trend=${parsed.rating_trend}`);
+  } catch (parseErr: any) {
+    console.error(`[session-prep] case=${caseId} JSON parse FAILED: ${parseErr?.message}. Raw text (first 300 chars): ${rawText.slice(0, 300)}`);
     // If model didn't return valid JSON, create a fallback
     parsed = {
       rating_trend: "insufficient_data",

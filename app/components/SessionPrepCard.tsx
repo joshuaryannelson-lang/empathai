@@ -164,8 +164,11 @@ export default function SessionPrepCard({ caseId, weekStart, onReviewedChange }:
         cache: "no-store",
       });
       const json = await res.json().catch(() => ({}));
+      console.log("[SessionPrepCard] raw API response:", JSON.stringify(json).slice(0, 500));
       if (!res.ok || json?.error) throw new Error(json?.error?.message ?? JSON.stringify(json?.error ?? "Failed"));
-      setData(json?.data ?? null);
+      const prep = json?.data ?? null;
+      console.log("[SessionPrepCard] parsed data:", prep ? `confidence=${prep.confidence} trend=${prep.rating_trend} open_with=${!!prep.open_with} watch_for=${!!prep.watch_for}` : "null");
+      setData(prep);
     } catch (e: any) {
       setError(e?.message ?? String(e));
       setData(null);
