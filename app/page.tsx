@@ -1,9 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { isDemoMode, enableDemoMode, disableDemoMode, DEMO_CONFIG } from "@/lib/demo/demoMode";
 import { setRole, clearRole } from "@/lib/roleContext";
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -231,235 +230,12 @@ function PersonaCard({ persona, index, selected, onSelect }: {
 }
 
 
-// ── Demo Story ────────────────────────────────────────────────────────────────
-
-type DemoStepDef = {
-  step: number;
-  role: string;
-  icon: string;
-  title: string;
-  detail: string;
-  color: string;
-  colorRgb: string;
-};
-
-const DEMO_STEPS: DemoStepDef[] = [
-  {
-    step: 1,
-    role: "Patient",
-    icon: "♡",
-    title: "A patient submits their weekly check-in",
-    detail: "Monday morning — they rate their mood, log sleep quality, and flag a new work stressor.",
-    color: "#38bdf8",
-    colorRgb: "56,189,248",
-  },
-  {
-    step: 2,
-    role: "AI Engine",
-    icon: "✦",
-    title: "EmpathAI detects changes and signals risk",
-    detail: "The system surfaces a theme shift (sleep → work stress) and flags low engagement — before the therapist even opens the chart.",
-    color: "#7c5cfc",
-    colorRgb: "124,92,252",
-  },
-  {
-    step: 3,
-    role: "Therapist",
-    icon: "◎",
-    title: "AI generates session prep for the therapist",
-    detail: "Structured briefing with goal progress, barriers, and suggested focus — linked to the signals that drove them.",
-    color: "#00c8a0",
-    colorRgb: "0,200,160",
-  },
-  {
-    step: 4,
-    role: "Manager",
-    icon: "⬡",
-    title: "The practice manager sees the impact in THS",
-    detail: "THS updates in real time — showing what moved the score and which actions to take this week.",
-    color: "#f5a623",
-    colorRgb: "245,166,35",
-  },
-];
-
-type StepTarget = {
-  step: number;
-  href?: string;
-  loading?: boolean;
-};
-
-function GuidedDemoPanel({ router }: { router: ReturnType<typeof useRouter> }) {
-  const [activeStep, setActiveStep] = useState<number | null>(null);
-  const [stepTarget, setStepTarget] = useState<StepTarget | null>(null);
-  const [navData, setNavData] = useState<{ patientHref?: string; therapistHref?: string; caseHref?: string; practiceHref?: string } | null>(null);
-  const [navLoading, setNavLoading] = useState(false);
-
-  const weekStart = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    return d.toISOString().slice(0, 10);
-  }, []);
-
-  async function resolveNavData() {
-    if (navData || navLoading) return;
-    setNavLoading(true);
-    try {
-      const [therapistsRes, practicesRes] = await Promise.all([
-        fetch("/api/therapists", { cache: "no-store" }).then(r => r.json()),
-        fetch("/api/practices", { cache: "no-store" }).then(r => r.json()),
-      ]);
-      const therapists: Therapist[] = Array.isArray(therapistsRes?.data) ? therapistsRes.data : [];
-      const practices: Practice[] = Array.isArray(practicesRes?.data) ? practicesRes.data : (Array.isArray(practicesRes) ? practicesRes : []);
-      const therapist = therapists[0] ?? null;
-      const practice = therapist ? practices.find(p => p.id === therapist.practice_id) ?? practices[0] : practices[0];
-
-      // Fetch a case for the caseHref
-      let caseHref: string | undefined;
-      if (practice) {
-        const casesRes = await fetch(`/api/cases?practice_id=${practice.id}`, { cache: "no-store" }).then(r => r.json()).catch(() => ({}));
-        const cases = Array.isArray(casesRes?.data) ? casesRes.data : [];
-        if (cases[0]?.id) {
-          caseHref = `/cases/${cases[0].id}?week_start=${weekStart}`;
-        }
-      }
-
-      setNavData({
-        patientHref: "/portal",
-        therapistHref: therapist ? `/dashboard/therapists/${therapist.id}/care?week_start=${weekStart}` : undefined,
-        caseHref,
-        practiceHref: practice ? `/practices/${practice.id}/health-score?week_start=${weekStart}` : undefined,
-      });
-
-      // Pre-store selection
-      if (therapist?.practice_id) {
-        try { localStorage.setItem("selected_practice_id", therapist.practice_id); } catch {}
-        try { localStorage.setItem("selected_therapist_id", therapist.id); } catch {}
-      }
-    } catch {
-      // no-op
-    } finally {
-      setNavLoading(false);
-    }
-  }
-
-  function handleStepClick(step: number) {
-    setActiveStep(step);
-    resolveNavData();
-  }
-
-  function handleEnterStep(step: number) {
-    const hrefs: Record<number, string | undefined> = {
-      1: navData?.patientHref,
-      2: navData?.caseHref,
-      3: navData?.therapistHref,
-      4: navData?.practiceHref,
-    };
-    const href = hrefs[step];
-    if (href) {
-      setStepTarget({ step, loading: true });
-      setTimeout(() => router.push(href), 200);
-    } else if (navLoading) {
-      setStepTarget({ step, loading: true });
-    }
-  }
-
-  return (
-    <div style={{ marginBottom: 24, borderRadius: 20, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)", backdropFilter: "blur(10px)", overflow: "hidden", animation: "fadeSlideUp 0.5s cubic-bezier(0.16,1,0.3,1) both" }}>
-      {/* Scenario header */}
-      <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#00c8a0", boxShadow: "0 0 8px #00c8a0", animation: "pulseRing 2s ease-out infinite", flexShrink: 0 }} />
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.8, textTransform: "uppercase" as const, color: "rgba(255,255,255,0.35)", fontFamily: "'DM Mono', monospace" }}>
-            Demo Scenario
-          </div>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "rgba(255,255,255,0.9)", marginTop: 2, letterSpacing: -0.3, fontFamily: "'Sora', system-ui" }}>
-            Monday morning at a therapy practice
-          </div>
-        </div>
-        <div className="demo-header-hint" style={{ marginLeft: "auto", fontSize: 11, color: "rgba(255,255,255,0.25)", fontFamily: "'DM Mono', monospace" }}>
-          Click a step to explore →
-        </div>
-      </div>
-
-      {/* Steps */}
-      <div className="demo-steps-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0 }}>
-        {DEMO_STEPS.map((s, idx) => {
-          const isActive = activeStep === s.step;
-          return (
-            <div
-              key={s.step}
-              className="demo-step-cell"
-              onClick={() => handleStepClick(s.step)}
-              style={{
-                padding: "20px 18px",
-                borderRight: idx < 3 ? "1px solid rgba(255,255,255,0.05)" : "none",
-                cursor: "pointer",
-                background: isActive ? `rgba(${s.colorRgb},0.06)` : "transparent",
-                borderBottom: isActive ? `2px solid ${s.color}` : "2px solid transparent",
-                transition: "all 0.2s ease",
-                position: "relative" as const,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <div style={{
-                  width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 13,
-                  background: `rgba(${s.colorRgb},0.12)`,
-                  border: `1px solid rgba(${s.colorRgb},0.2)`,
-                  color: s.color,
-                }}>
-                  {s.icon}
-                </div>
-                <span style={{ fontSize: 10, fontWeight: 700, color: s.color, letterSpacing: 1.2, textTransform: "uppercase" as const, fontFamily: "'DM Mono', monospace" }}>
-                  Step {s.step}
-                </span>
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)", lineHeight: 1.4, marginBottom: 6, letterSpacing: -0.2 }}>
-                {s.title}
-              </div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.38)", lineHeight: 1.5 }}>
-                {s.detail}
-              </div>
-              {isActive && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleEnterStep(s.step); }}
-                  disabled={navLoading && !navData}
-                  style={{
-                    marginTop: 14, display: "flex", alignItems: "center", gap: 6,
-                    fontSize: 12, fontWeight: 700,
-                    color: s.color,
-                    background: `rgba(${s.colorRgb},0.10)`,
-                    border: `1px solid rgba(${s.colorRgb},0.3)`,
-                    borderRadius: 8, padding: "7px 14px",
-                    cursor: navLoading && !navData ? "not-allowed" : "pointer",
-                    fontFamily: "'Sora', system-ui",
-                    transition: "all 0.15s",
-                    opacity: stepTarget?.step === s.step && stepTarget.loading ? 0.6 : 1,
-                  }}
-                >
-                  {stepTarget?.step === s.step && stepTarget.loading ? "Opening…" : navLoading && !navData ? "Loading…" : "Enter this step →"}
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function DemoLanding() {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
   const [launched, setLaunched] = useState(false);
   const [managerMode, setManagerMode] = useState<"multi" | "single">("multi");
-  const [isDemo, setIsDemo] = useState(false);
-
-  useEffect(() => {
-    setIsDemo(isDemoMode());
-  }, []);
 
   // Practice picker state (manager single-practice mode)
   const [practices, setPractices] = useState<Practice[]>([]);
@@ -663,13 +439,6 @@ function handleLaunch() {
             </div>
           </div>
 
-          {/* ── Guided demo story — visible only in demo mode ── */}
-          {isDemo && (
-            <div style={{ marginTop: 28, animation: "fadeSlideUp 0.5s cubic-bezier(0.16,1,0.3,1) both" }}>
-              <GuidedDemoPanel router={router} />
-            </div>
-          )}
-
           {/* ── Manager action bar ── */}
           {showActionBar && (
             <div className="action-bar" style={{
@@ -767,70 +536,8 @@ function handleLaunch() {
           </div>
         </div>
 
-        {/* Floating demo toggle */}
-        <DemoToggle />
       </div>
     </>
   );
 }
 
-// ── Demo Toggle (bottom-right pill) ──────────────────────────────────────────
-
-function DemoToggle() {
-  const [demoOn, setDemoOn] = useState(false);
-
-  useEffect(() => {
-    setDemoOn(isDemoMode());
-  }, []);
-
-  const handleClick = useCallback(() => {
-    if (demoOn) {
-      disableDemoMode();
-      window.location.reload();
-    } else {
-      enableDemoMode();
-      window.location.href = `/dashboard/manager?practice_id=${DEMO_CONFIG.practiceId}`;
-    }
-  }, [demoOn]);
-
-  return (
-    <button
-      onClick={handleClick}
-      style={{
-        position: "fixed",
-        bottom: 20,
-        right: 20,
-        zIndex: 9000,
-        display: "flex",
-        alignItems: "center",
-        gap: 7,
-        padding: "8px 16px",
-        borderRadius: 999,
-        border: demoOn
-          ? "1px solid rgba(34,197,94,0.35)"
-          : "1px solid rgba(255,255,255,0.12)",
-        background: demoOn
-          ? "rgba(34,197,94,0.10)"
-          : "rgba(255,255,255,0.05)",
-        backdropFilter: "blur(12px)",
-        color: demoOn ? "#22c55e" : "rgba(255,255,255,0.45)",
-        fontSize: 12,
-        fontWeight: 700,
-        fontFamily: "'DM Mono', 'Fira Mono', monospace",
-        cursor: "pointer",
-        transition: "all 0.2s ease",
-        letterSpacing: 0.3,
-      }}
-    >
-      <span style={{
-        width: 7,
-        height: 7,
-        borderRadius: "50%",
-        background: demoOn ? "#22c55e" : "rgba(255,255,255,0.25)",
-        boxShadow: demoOn ? "0 0 8px #22c55e" : "none",
-        flexShrink: 0,
-      }} />
-      {demoOn ? "Demo On" : "Try Demo"}
-    </button>
-  );
-}

@@ -1,44 +1,37 @@
 import { test, expect } from "@playwright/test";
-import { trackConsoleErrors, enableDemo } from "./helpers/globalChecks";
+import { trackConsoleErrors } from "./helpers/globalChecks";
 
-test.describe("Demo mode", () => {
-  test("/?demo=true shows demo banner and scenario section", async ({ page }) => {
+test.describe("Demo page", () => {
+  test("/demo loads investor page with persona cards and tour", async ({ page }) => {
     const console = trackConsoleErrors(page);
-    await enableDemo(page);
-    await page.goto("/?demo=true");
+    await page.goto("/demo");
     await page.waitForLoadState("networkidle");
 
-    // Amber demo banner
-    const banner = page.getByText("Demo Environment");
-    await expect(banner).toBeVisible();
+    // Header
+    await expect(page.getByText("See EmpathAI")).toBeVisible();
 
-    // Demo Scenario section visible
-    await expect(page.getByText("Demo Scenario")).toBeVisible();
+    // Synthetic data disclaimer
+    await expect(page.getByText("synthetic")).toBeVisible();
 
-    // Try Demo pill shows "Demo On"
-    await expect(page.getByText("Demo On")).toBeVisible();
+    // Three persona cards
+    await expect(page.getByText("Practice Manager")).toBeVisible();
+    await expect(page.getByText("Therapist")).toBeVisible();
+    await expect(page.getByText("Patient")).toBeVisible();
+
+    // Guided tour section with start button
+    await expect(page.getByText("Guided Tour")).toBeVisible();
+    await expect(page.getByText("Step 1")).toBeVisible();
+    await expect(page.getByText("Step 5")).toBeVisible();
+    await expect(page.getByRole("button", { name: /start guided tour/i })).toBeVisible();
+
+    // Footer CTA
+    await expect(page.getByText("Interested in EmpathAI")).toBeVisible();
 
     console.assertNoErrors();
   });
 
-  test("Try Demo pill activates demo and redirects to manager dashboard", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
-
-    // Click Try Demo pill
-    const pill = page.getByText("Try Demo");
-    await pill.click();
-
-    // Should redirect — wait for navigation away from landing
-    await page.waitForURL(/\/(dashboard|practices|patient|admin)/, { timeout: 15000 });
-
-    // Demo banner should be present
-    await expect(page.getByText("Demo Environment")).toBeVisible({ timeout: 10000 });
-  });
-
   test("/status?demo=true loads agent status page", async ({ page }) => {
     const console = trackConsoleErrors(page);
-    await enableDemo(page);
     await page.goto("/status?demo=true");
     await page.waitForLoadState("networkidle");
 
@@ -61,25 +54,5 @@ test.describe("Demo mode", () => {
     await expect(page.getByText("Pilot Launch Gate")).toBeVisible();
 
     console.assertNoErrors();
-  });
-
-  test("Exit Demo returns to landing and clears demo state", async ({ page }) => {
-    await enableDemo(page);
-    await page.goto("/?demo=true");
-    await page.waitForLoadState("networkidle");
-
-    // Click Exit Demo
-    const exitBtn = page.getByText("Exit Demo");
-    await expect(exitBtn).toBeVisible();
-    await exitBtn.click();
-
-    // Should redirect to landing
-    await page.waitForURL("/", { timeout: 10000 });
-
-    // Banner gone
-    await expect(page.getByText("Demo Environment")).not.toBeVisible();
-
-    // Scenario section hidden
-    await expect(page.getByText("Demo Scenario")).not.toBeVisible();
   });
 });

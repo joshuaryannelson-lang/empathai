@@ -58,7 +58,7 @@ const PAGES: PageSection[] = [
       "The page opens without any error messages or blank screens",
       "You see 5 cards to choose from: Patient, Therapist, Manager, Admin, and Analytics",
       "Clicking each card highlights it and shows a description below",
-      "There's a 'Try Demo' toggle in the corner — turn it on and a green demo badge appears",
+      "The /demo page loads and shows persona cards with working links to demo views",
       "Click the Patient card — it should take you to the patient portal welcome page",
       "Shrink the window narrow (like a phone) — the cards should stack neatly and nothing is cut off",
       "Nothing on this page looks like a random code (like 'a3f9-bc12-...')",

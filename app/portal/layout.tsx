@@ -4,7 +4,6 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PatientNav from "./components/PatientNav";
-import DemoPreviewBanner from "./components/DemoPreviewBanner";
 
 const ACCENT = "#38bdf8";
 
@@ -159,7 +158,6 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       `}</style>
 
       <div className="patient-shell">
-        <DemoPreviewBanner />
 
         <header style={{
           position: "relative",

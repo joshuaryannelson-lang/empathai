@@ -19,21 +19,6 @@ test.describe("Mobile layout (375x812)", () => {
     });
   });
 
-  test("demo banner wraps cleanly on mobile", async ({ page }) => {
-    await page.goto("/?demo=true");
-    await page.waitForLoadState("networkidle");
-
-    const banner = page.getByText("Demo Environment");
-    await expect(banner).toBeVisible();
-
-    // Banner should not be truncated — check it's fully in viewport
-    const bannerBox = await banner.boundingBox();
-    if (bannerBox) {
-      expect(bannerBox.x).toBeGreaterThanOrEqual(0);
-      expect(bannerBox.x + bannerBox.width).toBeLessThanOrEqual(375 + 5); // small tolerance
-    }
-  });
-
   test("manager dashboard: no horizontal scroll", async ({ page }) => {
     await page.goto("/dashboard/manager?demo=true");
     await page.waitForLoadState("networkidle");
