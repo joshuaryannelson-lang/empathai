@@ -82,24 +82,6 @@ export default function CasePage() {
   const [activitiesExpanded, setActivitiesExpanded] = useState(false);
   const [sessionPrepReviewed, setSessionPrepReviewed] = useState(false);
 
-  // Tasks state
-  type TaskRow = {
-    id: string;
-    case_id: string;
-    assignee: string | null;
-    title: string;
-    description: string | null;
-    status: "pending" | "in_progress" | "completed" | "dismissed";
-    due_date: string | null;
-    created_at: string;
-  };
-  const [tasks, setTasks] = useState<TaskRow[]>([]);
-  const [tasksLoading, setTasksLoading] = useState(false);
-  const [showAddTask, setShowAddTask] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [newTaskDesc, setNewTaskDesc] = useState("");
-  const [newTaskRole, setNewTaskRole] = useState<"therapist" | "patient">("patient");
-
 
   // Clinical notes state
   const [clinicalNotes, setClinicalNotes] = useState("");
@@ -124,19 +106,10 @@ export default function CasePage() {
 
     if (isDemo) {
       // Load entirely from fixtures — no API/DB calls
-      import("@/lib/demo/demoData").then(({ getDemoTimeline, getDemoCaseGoals, getDemoCaseTasks }) => {
+      import("@/lib/demo/demoData").then(({ getDemoTimeline, getDemoCaseGoals }) => {
         const timeline = getDemoTimeline(id);
         if (timeline) setD(timeline as TimelineResponse);
         setGoals(getDemoCaseGoals(id).map(g => ({ ...g, case_id: id })) as Goal[]);
-        setTasks(getDemoCaseTasks(id).map(t => ({
-          id: t.id, case_id: t.case_id,
-          assignee: (t as any).assignee ?? (t as any).assigned_to_role ?? null,
-          title: t.title,
-          description: t.description,
-          status: t.status as "pending" | "in_progress" | "completed" | "dismissed",
-          due_date: t.due_date,
-          created_at: t.created_at,
-        })));
       }).finally(() => setLoading(false));
       return;
     }
@@ -144,12 +117,10 @@ export default function CasePage() {
     Promise.all([
       fetch(`/api/cases/${id}/timeline`, { cache: "no-store" }).then(r => r.json()).catch(() => null),
       fetch(`/api/cases/${id}/goals`,    { cache: "no-store" }).then(r => r.json()).catch(() => null),
-      fetch(`/api/cases/${id}/tasks`,    { cache: "no-store" }).then(r => r.json()).catch(() => null),
       fetch(`/api/cases/${id}`,          { cache: "no-store" }).then(r => r.json()).catch(() => null),
-    ]).then(([timelineJson, goalsJson, tasksJson, caseJson]) => {
+    ]).then(([timelineJson, goalsJson, caseJson]) => {
       if (timelineJson) setD(timelineJson?.data ?? timelineJson);
       setGoals(goalsJson?.data ?? []);
-      setTasks(tasksJson?.data ?? []);
       const caseData = caseJson?.data;
       if (caseData?.clinical_notes) setClinicalNotes(caseData.clinical_notes);
       if (Array.isArray(caseData?.dsm_codes)) setDsmCodes(caseData.dsm_codes);
@@ -184,84 +155,6 @@ export default function CasePage() {
     setCopied(key);
     setTimeout(() => setCopied(null), 2000);
   }
-
-  async function loadTasks() {
-    setTasksLoading(true);
-    try {
-      const res = await fetch(`/api/cases/${id}/tasks`, { cache: "no-store" });
-      const json = await res.json();
-      setTasks(json?.data ?? []);
-    } catch { /* ignore */ }
-    finally { setTasksLoading(false); }
-  }
-
-  async function addManualTask() {
-    if (!newTaskTitle.trim()) return;
-    const taskData = { title: newTaskTitle, description: newTaskDesc || undefined, assignedToRole: newTaskRole };
-    try {
-      const res = await fetch(`/api/cases/${id}/tasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          trigger: "manual",
-          therapistId: d?.therapist?.id ?? "",
-          task: taskData,
-        }),
-      });
-      if (res.ok) {
-        const json = await res.json().catch(() => ({}));
-        const created = json?.data;
-        if (created?.id) {
-          setTasks(prev => [created, ...prev]);
-        } else {
-          await loadTasks();
-        }
-      } else {
-        // Demo mode returns 403 — create task locally
-        const localTask: TaskRow = {
-          id: `local-${Date.now()}`,
-          case_id: id as string,
-          assignee: newTaskRole,
-          title: newTaskTitle,
-          description: newTaskDesc || null,
-          status: "pending",
-          due_date: null,
-          created_at: new Date().toISOString(),
-        };
-        setTasks(prev => [localTask, ...prev]);
-      }
-      setNewTaskTitle(""); setNewTaskDesc(""); setShowAddTask(false);
-    } catch { /* ignore */ }
-  }
-
-  async function cycleTaskStatus(task: TaskRow) {
-    const next = task.status === "pending" ? "in_progress" : task.status === "in_progress" ? "completed" : "pending";
-    try {
-      const res = await fetch(`/api/tasks/${task.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: next, userId: d?.therapist?.id ?? "" }),
-      });
-      if (res.ok) {
-        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: next as TaskRow["status"] } : t));
-      }
-    } catch { /* ignore */ }
-  }
-
-  async function deleteTask(taskId: string) {
-    setTasks(prev => prev.filter(t => t.id !== taskId));
-    try {
-      const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
-      if (!res.ok) {
-        await loadTasks();
-      }
-    } catch {
-      await loadTasks();
-    }
-  }
-
-  const therapistTasks = tasks.filter(t => t.assignee === "therapist");
-  const patientTasks = tasks.filter(t => t.assignee === "patient");
 
   // Clinical notes — debounced auto-save
   const saveClinicalNotes = useCallback(async (text: string) => {
@@ -509,55 +402,10 @@ export default function CasePage() {
         @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* ── TASKS ── */
-        .tasks-wrap { border-radius: 14px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; animation: fadeUp .3s ease .13s both; }
-        .tasks-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; border-bottom: 1px solid #131720; }
-        .tasks-head-left { display: flex; align-items: center; gap: 10px; }
-        .tasks-title { font-size: 12px; font-weight: 600; color: #9ca3af; letter-spacing: .05em; text-transform: uppercase; }
-        .tasks-count { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #111420; border: 1px solid #1f2533; color: #4b5563; }
-        .tasks-actions { display: flex; gap: 6px; flex-wrap: wrap; }
         @media (max-width: 500px) {
-          .tasks-head { flex-direction: column; gap: 10px; align-items: stretch; }
-          .tasks-actions { width: 100%; }
-          .tasks-btn { flex: 1; text-align: center; min-height: 44px; }
-          .task-form-row { flex-wrap: wrap; }
-          .task-input { min-height: 44px; font-size: 16px; }
-          .task-role-select { min-height: 44px; font-size: 14px; flex: 1; }
-          .task-submit-btn { min-height: 44px; flex: 1; }
           .action-card { flex-direction: column; align-items: stretch; }
           .action-btn { width: 100%; text-align: center; min-height: 44px; }
         }
-        .tasks-btn { font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 7px; border: 1px solid #1f2533; background: #111420; color: #9ca3af; cursor: pointer; font-family: inherit; transition: all .15s; }
-        .tasks-btn:hover { border-color: #2e3650; color: #e8eaf0; }
-        .tasks-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .tasks-group { padding: 8px 14px; }
-        .tasks-group-label { font-size: 10px; font-weight: 700; color: #4b5563; text-transform: uppercase; letter-spacing: .06em; padding: 6px 4px 4px; }
-        .task-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 4px; border-bottom: 1px solid #0f1218; }
-        .task-item:last-child { border-bottom: none; }
-        .task-status-btn { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; flex-shrink: 0; margin-top: 1px; cursor: pointer; border: none; transition: all .15s; }
-        .task-status--pending { background: #111420; border: 1px solid #1f2533; color: #4b5563; }
-        .task-status--in_progress { background: #0d1220; border: 1px solid #2a3560; color: #6b82d4; }
-        .task-status--completed { background: #061a0b; border: 1px solid #0e2e1a; color: #4ade80; }
-        .task-body { flex: 1; min-width: 0; }
-        .task-title-row { display: flex; align-items: center; gap: 6px; }
-        .task-title { font-size: 13px; color: #c8d0e0; line-height: 1.4; }
-        .task-title--done { color: #374151; text-decoration: line-through; }
-        .task-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 20px; letter-spacing: .04em; flex-shrink: 0; }
-        .task-badge--ai { background: #1a2240; border: 1px solid #2a3560; color: #6b82d4; }
-        .task-badge--manual { background: #0d1018; border: 1px solid #1a1e2a; color: #6b7280; }
-        .task-desc { font-size: 11px; color: #6b7280; margin-top: 2px; line-height: 1.5; }
-        .task-meta { font-size: 10px; color: #374151; margin-top: 3px; font-family: 'DM Mono', monospace; }
-        .tasks-empty { padding: 24px 18px; font-size: 13px; color: #374151; text-align: center; }
-        .task-add-form { padding: 12px 14px; border-top: 1px solid #131720; display: grid; gap: 8px; }
-        .task-input { width: 100%; padding: 8px 12px; border-radius: 7px; border: 1px solid #1f2533; background: #0a0c12; color: #e2e8f0; font-size: 13px; font-family: inherit; outline: none; transition: border-color .15s; }
-        .task-input:focus { border-color: #2a3560; }
-        .task-input::placeholder { color: #374151; }
-        .task-form-row { display: flex; gap: 8px; align-items: center; }
-        .task-role-select { padding: 6px 10px; border-radius: 6px; border: 1px solid #1f2533; background: #111420; color: #9ca3af; font-size: 12px; font-family: inherit; cursor: pointer; }
-        .task-submit-btn { padding: 6px 14px; border-radius: 7px; border: 1px solid #0e2e1a; background: #061a0b; color: #4ade80; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all .15s; }
-        .task-submit-btn:hover { background: #0a2412; }
-        .task-delete-btn { background: none; border: none; color: #374151; font-size: 16px; cursor: pointer; padding: 2px 4px; line-height: 1; flex-shrink: 0; transition: color .15s; }
-        .task-delete-btn:hover { color: #f87171; }
 
         /* ── CLINICAL NOTES EDITABLE ── */
         .cn-wrap { border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; animation: fadeUp .3s ease .09s both; }
@@ -773,39 +621,6 @@ export default function CasePage() {
                             })}
                       </div>
 
-                      {/* Activities — MOVED FROM MIDDLE COLUMN */}
-                      {(ep.activities ?? []).length > 0 && (() => {
-                        const sortedActivities = [...(ep.activities ?? [])].sort((a, b) => b.date.localeCompare(a.date));
-                        return (
-                          <>
-                            <div className="ctx-head" style={{ padding: "12px 0", borderBottom: "1px solid #131720", borderTop: "1px solid #131720", marginTop: 4 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <span className={`chevron ${activitiesExpanded ? "chevron--open" : ""}`} style={{ fontSize: 10, color: "#4b5563", cursor: "pointer" }} onClick={() => setActivitiesExpanded(v => !v)}>▾</span>
-                                <div className="ctx-title" style={{ cursor: "pointer" }} onClick={() => setActivitiesExpanded(v => !v)}>Activities &amp; Homework</div>
-                              </div>
-                              <div className="ctx-badge">{sortedActivities.length} entries</div>
-                            </div>
-                            <div style={{ padding: "10px 0" }}>
-                              <div style={{ display: "grid", gap: 10 }}>
-                                {(activitiesExpanded ? sortedActivities : sortedActivities.slice(0, 2)).map((act, i) => (
-                                  <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                                    <div style={{ fontSize: 10, fontWeight: 700, color: "#4b5563", whiteSpace: "nowrap", paddingTop: 2, minWidth: 72 }}>{fmtDate(act.date)}</div>
-                                    <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.55 }}>{act.description}</div>
-                                  </div>
-                                ))}
-                              </div>
-                              {sortedActivities.length > 2 && (
-                                <button
-                                  onClick={() => setActivitiesExpanded(v => !v)}
-                                  style={{ width: "100%", padding: "8px 0 0", background: "none", border: "none", color: "#4b5563", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-                                >
-                                  {activitiesExpanded ? "Show less" : `Show all ${sortedActivities.length} activities`}
-                                </button>
-                              )}
-                            </div>
-                          </>
-                        );
-                      })()}
                     </>
                   ) : (
                     <>
@@ -1002,90 +817,44 @@ export default function CasePage() {
                 {copied === "action" ? "✓ Copied" : sessionPrepReviewed ? "Copy outreach" : "Review prep to copy outreach"}
               </button>
 
-              {/* Tasks */}
-              <div className="tasks-wrap">
-                <div className="tasks-head">
-                  <div className="tasks-head-left">
-                    <div className="tasks-title">Tasks</div>
-                    <div className="tasks-count">{tasks.filter(t => t.status !== "completed" && t.status !== "dismissed").length} open</div>
+              {/* Between Sessions */}
+              <div className="ctx-card">
+                <div className="ctx-head">
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {(ep.activities ?? []).length > 2 && (
+                      <span className={`chevron ${activitiesExpanded ? "chevron--open" : ""}`} style={{ fontSize: 10, color: "#4b5563", cursor: "pointer" }} onClick={() => setActivitiesExpanded(v => !v)}>▾</span>
+                    )}
+                    <div className="ctx-title">Between Sessions</div>
                   </div>
-                  <div className="tasks-actions">
-                    <button className="tasks-btn" onClick={() => setShowAddTask(v => !v)}>
-                      {showAddTask ? "Cancel" : "+ Add Task"}
-                    </button>
-                  </div>
+                  <div className="ctx-badge">{(ep.activities ?? []).length} entries</div>
                 </div>
-
-                {showAddTask && (
-                  <div className="task-add-form">
-                    <input className="task-input" placeholder="Task title..." value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} />
-                    <input className="task-input" placeholder="Description (optional)" value={newTaskDesc} onChange={e => setNewTaskDesc(e.target.value)} />
-                    <div className="task-form-row">
-                      <select className="task-role-select" value={newTaskRole} onChange={e => setNewTaskRole(e.target.value as "therapist" | "patient")}>
-                        <option value="patient">Patient homework</option>
-                        <option value="therapist">Therapist follow-up</option>
-                      </select>
-                      <button className="task-submit-btn" onClick={addManualTask}>Add</button>
-                    </div>
-                  </div>
-                )}
-
-                {tasks.length === 0 && !tasksLoading ? (
-                  <div className="tasks-empty">No tasks yet — use + Add Task to create one</div>
-                ) : (
-                  <>
-                    {therapistTasks.length > 0 && (
-                      <div className="tasks-group">
-                        <div className="tasks-group-label">Therapist follow-ups</div>
-                        {therapistTasks.map(t => (
-                          <div key={t.id} className="task-item">
-                            <button
-                              className={`task-status-btn task-status--${t.status}`}
-                              onClick={() => cycleTaskStatus(t)}
-                              title={`Status: ${t.status}`}
-                            >{t.status === "completed" ? "✓" : t.status === "in_progress" ? "►" : ""}</button>
-                            <div className="task-body">
-                              <div className="task-title-row">
-                                <span className={`task-title ${t.status === "completed" ? "task-title--done" : ""}`}>{t.title}</span>
-                                <span className="task-badge task-badge--manual">
-                                  Task
-                                </span>
-                              </div>
-                              {t.description && <div className="task-desc">{t.description}</div>}
-                              {t.due_date && <div className="task-meta">Due {fmtDate(t.due_date)}</div>}
+                <div className="ctx-body">
+                  {(ep.activities ?? []).length === 0 ? (
+                    <p className="notes-empty">No homework assigned yet</p>
+                  ) : (() => {
+                    const sortedActivities = [...(ep.activities ?? [])].sort((a, b) => b.date.localeCompare(a.date));
+                    return (
+                      <>
+                        <div style={{ display: "grid", gap: 10 }}>
+                          {(activitiesExpanded ? sortedActivities : sortedActivities.slice(0, 2)).map((act, i) => (
+                            <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#4b5563", whiteSpace: "nowrap", paddingTop: 2, minWidth: 72 }}>{fmtDate(act.date)}</div>
+                              <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.55 }}>{act.description}</div>
                             </div>
-                            <button className="task-delete-btn" onClick={() => deleteTask(t.id)} title="Delete task">&times;</button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {patientTasks.length > 0 && (
-                      <div className="tasks-group">
-                        <div className="tasks-group-label">Patient homework</div>
-                        {patientTasks.map(t => (
-                          <div key={t.id} className="task-item">
-                            <button
-                              className={`task-status-btn task-status--${t.status}`}
-                              onClick={() => cycleTaskStatus(t)}
-                              title={`Status: ${t.status}`}
-                            >{t.status === "completed" ? "✓" : t.status === "in_progress" ? "►" : ""}</button>
-                            <div className="task-body">
-                              <div className="task-title-row">
-                                <span className={`task-title ${t.status === "completed" ? "task-title--done" : ""}`}>{t.title}</span>
-                                <span className="task-badge task-badge--manual">
-                                  Task
-                                </span>
-                              </div>
-                              {t.description && <div className="task-desc">{t.description}</div>}
-                              {t.due_date && <div className="task-meta">Due {fmtDate(t.due_date)}</div>}
-                            </div>
-                            <button className="task-delete-btn" onClick={() => deleteTask(t.id)} title="Delete task">&times;</button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
+                          ))}
+                        </div>
+                        {sortedActivities.length > 2 && (
+                          <button
+                            onClick={() => setActivitiesExpanded(v => !v)}
+                            style={{ width: "100%", padding: "8px 0 0", background: "none", border: "none", color: "#4b5563", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                          >
+                            {activitiesExpanded ? "Show less" : `Show all ${sortedActivities.length} activities`}
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
               </div>
 
               {/* Messages — collapsed placeholder */}

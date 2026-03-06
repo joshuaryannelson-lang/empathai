@@ -114,6 +114,20 @@ function TherapistCareDashboard() {
   const [aiDone, setAiDone] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
+  // Tasks state
+  type TaskRow = {
+    id: string;
+    case_id: string;
+    assignee: string | null;
+    title: string;
+    description: string | null;
+    status: "pending" | "in_progress" | "completed" | "dismissed";
+    due_date: string | null;
+    created_at: string;
+  };
+  const [tasks, setTasks] = useState<TaskRow[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+
   // Unassigned cases state
   type UnassignedCase = { id: string; title: string | null; patient_first_name: string | null };
   const [unassigned, setUnassigned] = useState<UnassignedCase[]>([]);
@@ -144,6 +158,7 @@ function TherapistCareDashboard() {
       const careData = json.data ?? null;
       setCare(careData);
       if (careData) generateSummary(careData);
+      loadTasks();
     } catch {
       setCare(null);
     } finally {
@@ -242,6 +257,41 @@ function TherapistCareDashboard() {
       setAiLoading(false);
       setAiDone(true);
     }
+  }
+
+  async function loadTasks() {
+    setTasksLoading(true);
+    try {
+      const qs = demoParam === "true" ? "?demo=true" : "";
+      const res = await fetch(`/api/tasks${qs}`, { cache: "no-store" });
+      const json = await res.json().catch(() => ({}));
+      setTasks(json?.data ?? []);
+    } catch { /* ignore */ }
+    finally { setTasksLoading(false); }
+  }
+
+  const caseIds = useMemo(() => new Set((care?.cases ?? []).map(c => c.case_id)), [care]);
+  const myTasks = useMemo(() => {
+    const filtered = tasks.filter(t => caseIds.has(t.case_id) && t.assignee === "therapist");
+    return filtered.sort((a, b) => {
+      const aOpen = a.status !== "completed" && a.status !== "dismissed" ? 0 : 1;
+      const bOpen = b.status !== "completed" && b.status !== "dismissed" ? 0 : 1;
+      if (aOpen !== bOpen) return aOpen - bOpen;
+      return (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999");
+    });
+  }, [tasks, caseIds]);
+  const openTaskCount = myTasks.filter(t => t.status !== "completed" && t.status !== "dismissed").length;
+
+  async function cycleTaskStatus(task: TaskRow) {
+    const next = task.status === "pending" ? "in_progress" : task.status === "in_progress" ? "completed" : "pending";
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: next as TaskRow["status"] } : t));
+    try {
+      await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next, userId: therapistId }),
+      });
+    } catch { /* ignore — optimistic update applied */ }
   }
 
   async function loadUnassigned(pid: string) {
@@ -383,6 +433,23 @@ function TherapistCareDashboard() {
         .tag--missing { background: #1a1000; border: 1px solid #3d2800; color: #fb923c; }
         .tag--good { background: #061a0b; border: 1px solid #0e2e1a; color: #4ade80; }
         .tag--neutral { background: #0d1018; border: 1px solid #1a1e2a; color: #6b7280; }
+
+        /* ── TASKS ── */
+        .tasks-section { border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; animation: fadeUp .4s ease .1s both; }
+        .tasks-section-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border-bottom: 1px solid #131720; }
+        .tasks-section-title { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; display: flex; align-items: center; gap: 8px; }
+        .tasks-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #111420; border: 1px solid #1f2533; color: #4b5563; }
+        .task-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #0f1218; }
+        .task-row:last-child { border-bottom: none; }
+        .task-status-btn { width: 20px; height: 20px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 900; flex-shrink: 0; margin-top: 2px; cursor: pointer; border: none; transition: all .15s; }
+        .task-status--pending { background: #111420; border: 1px solid #1f2533; color: #4b5563; }
+        .task-status--in_progress { background: #0d1220; border: 1px solid #2a3560; color: #6b82d4; }
+        .task-status--completed { background: #061a0b; border: 1px solid #0e2e1a; color: #4ade80; }
+        .task-info { flex: 1; min-width: 0; }
+        .task-name { font-size: 12px; color: #c8d0e0; line-height: 1.4; }
+        .task-name--done { color: #374151; text-decoration: line-through; }
+        .task-case-code { font-size: 10px; color: #4b5563; font-family: 'DM Mono', monospace; margin-top: 2px; }
+        .tasks-empty { padding: 20px 16px; font-size: 12px; color: #374151; text-align: center; }
       `}</style>
 
       <div className="page-wrap">
@@ -680,6 +747,37 @@ function TherapistCareDashboard() {
                 <div className="ai-footer">
                   <div className="ai-footer-dot" />
                   {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </div>
+              )}
+            </div>
+
+            {/* ── TASKS ── */}
+            <div className="tasks-section">
+              <div className="tasks-section-head">
+                <div className="tasks-section-title">
+                  Tasks
+                  {openTaskCount > 0 && <span className="tasks-badge">{openTaskCount} open</span>}
+                </div>
+              </div>
+              {tasksLoading && myTasks.length === 0 ? (
+                <div className="tasks-empty" style={{ color: "#4b5563" }}>Loading tasks…</div>
+              ) : myTasks.length === 0 ? (
+                <div className="tasks-empty">No tasks assigned</div>
+              ) : (
+                <div>
+                  {myTasks.map(t => (
+                    <div key={t.id} className="task-row">
+                      <button
+                        className={`task-status-btn task-status--${t.status}`}
+                        onClick={() => cycleTaskStatus(t)}
+                        title={`Status: ${t.status}`}
+                      >{t.status === "completed" ? "✓" : t.status === "in_progress" ? "►" : ""}</button>
+                      <div className="task-info">
+                        <div className={`task-name ${t.status === "completed" ? "task-name--done" : ""}`}>{t.title}</div>
+                        <div className="task-case-code">{t.case_id.slice(0, 8)}…</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
