@@ -19,10 +19,10 @@ import { getDemoSessionPrepStructured } from "@/lib/demo/demoAI";
 describe("SessionPrep: Prompt & Output", () => {
   const twoCheckins: SessionPrepInput = {
     checkins: [
-      { week_index: 4, rating: 8, notes: "Felt more confident in social settings this week" },
-      { week_index: 3, rating: 6, notes: "Struggled with motivation but attended all sessions" },
+      { week_label: "Week of Mar 10", rating: 8, notes: "Felt more confident in social settings this week" },
+      { week_label: "Week of Mar 3", rating: 6, notes: "Struggled with motivation but attended all sessions" },
     ],
-    goals: [{ label: "reduce social anxiety", week_index_set: 1 }],
+    goals: [{ label: "reduce social anxiety", status: "active" }],
     patientFirstName: "Jordan",
   };
 
@@ -58,7 +58,7 @@ describe("SessionPrep: Prompt & Output", () => {
 
   test("2. Single check-in produces confidence 'low' and trend 'insufficient_data'", () => {
     const input: SessionPrepInput = {
-      checkins: [{ week_index: 1, rating: 7, notes: "Feeling okay overall" }],
+      checkins: [{ week_label: "Week of Feb 24", rating: 7, notes: "Feeling okay overall" }],
       goals: [],
     };
     const prompt = buildSessionPrepPrompt(input);
@@ -241,9 +241,9 @@ describe("SessionPrep: 4-Card Schema", () => {
   test("36. Prompt token estimate within budget for 4-card schema", () => {
     const input: SessionPrepInput = {
       checkins: [
-        { week_index: 4, rating: 8, notes: "Had a productive week, spent time with friends and family" },
-        { week_index: 3, rating: 6, notes: "Struggled with sleep but managed daily tasks" },
-        { week_index: 2, rating: 5, notes: "Felt overwhelmed by work responsibilities" },
+        { week_label: "Week of Mar 10", rating: 8, notes: "Had a productive week, spent time with friends and family" },
+        { week_label: "Week of Mar 3", rating: 6, notes: "Struggled with sleep but managed daily tasks" },
+        { week_label: "Week of Feb 24", rating: 5, notes: "Felt overwhelmed by work responsibilities" },
       ],
       goals: [
         { label: "improve sleep habits" },
@@ -253,8 +253,8 @@ describe("SessionPrep: 4-Card Schema", () => {
     };
     const prompt = buildSessionPrepPrompt(input);
     const tokens = estimateTokenCount(prompt);
-    // 4-card prompt is longer than old prompt — allow up to 800 estimated input tokens
-    expect(tokens).toBeLessThan(800);
+    // Prompt includes goal markers, week labels, optional clinical notes/DSM/modalities — ~530 typical, cap at 1000
+    expect(tokens).toBeLessThan(1000);
   });
 });
 
@@ -353,12 +353,12 @@ describe("THS: Narrative Validation", () => {
 // Budget Eval
 // ═══════════════════════════════════════════════════════════════════
 describe("Budget: Token Estimation", () => {
-  test("18. Typical SessionPrep prompt < 800 estimated input tokens", () => {
+  test("18. Typical SessionPrep prompt < 1000 estimated input tokens", () => {
     const input: SessionPrepInput = {
       checkins: [
-        { week_index: 4, rating: 8, notes: "Had a productive week, spent time with friends and family" },
-        { week_index: 3, rating: 6, notes: "Struggled with sleep but managed daily tasks" },
-        { week_index: 2, rating: 5, notes: "Felt overwhelmed by work responsibilities" },
+        { week_label: "Week of Mar 10", rating: 8, notes: "Had a productive week, spent time with friends and family" },
+        { week_label: "Week of Mar 3", rating: 6, notes: "Struggled with sleep but managed daily tasks" },
+        { week_label: "Week of Feb 24", rating: 5, notes: "Felt overwhelmed by work responsibilities" },
       ],
       goals: [
         { label: "improve sleep habits" },
@@ -368,7 +368,8 @@ describe("Budget: Token Estimation", () => {
     };
     const prompt = buildSessionPrepPrompt(input);
     const tokens = estimateTokenCount(prompt);
-    expect(tokens).toBeLessThan(800);
+    // ~530 typical with week labels + goal markers + clinical notes. Cap at 1000.
+    expect(tokens).toBeLessThan(1000);
   });
 
   test("19. THS narrative prompt < 300 estimated input tokens", () => {
@@ -386,8 +387,8 @@ describe("PHI Safety: Prompt Redaction", () => {
   test("20. Notes with email are scrubbed before entering prompt", () => {
     const input: SessionPrepInput = {
       checkins: [
-        { week_index: 1, rating: 7, notes: "Contact me at jane@example.com for scheduling" },
-        { week_index: 2, rating: 8, notes: "Feeling better this week" },
+        { week_label: "Week of Feb 17", rating: 7, notes: "Contact me at jane@example.com for scheduling" },
+        { week_label: "Week of Feb 24", rating: 8, notes: "Feeling better this week" },
       ],
       goals: [],
     };
@@ -401,8 +402,8 @@ describe("PHI Safety: Prompt Redaction", () => {
   test("21. Notes with phone number are scrubbed before entering prompt", () => {
     const input: SessionPrepInput = {
       checkins: [
-        { week_index: 1, rating: 6, notes: "Call me at 555-123-4567" },
-        { week_index: 2, rating: 7, notes: "Good week overall" },
+        { week_label: "Week of Feb 17", rating: 6, notes: "Call me at 555-123-4567" },
+        { week_label: "Week of Feb 24", rating: 7, notes: "Good week overall" },
       ],
       goals: [],
     };
@@ -414,8 +415,8 @@ describe("PHI Safety: Prompt Redaction", () => {
   test("22. Notes with SSN are scrubbed before entering prompt", () => {
     const input: SessionPrepInput = {
       checkins: [
-        { week_index: 1, rating: 5, notes: "My SSN is 123-45-6789 for the insurance form" },
-        { week_index: 2, rating: 6, notes: "Doing okay" },
+        { week_label: "Week of Feb 17", rating: 5, notes: "My SSN is 123-45-6789 for the insurance form" },
+        { week_label: "Week of Feb 24", rating: 6, notes: "Doing okay" },
       ],
       goals: [],
     };
@@ -438,8 +439,8 @@ describe("PHI Safety: Prompt Redaction", () => {
   test("26. Prompt never contains case_code or patient name in data section", () => {
     const input: SessionPrepInput = {
       checkins: [
-        { week_index: 1, rating: 7, notes: "Good progress this week" },
-        { week_index: 2, rating: 8, notes: "Continuing to improve" },
+        { week_label: "Week of Feb 17", rating: 7, notes: "Good progress this week" },
+        { week_label: "Week of Feb 24", rating: 8, notes: "Continuing to improve" },
       ],
       goals: [{ label: "improve daily routine" }],
       patientFirstName: "TestPatient",
@@ -451,5 +452,66 @@ describe("PHI Safety: Prompt Redaction", () => {
     expect(prompt).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/); // UUID fragment
     // Patient name IS in the prompt (for send_this) but only in the designated line
     expect(prompt).toContain("Patient first name (for send_this only): TestPatient");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// Session Prep: Week Labels, Goal Status, Clinical Notes
+// ═══════════════════════════════════════════════════════════════════
+describe("SessionPrep: Data Enrichment", () => {
+  test("37. week_label appears as formatted label in prompt, not null fallback", () => {
+    const input: SessionPrepInput = {
+      checkins: [
+        { week_label: "Week of Mar 10", rating: 7, notes: "Decent week" },
+        { week_label: "Week of Mar 3", rating: 5, notes: "Rough start" },
+      ],
+      goals: [],
+    };
+    const prompt = buildSessionPrepPrompt(input);
+    expect(prompt).toContain("Week of Mar 10: Rating 7/10");
+    expect(prompt).toContain("Week of Mar 3: Rating 5/10");
+    // Should NOT fall back to "Check-in 1" when labels are provided
+    expect(prompt).not.toContain("Check-in 1");
+    expect(prompt).not.toContain("Check-in 2");
+  });
+
+  test("38. Completed goals included with [COMPLETED] marker", () => {
+    const input: SessionPrepInput = {
+      checkins: [
+        { week_label: "Week of Mar 10", rating: 8, notes: "Great week" },
+        { week_label: "Week of Mar 3", rating: 6, notes: "Okay week" },
+      ],
+      goals: [
+        { label: "Reduce sleep disruption to < 2 nights/week", status: "active" },
+        { label: "Return to weekly exercise", status: "completed" },
+      ],
+    };
+    const prompt = buildSessionPrepPrompt(input);
+    expect(prompt).toContain("[ACTIVE] Reduce sleep disruption");
+    expect(prompt).toContain("[COMPLETED] Return to weekly exercise");
+  });
+
+  test("39. Clinical notes included when present, omitted when null", () => {
+    const withNotes: SessionPrepInput = {
+      checkins: [
+        { week_label: "Week of Mar 10", rating: 7, notes: "Fine" },
+        { week_label: "Week of Mar 3", rating: 6, notes: "Okay" },
+      ],
+      goals: [],
+      clinicalNotes: "Patient shows improved affect. Homework compliance good.",
+    };
+    const prompt = buildSessionPrepPrompt(withNotes);
+    expect(prompt).toContain("Therapist clinical notes: Patient shows improved affect");
+
+    const withoutNotes: SessionPrepInput = {
+      checkins: [
+        { week_label: "Week of Mar 10", rating: 7, notes: "Fine" },
+        { week_label: "Week of Mar 3", rating: 6, notes: "Okay" },
+      ],
+      goals: [],
+      clinicalNotes: null,
+    };
+    const promptNoNotes = buildSessionPrepPrompt(withoutNotes);
+    expect(promptNoNotes).not.toContain("Therapist clinical notes");
   });
 });

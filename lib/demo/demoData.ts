@@ -77,9 +77,9 @@ export const demoPatients = [
 
 export const demoCases = [
   // Dr. Maya Chen's caseload
-  { id: caseId(1),  practice_id: P, therapist_id: T1, patient_id: patientId(1),  title: "Sleep & Stress Management", status: "active", created_at: daysAgo(60) },
-  { id: caseId(2),  practice_id: P, therapist_id: T1, patient_id: patientId(2),  title: "Weekly Support", status: "active", created_at: daysAgo(45) },
-  { id: caseId(3),  practice_id: P, therapist_id: T1, patient_id: patientId(3),  title: "Urgent Support", status: "active", created_at: daysAgo(30) }, // CRITICAL
+  { id: caseId(1),  practice_id: P, therapist_id: T1, patient_id: patientId(1),  title: "Sleep & Stress Management", status: "active", created_at: daysAgo(60), dsm_codes: ["F41.1"] },
+  { id: caseId(2),  practice_id: P, therapist_id: T1, patient_id: patientId(2),  title: "Weekly Support", status: "active", created_at: daysAgo(45), dsm_codes: [] },
+  { id: caseId(3),  practice_id: P, therapist_id: T1, patient_id: patientId(3),  title: "Urgent Support", status: "active", created_at: daysAgo(30), dsm_codes: ["F32.1", "F41.1"] }, // CRITICAL
   { id: caseId(4),  practice_id: P, therapist_id: T1, patient_id: patientId(4),  title: "Life Transition", status: "active", created_at: daysAgo(55) },
   // Dr. James Okafor's caseload
   { id: caseId(5),  practice_id: P, therapist_id: T2, patient_id: patientId(5),  title: "Relationship & Communication", status: "active", created_at: daysAgo(50) },

@@ -40,9 +40,14 @@ export async function PATCH(req: Request, ctx: RouteContextWithId) {
   if (body.practice_id !== undefined) patch.practice_id = body.practice_id || null;
   if (body.therapist_id !== undefined) patch.therapist_id = body.therapist_id || null;
   if (body.clinical_notes !== undefined) patch.clinical_notes = String(body.clinical_notes);
+  if (body.dsm_codes !== undefined) {
+    if (!Array.isArray(body.dsm_codes)) return bad("dsm_codes must be an array");
+    if (body.dsm_codes.length > 5) return bad("Maximum 5 DSM codes allowed");
+    patch.dsm_codes = body.dsm_codes.map((c: unknown) => String(c).trim()).filter(Boolean);
+  }
 
   if (Object.keys(patch).length === 0) {
-    return bad("No fields to update (send title, status, practice_id, therapist_id, and/or clinical_notes)");
+    return bad("No fields to update (send title, status, practice_id, therapist_id, clinical_notes, and/or dsm_codes)");
   }
 
   const { data, error } = await supabase

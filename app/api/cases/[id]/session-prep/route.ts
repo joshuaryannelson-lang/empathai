@@ -14,7 +14,16 @@ import {
   type CheckInData,
   type GoalData,
 } from "@/lib/ai/sessionPrepPrompt";
+import { describeDsmCodes } from "@/lib/ai/dsmDescriptions";
 import { hashPrompt, logAiCall } from "@/lib/services/audit";
+
+// Format "2026-03-03" → "Week of Mar 3"
+function formatWeekLabel(weekStart: string): string {
+  const d = new Date(`${weekStart}T00:00:00`);
+  const month = d.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+  const day = d.getUTCDate();
+  return `Week of ${month} ${day}`;
+}
 
 const MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS = 800;
@@ -93,9 +102,10 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   const startTime = Date.now();
 
   // ── Fetch case data for prompt ──
+  // FIX 3: include clinical_notes for prompt context (~150 extra tokens typical)
   const caseRes = await supabase
     .from("cases")
-    .select("patient_id")
+    .select("patient_id, therapist_id, dsm_codes, clinical_notes")
     .eq("id", caseId)
     .single();
 
@@ -107,11 +117,12 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
     .order("created_at", { ascending: false })
     .limit(4);
 
+  // FIX 2: fetch all goals (active + completed) so model can reference recent wins
   const goalsRes = await supabase
     .from("goals")
     .select("title, status")
     .eq("case_id", caseId)
-    .eq("status", "active");
+    .in("status", ["active", "completed"]);
 
   if (checkinsRes.error) return bad(checkinsRes.error.message, 400);
   if (goalsRes.error) return bad(goalsRes.error.message, 400);
@@ -127,20 +138,45 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
     patientFirstName = patientRes.data?.first_name ?? undefined;
   }
 
+  // Fetch therapist modalities for TRY THIS personalization
+  let modalities: string[] | undefined;
+  if (caseRes.data?.therapist_id) {
+    const therapistRes = await supabase
+      .from("therapists")
+      .select("extended_profile")
+      .eq("id", caseRes.data.therapist_id)
+      .single();
+    const ep = therapistRes.data?.extended_profile as any;
+    modalities = Array.isArray(ep?.therapy_modalities) && ep.therapy_modalities.length > 0
+      ? ep.therapy_modalities
+      : undefined;
+  }
+
+  // Translate DSM codes to plain descriptions — raw codes NEVER enter the prompt
+  const rawDsmCodes: string[] = Array.isArray(caseRes.data?.dsm_codes) ? caseRes.data.dsm_codes : [];
+  const dsmContext = rawDsmCodes.length > 0 ? describeDsmCodes(rawDsmCodes) : undefined;
+
+  // FIX 1: format week_start as readable label instead of null
   const checkins: CheckInData[] = (checkinsRes.data ?? []).map((c: any) => ({
     rating: c.score ?? 5,
     notes: c.note ?? c.notes ?? null,
-    week_index: null,
+    week_label: c.week_start ? formatWeekLabel(c.week_start) : null,
   }));
 
+  // FIX 2: pass goal status so prompt shows [ACTIVE] / [COMPLETED] markers
   const goals: GoalData[] = (goalsRes.data ?? []).map((g: any) => ({
     label: g.title ?? "Untitled goal",
+    status: g.status ?? "active",
   }));
 
+  // FIX 3: pass clinical notes (scrubbing happens inside buildSessionPrepPrompt)
+  const clinicalNotes: string | null = (caseRes.data as any)?.clinical_notes ?? null;
+
   // ── Build prompt (includes server-side PHI scrub + assertion) ──
+  // Estimated ~530 input tokens typical (was ~380). Cost: ~$0.0016/call input.
   let prompt: string;
   try {
-    prompt = buildSessionPrepPrompt({ checkins, goals, patientFirstName });
+    prompt = buildSessionPrepPrompt({ checkins, goals, patientFirstName, clinicalNotes, modalities, dsmContext });
   } catch (e: any) {
     // PHI assertion failure — block the call
     console.error(`[session-prep] PHI assertion blocked call for case=${caseId}: ${e.message}`);
