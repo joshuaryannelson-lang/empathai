@@ -4,7 +4,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { isDemoMode } from "@/lib/demo/demoMode";
 import { RISK_THRESHOLDS } from "@/lib/services/risk";
 import SessionPrepCard from "@/app/components/SessionPrepCard";
 
@@ -116,12 +115,32 @@ export default function CasePage() {
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [newGoalTitle, setNewGoalTitle] = useState("");
 
-  // Demo mode detection (client side)
-  const [isDemo, setIsDemo] = useState(false);
-  useEffect(() => { setIsDemo(isDemoMode()); }, []);
+  // Demo mode detection (client side — synchronous from URL)
+  const isDemo = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "true";
 
   useEffect(() => {
     if (!id) { setLoading(false); return; }
+
+    if (isDemo) {
+      // Load entirely from fixtures — no API/DB calls
+      import("@/lib/demo/demoData").then(({ getDemoTimeline, getDemoCaseGoals, getDemoCaseTasks }) => {
+        const timeline = getDemoTimeline(id);
+        if (timeline) setD(timeline as TimelineResponse);
+        setGoals(getDemoCaseGoals(id).map(g => ({ ...g, case_id: id })) as Goal[]);
+        setTasks(getDemoCaseTasks(id).map(t => ({
+          id: t.id, case_id: t.case_id,
+          assigned_to_role: t.assigned_to_role,
+          created_by: t.created_by,
+          title: t.title,
+          description: t.description,
+          status: t.status as "pending" | "in_progress" | "completed" | "dismissed",
+          due_date: t.due_date,
+          created_at: t.created_at,
+        })));
+      }).finally(() => setLoading(false));
+      return;
+    }
+
     Promise.all([
       fetch(`/api/cases/${id}/timeline`, { cache: "no-store" }).then(r => r.json()).catch(() => null),
       fetch(`/api/cases/${id}/goals`,    { cache: "no-store" }).then(r => r.json()).catch(() => null),
@@ -134,7 +153,7 @@ export default function CasePage() {
       const caseData = caseJson?.data;
       if (caseData?.clinical_notes) setClinicalNotes(caseData.clinical_notes);
     }).finally(() => setLoading(false));
-  }, [id]);
+  }, [id, isDemo]);
 
   // Session prep is on-demand — therapist clicks "Generate" instead of auto-firing on page load
 
@@ -692,6 +711,11 @@ export default function CasePage() {
                 ))}
               </div>
 
+              {/* SESSION PREP — in demo mode, show immediately after stats */}
+              {isDemo && (
+                <SessionPrepCard caseId={id} weekStart={new Date().toISOString().slice(0, 10)} />
+              )}
+
               {/* Clinical notes (editable) */}
               <div className="cn-wrap">
                 <div className="cn-head">
@@ -938,8 +962,10 @@ export default function CasePage() {
                 )}
               </div>
 
-              {/* ── SESSION PREP (4-card AI panel) ── */}
-              <SessionPrepCard caseId={id} weekStart={new Date().toISOString().slice(0, 10)} />
+              {/* ── SESSION PREP (4-card AI panel) — non-demo position ── */}
+              {!isDemo && (
+                <SessionPrepCard caseId={id} weekStart={new Date().toISOString().slice(0, 10)} />
+              )}
 
             </div>
 
