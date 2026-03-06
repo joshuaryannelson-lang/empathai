@@ -8,8 +8,7 @@ import { useParams } from "next/navigation";
 type TaskRow = {
   id: string;
   case_id: string;
-  assigned_to_role: "therapist" | "patient";
-  created_by: "ai" | "therapist" | "system";
+  assignee: string | null;
   title: string;
   description: string | null;
   status: "pending" | "in_progress" | "completed" | "dismissed";
@@ -167,7 +166,6 @@ export default function TherapistDashboardPage() {
                     <div className="tw-task-info">
                       <div className={`tw-task-title ${t.status === "completed" ? "tw-task-title--done" : ""}`}>
                         {t.title}
-                        {t.created_by === "ai" && <span className="tw-ai-badge">AI</span>}
                       </div>
                       {t.due_date && <div className="tw-task-meta">Due {fmtDate(t.due_date)}</div>}
                     </div>

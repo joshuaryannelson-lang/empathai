@@ -7,8 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 type TaskRow = {
   id: string;
   case_id: string;
-  assigned_to_role: "therapist" | "patient";
-  created_by: "ai" | "therapist" | "system";
+  assignee: string | null;
   title: string;
   description: string | null;
   status: "pending" | "in_progress" | "completed" | "dismissed";
@@ -59,7 +58,7 @@ export default function TasksPage() {
     if (filterStatus === "open") list = list.filter(t => t.status === "pending" || t.status === "in_progress");
     else if (filterStatus !== "all") list = list.filter(t => t.status === filterStatus);
 
-    if (filterRole !== "all") list = list.filter(t => t.assigned_to_role === filterRole);
+    if (filterRole !== "all") list = list.filter(t => t.assignee === filterRole);
     if (filterCase !== "all") list = list.filter(t => t.case_id === filterCase);
 
     list.sort((a, b) => {
@@ -206,11 +205,11 @@ export default function TasksPage() {
                   <div className="tp-task-info">
                     <div className={`tp-task-title ${isDone ? "tp-task-title--done" : ""}`}>
                       {t.title}
-                      {t.created_by === "ai" ? <span className="tp-ai-badge">AI</span> : <span className="tp-manual-badge">Manual</span>}
+                      <span className="tp-manual-badge">Task</span>
                     </div>
                     {t.description && <div className="tp-task-desc">{t.description}</div>}
                     <div className="tp-task-meta">
-                      <span>{t.assigned_to_role === "therapist" ? "Therapist" : "Patient"}</span>
+                      <span>{t.assignee === "therapist" ? "Therapist" : t.assignee === "patient" ? "Patient" : t.assignee ?? "—"}</span>
                       <span>Due {fmtDate(t.due_date)}</span>
                       <span>Created {fmtDateTime(t.created_at)}</span>
                       <Link href={`/cases/${t.case_id}`} className="tp-case-link">Case {t.case_id.slice(0, 8)}&hellip;</Link>

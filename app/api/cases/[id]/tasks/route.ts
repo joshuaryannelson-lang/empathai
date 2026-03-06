@@ -7,60 +7,68 @@ import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoCaseTasks } from "@/lib/demo/demoData";
 
 export async function GET(_req: Request, ctx: RouteContextWithId) {
-  const caseId = await getIdFromContext(ctx);
-  if (!caseId) return bad("Missing case id");
+  try {
+    const caseId = await getIdFromContext(ctx);
+    if (!caseId) return bad("Missing case id");
 
-  if (isDemoMode(_req.url)) return ok(getDemoCaseTasks(caseId));
+    if (isDemoMode(_req.url)) return ok(getDemoCaseTasks(caseId));
 
-  const { data, error } = await supabaseAdmin
-    .from("tasks")
-    .select("id, case_id, assigned_to_role, assigned_to_id, created_by, title, description, status, due_date, source_checkin_id, redaction_flags, created_at, updated_at")
-    .eq("case_id", caseId)
-    .order("created_at", { ascending: false })
-    .limit(50);
+    const { data, error } = await supabaseAdmin
+      .from("tasks")
+      .select("id, case_id, title, description, status, assignee, due_date, created_at, updated_at")
+      .eq("case_id", caseId)
+      .order("created_at", { ascending: false })
+      .limit(50);
 
-  if (error) return bad(error.message, 500, error);
-  return ok(data);
+    if (error) {
+      console.error(`[tasks] GET case_id=${caseId} error=${error.message}`, error);
+      return bad(error.message, 500, error);
+    }
+    return ok(data);
+  } catch (err: any) {
+    console.error("[tasks] GET unhandled error:", err);
+    return bad(err?.message ?? "Internal server error", 500);
+  }
 }
 
 export async function POST(req: Request, ctx: RouteContextWithId) {
-  const caseId = await getIdFromContext(ctx);
-  if (!caseId) return bad("Missing case id");
-
-  // Demo mode: block writes
-  if (isDemoMode(req.url)) {
-    return bad("Demo mode — changes are disabled", 403);
-  }
-
-  let body: any;
   try {
-    body = await req.json();
-  } catch {
-    return bad("Invalid JSON body");
-  }
+    const caseId = await getIdFromContext(ctx);
+    if (!caseId) return bad("Missing case id");
 
-  const trigger = body.trigger as string;
+    // Demo mode: block writes
+    if (isDemoMode(req.url)) {
+      return bad("Demo mode — changes are disabled", 403);
+    }
 
-  if (trigger === "manual") {
-    const task = body.task;
-    if (!task?.title?.trim()) return bad("Missing task title");
-    if (!task?.assignedToRole) return bad("Missing assignedToRole");
-
+    let body: any;
     try {
+      body = await req.json();
+    } catch {
+      return bad("Invalid JSON body");
+    }
+
+    const trigger = body.trigger as string;
+
+    if (trigger === "manual") {
+      const task = body.task;
+      if (!task?.title?.trim()) return bad("Missing task title");
+      if (!task?.assignedToRole) return bad("Missing assignedToRole");
+
       const created = await createManualTask({
         caseId,
         title: task.title,
         description: task.description,
         assignedToRole: task.assignedToRole,
-        assignedToId: task.assignedToId,
         dueDate: task.dueDate,
         therapistId: body.therapistId ?? "",
       });
       return ok(created);
-    } catch (err: any) {
-      return bad(err?.message ?? "Failed to create task", 500);
     }
-  }
 
-  return bad("Invalid trigger — must be 'manual'");
+    return bad("Invalid trigger — must be 'manual'");
+  } catch (err: any) {
+    console.error("[tasks] POST unhandled error:", err);
+    return bad(err?.message ?? "Internal server error", 500);
+  }
 }

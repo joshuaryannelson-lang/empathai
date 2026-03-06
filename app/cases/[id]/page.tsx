@@ -84,8 +84,7 @@ export default function CasePage() {
   type TaskRow = {
     id: string;
     case_id: string;
-    assigned_to_role: "therapist" | "patient";
-    created_by: "ai" | "therapist" | "system";
+    assignee: string | null;
     title: string;
     description: string | null;
     status: "pending" | "in_progress" | "completed" | "dismissed";
@@ -129,8 +128,7 @@ export default function CasePage() {
         setGoals(getDemoCaseGoals(id).map(g => ({ ...g, case_id: id })) as Goal[]);
         setTasks(getDemoCaseTasks(id).map(t => ({
           id: t.id, case_id: t.case_id,
-          assigned_to_role: t.assigned_to_role,
-          created_by: t.created_by,
+          assignee: (t as any).assignee ?? (t as any).assigned_to_role ?? null,
           title: t.title,
           description: t.description,
           status: t.status as "pending" | "in_progress" | "completed" | "dismissed",
@@ -221,8 +219,7 @@ export default function CasePage() {
         const localTask: TaskRow = {
           id: `local-${Date.now()}`,
           case_id: id as string,
-          assigned_to_role: newTaskRole,
-          created_by: "therapist",
+          assignee: newTaskRole,
           title: newTaskTitle,
           description: newTaskDesc || null,
           status: "pending",
@@ -261,8 +258,8 @@ export default function CasePage() {
     }
   }
 
-  const therapistTasks = tasks.filter(t => t.assigned_to_role === "therapist");
-  const patientTasks = tasks.filter(t => t.assigned_to_role === "patient");
+  const therapistTasks = tasks.filter(t => t.assignee === "therapist");
+  const patientTasks = tasks.filter(t => t.assignee === "patient");
 
   // Clinical notes — debounced auto-save
   const saveClinicalNotes = useCallback(async (text: string) => {
@@ -1000,8 +997,8 @@ export default function CasePage() {
                             <div className="task-body">
                               <div className="task-title-row">
                                 <span className={`task-title ${t.status === "completed" ? "task-title--done" : ""}`}>{t.title}</span>
-                                <span className={`task-badge ${t.created_by === "ai" ? "task-badge--ai" : "task-badge--manual"}`}>
-                                  {t.created_by === "ai" ? "AI" : "Manual"}
+                                <span className="task-badge task-badge--manual">
+                                  Task
                                 </span>
                               </div>
                               {t.description && <div className="task-desc">{t.description}</div>}
@@ -1025,8 +1022,8 @@ export default function CasePage() {
                             <div className="task-body">
                               <div className="task-title-row">
                                 <span className={`task-title ${t.status === "completed" ? "task-title--done" : ""}`}>{t.title}</span>
-                                <span className={`task-badge ${t.created_by === "ai" ? "task-badge--ai" : "task-badge--manual"}`}>
-                                  {t.created_by === "ai" ? "AI" : "Manual"}
+                                <span className="task-badge task-badge--manual">
+                                  Task
                                 </span>
                               </div>
                               {t.description && <div className="task-desc">{t.description}</div>}
