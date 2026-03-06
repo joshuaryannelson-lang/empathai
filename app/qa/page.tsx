@@ -264,23 +264,16 @@ export default function QABoard() {
   const [submitting, setSubmitting] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  // Track locally deleted results — permanent for the page session, never rolled back.
-  // deletedVersion bumps on each delete so useMemo recomputes resultsByPage.
-  const deletedKeys = useRef<Set<string>>(new Set());
-  const [deletedVersion, setDeletedVersion] = useState(0);
-  // Snapshot the tester name for × visibility — only updates on blur/submit, not every keystroke
-  const [confirmedName, setConfirmedName] = useState("");
+  // Database IDs of deleted results. Ref so it persists across all re-renders
+  // and name changes. Once an ID is here, it stays for the page lifetime.
+  const deletedIds = useRef<Set<string>>(new Set());
 
   // Load tester name from localStorage
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("qa_tester_name") ?? "";
-      setTesterName(saved);
-      setConfirmedName(saved);
-    } catch {}
+    try { setTesterName(localStorage.getItem("qa_tester_name") ?? ""); } catch {}
   }, []);
 
-  // Fetch results — raw from server, deletedKeys filtering happens in resultsByPage
+  // Fetch results — raw from server, deletedIds filtering happens in resultsByPage
   const fetchResults = useCallback(async () => {
     try {
       const res = await fetch("/api/qa", { cache: "no-store" });
@@ -297,19 +290,15 @@ export default function QABoard() {
     return () => clearInterval(iv);
   }, [fetchResults]);
 
-  // Save name (confirmedName updates on blur, not every keystroke)
+  // Save name
   function handleNameChange(name: string) {
     setTesterName(name);
     try { localStorage.setItem("qa_tester_name", name); } catch {}
-  }
-  function handleNameBlur() {
-    setConfirmedName(testerName.trim());
   }
 
   // Submit a check
   async function submitCheck(pageId: string, checkIndex: number, status: "pass" | "fail" | "skip") {
     if (!testerName.trim()) return;
-    setConfirmedName(testerName.trim());
     const key = `${pageId}-${checkIndex}`;
     setSubmitting(prev => new Set(prev).add(key));
 
@@ -348,24 +337,16 @@ export default function QABoard() {
     }
   }
 
-  // Delete a check result
-  // deletedKeys is permanent for the page session — never rolled back.
-  // If the server DELETE fails, the badge stays gone locally. User can
-  // refresh to get the truth back. This prevents every race condition.
-  async function deleteCheck(pageId: string, checkIndex: number, name: string) {
-    const dk = `${pageId}|${checkIndex}|${name}`;
-    deletedKeys.current.add(dk);
-    setDeletedVersion(v => v + 1);
-    // Optimistic removal from state
-    setResults(prev => prev.filter(r => !(r.page_id === pageId && r.check_index === checkIndex && r.tester_name === name)));
-
-    // Fire and forget — no rollback regardless of outcome
-    try {
-      const params = new URLSearchParams({ page_id: pageId, check_index: String(checkIndex), tester_name: name });
-      await fetch(`/api/qa?${params}`, { method: "DELETE" });
-    } catch {
-      // Silently ignore — deletedKeys keeps it suppressed
-    }
+  // Delete a check result by database ID.
+  // Add ID to deletedIds ref (permanent, never cleared) then fire-and-forget the API call.
+  // The ref survives all re-renders and name changes for the page lifetime.
+  function deleteCheck(id: string, pageId: string, checkIndex: number, name: string) {
+    deletedIds.current.add(id);
+    // Force re-render so resultsByPage recalculates
+    setResults(prev => [...prev]);
+    // Fire and forget
+    const params = new URLSearchParams({ page_id: pageId, check_index: String(checkIndex), tester_name: name });
+    fetch(`/api/qa?${params}`, { method: "DELETE" }).catch(() => {});
   }
 
   // Copy link
@@ -383,19 +364,15 @@ export default function QABoard() {
     cardRefs.current[pageId]?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  // Results lookup — single enforcement point for deletedKeys.
-  // deletedVersion in deps ensures recalc after each delete even if
-  // results state hasn't changed yet (e.g. poll overwrites optimistic removal).
+  // All rendering goes through this. Filter deletedIds here — once.
   const resultsByPage = useMemo(() => {
-    const dk = deletedKeys.current;
     const map: Record<string, CheckResult[]> = {};
     for (const r of results) {
-      if (dk.has(`${r.page_id}|${r.check_index}|${r.tester_name}`)) continue;
+      if (deletedIds.current.has(r.id)) continue;
       (map[r.page_id] ??= []).push(r);
     }
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results, deletedVersion]);
+  }, [results]);
 
   function getCheckResults(pageId: string, checkIndex: number): CheckResult[] {
     return (resultsByPage[pageId] ?? []).filter(r => r.check_index === checkIndex);
@@ -529,7 +506,6 @@ export default function QABoard() {
             type="text"
             value={testerName}
             onChange={e => handleNameChange(e.target.value)}
-            onBlur={handleNameBlur}
             placeholder="e.g. Sarah"
             maxLength={50}
             style={{
@@ -694,7 +670,7 @@ export default function QABoard() {
                                 const colors = r.status === "pass" ? T.pass : r.status === "fail" ? T.fail : T.skip;
                                 const noteKey = `${r.page_id}-${r.check_index}-${r.tester_name}`;
                                 const hasNote = r.status === "fail" && r.note;
-                                const isMine = confirmedName && r.tester_name === confirmedName;
+                                const isMine = testerName.trim() !== "" && r.tester_name === testerName.trim();
                                 return (
                                   <span key={r.id}>
                                     <span
@@ -729,7 +705,7 @@ export default function QABoard() {
                                           className="qa-badge-delete"
                                           role="button"
                                           aria-label={`Remove ${r.tester_name} result`}
-                                          onClick={(e) => { e.stopPropagation(); deleteCheck(r.page_id, r.check_index, r.tester_name); }}
+                                          onClick={(e) => { e.stopPropagation(); deleteCheck(r.id, r.page_id, r.check_index, r.tester_name); }}
                                           style={{
                                             marginLeft: 2, fontSize: 10, lineHeight: 1,
                                             color: "rgba(255,255,255,0.4)",
