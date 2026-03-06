@@ -22,6 +22,7 @@ export default function DemoTourOverlay() {
   // _ver is bumped by local actions (goTo/exit) to force re-read.
   // pathname changes trigger re-render via usePathname(); useMemo re-derives.
   const [_ver, setVer] = useState(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- pathname and _ver intentionally trigger re-read
   const step = useMemo(() => readStep(), [pathname, _ver]);
 
   if (step === null) return null;
