@@ -111,6 +111,11 @@ export default function CasePage() {
   const [clinicalNotesSaved, setClinicalNotesSaved] = useState(false);
   const clinicalNotesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // DSM codes state
+  const [dsmCodes, setDsmCodes] = useState<string[]>([]);
+  const [dsmInput, setDsmInput] = useState("");
+  const [dsmContextChanged, setDsmContextChanged] = useState(false);
+
   // Goals add state
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [newGoalTitle, setNewGoalTitle] = useState("");
@@ -152,6 +157,7 @@ export default function CasePage() {
       setTasks(tasksJson?.data ?? []);
       const caseData = caseJson?.data;
       if (caseData?.clinical_notes) setClinicalNotes(caseData.clinical_notes);
+      if (Array.isArray(caseData?.dsm_codes)) setDsmCodes(caseData.dsm_codes);
     }).finally(() => setLoading(false));
   }, [id, isDemo]);
 
@@ -300,6 +306,35 @@ export default function CasePage() {
     setClinicalNotes(text);
     if (clinicalNotesTimer.current) clearTimeout(clinicalNotesTimer.current);
     clinicalNotesTimer.current = setTimeout(() => saveClinicalNotes(text), 2000);
+  }
+
+  // DSM codes management
+  async function saveDsmCodes(codes: string[]) {
+    try {
+      if (isDemo) return;
+      await fetch(`/api/cases/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dsm_codes: codes }),
+      });
+    } catch { /* ignore */ }
+  }
+
+  function addDsmCode() {
+    const code = dsmInput.trim().toUpperCase();
+    if (!code || dsmCodes.includes(code) || dsmCodes.length >= 5) { setDsmInput(""); return; }
+    const updated = [...dsmCodes, code];
+    setDsmCodes(updated);
+    setDsmInput("");
+    setDsmContextChanged(true);
+    saveDsmCodes(updated);
+  }
+
+  function removeDsmCode(code: string) {
+    const updated = dsmCodes.filter(c => c !== code);
+    setDsmCodes(updated);
+    setDsmContextChanged(true);
+    saveDsmCodes(updated);
   }
 
   // Goal management
@@ -667,10 +702,50 @@ export default function CasePage() {
                   )}
                 </div>
               )}
+
+              {/* DSM codes — therapist/admin only */}
+              <div className="info-card">
+                <div className="info-card-title">DSM Codes</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: dsmCodes.length > 0 ? 8 : 0 }}>
+                  {dsmCodes.map(code => (
+                    <span key={code} className="diag-chip" style={{ gap: 4 }}>
+                      {code}
+                      <button
+                        onClick={() => removeDsmCode(code)}
+                        style={{ background: "none", border: "none", color: "#6b82d4", cursor: "pointer", padding: 0, fontSize: 12, fontWeight: 700, fontFamily: "inherit", lineHeight: 1 }}
+                        aria-label={`Remove ${code}`}
+                      >&times;</button>
+                    </span>
+                  ))}
+                </div>
+                {dsmCodes.length < 5 && (
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <input
+                      value={dsmInput}
+                      onChange={e => setDsmInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addDsmCode(); } }}
+                      placeholder="e.g. F41.1"
+                      style={{ flex: 1, padding: "5px 8px", borderRadius: 6, border: "1px solid #1f2533", background: "#080c12", color: "#c8d0e0", fontSize: 11, fontFamily: "inherit" }}
+                    />
+                    <button
+                      onClick={addDsmCode}
+                      style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #1f2533", background: "#0d1018", color: "#6b82d4", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                    >Add</button>
+                  </div>
+                )}
+              </div>
             </aside>
 
             {/* ── MAIN COLUMN ── */}
             <div className="main">
+
+              {/* Context changed notice */}
+              {dsmContextChanged && (
+                <div style={{ padding: "10px 16px", borderRadius: 10, border: "1px solid rgba(165,180,252,0.2)", background: "rgba(165,180,252,0.04)", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12, color: "#a5b4fc" }}>
+                  <span>Context updated — regenerate session prep for updated recommendations</span>
+                  <button onClick={() => setDsmContextChanged(false)} style={{ background: "none", border: "none", color: "#4b5563", cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>&times;</button>
+                </div>
+              )}
 
               {/* SESSION PREP — always first in main column */}
               <SessionPrepCard caseId={id} weekStart={new Date().toISOString().slice(0, 10)} />

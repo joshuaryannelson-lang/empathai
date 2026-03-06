@@ -12,6 +12,7 @@ import {
 import { calculateTHS, PATIENT_THS_WEIGHTS } from "@/lib/ai/thsScoring";
 import { buildTHSNarrativePrompt, validateNarrative } from "@/lib/ai/thsNarrativePrompt";
 import { getDemoSessionPrepStructured } from "@/lib/demo/demoAI";
+import { describeDsmCode, describeDsmCodes } from "@/lib/ai/dsmDescriptions";
 
 // ═══════════════════════════════════════════════════════════════════
 // SessionPrep Evals
@@ -513,5 +514,160 @@ describe("SessionPrep: Data Enrichment", () => {
     };
     const promptNoNotes = buildSessionPrepPrompt(withoutNotes);
     expect(promptNoNotes).not.toContain("Therapist clinical notes");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// DSM Descriptions & Modalities
+// ═══════════════════════════════════════════════════════════════════
+describe("DSM Descriptions", () => {
+  test("40. describeDsmCode returns plain description for known code", () => {
+    expect(describeDsmCode("F41.1")).toBe("generalized anxiety");
+    expect(describeDsmCode("F32.1")).toBe("moderate depressive episode");
+    expect(describeDsmCode("F43.1")).toBe("post-traumatic stress");
+  });
+
+  test("41. describeDsmCode returns undefined for unknown code", () => {
+    expect(describeDsmCode("Z99.99")).toBeUndefined();
+    expect(describeDsmCode("INVALID")).toBeUndefined();
+  });
+
+  test("42. describeDsmCodes drops unknown codes silently", () => {
+    const result = describeDsmCodes(["F41.1", "Z99.99", "F32.1"]);
+    expect(result).toEqual(["generalized anxiety", "moderate depressive episode"]);
+    expect(result).toHaveLength(2);
+  });
+
+  test("43. describeDsmCodes returns empty array for all-unknown codes", () => {
+    expect(describeDsmCodes(["UNKNOWN", "INVALID"])).toEqual([]);
+  });
+
+  test("44. Descriptions never contain raw DSM/ICD codes", () => {
+    const allCodes = ["F32.0", "F32.1", "F41.1", "F43.1", "F60.3", "F90.2"];
+    const descriptions = describeDsmCodes(allCodes);
+    for (const desc of descriptions) {
+      expect(desc).not.toMatch(/F\d{2}\.\d/);
+    }
+  });
+
+  test("45. Descriptions use observational language, not diagnostic labels", () => {
+    const desc = describeDsmCode("F60.3");
+    expect(desc).toBe("emotional dysregulation and interpersonal instability");
+    expect(desc).not.toContain("borderline");
+    expect(desc).not.toContain("personality disorder");
+  });
+});
+
+describe("SessionPrep: Modalities & DSM Context", () => {
+  const baseInput: SessionPrepInput = {
+    checkins: [
+      { week_label: "Week of Mar 10", rating: 7, notes: "Better week" },
+      { week_label: "Week of Mar 3", rating: 5, notes: "Struggled a bit" },
+    ],
+    goals: [{ label: "Improve coping skills", status: "active" }],
+    patientFirstName: "Alex",
+  };
+
+  test("46. Modalities section included when modalities provided", () => {
+    const input: SessionPrepInput = { ...baseInput, modalities: ["CBT", "ACT"] };
+    const prompt = buildSessionPrepPrompt(input);
+    expect(prompt).toContain("Therapeutic context");
+    expect(prompt).toContain("CBT, ACT");
+    expect(prompt).toContain("Tailor TRY THIS");
+  });
+
+  test("47. Modalities section omitted when modalities empty or absent", () => {
+    const prompt = buildSessionPrepPrompt(baseInput);
+    expect(prompt).not.toContain("Therapeutic context");
+
+    const emptyMods: SessionPrepInput = { ...baseInput, modalities: [] };
+    const prompt2 = buildSessionPrepPrompt(emptyMods);
+    expect(prompt2).not.toContain("Therapeutic context");
+  });
+
+  test("48. DSM context section included when dsmContext provided", () => {
+    const input: SessionPrepInput = { ...baseInput, dsmContext: ["generalized anxiety", "moderate depressive episode"] };
+    const prompt = buildSessionPrepPrompt(input);
+    expect(prompt).toContain("Diagnostic context");
+    expect(prompt).toContain("generalized anxiety");
+    expect(prompt).toContain("moderate depressive episode");
+  });
+
+  test("49. DSM context section omitted when dsmContext empty or absent", () => {
+    const prompt = buildSessionPrepPrompt(baseInput);
+    expect(prompt).not.toContain("Diagnostic context");
+
+    const emptyDsm: SessionPrepInput = { ...baseInput, dsmContext: [] };
+    const prompt2 = buildSessionPrepPrompt(emptyDsm);
+    expect(prompt2).not.toContain("Diagnostic context");
+  });
+
+  test("50. Raw DSM codes never appear in prompt DATA section", () => {
+    const input: SessionPrepInput = {
+      ...baseInput,
+      dsmContext: ["generalized anxiety"],
+    };
+    const prompt = buildSessionPrepPrompt(input);
+    // Extract the DATA section (between "DATA:" and "INSTRUCTIONS")
+    const dataSection = prompt.split("DATA:")[1]?.split("INSTRUCTIONS")[0] ?? "";
+    // Data section should contain the plain description, not the raw code
+    expect(dataSection).toContain("generalized anxiety");
+    expect(dataSection).not.toMatch(/F41\.1/);
+    expect(dataSection).not.toMatch(/F\d{2}\.\d/);
+  });
+
+  test("51. Prompt forbids DSM/ICD codes in output (absolute rule)", () => {
+    const prompt = buildSessionPrepPrompt(baseInput);
+    expect(prompt).toContain("NEVER include DSM/ICD codes");
+  });
+
+  test("52. Prompt forbids modality labels verbatim in output", () => {
+    const input: SessionPrepInput = { ...baseInput, modalities: ["CBT"] };
+    const prompt = buildSessionPrepPrompt(input);
+    expect(prompt).toContain("Do not output the modality labels themselves");
+  });
+
+  test("53. Validator catches DSM diagnostic labels in output cards", () => {
+    const output: SessionPrepOutput = {
+      rating_trend: "stable", rating_delta: 0, data_source: "from last 2 check-ins",
+      confidence: "medium", flags: [],
+      open_with: null, watch_for: null,
+      try_this: "Address the patient's generalized anxiety disorder with exposure therapy",
+      send_this: null,
+    };
+    const violations = validateSessionPrepOutput(output);
+    expect(violations.length).toBeGreaterThan(0);
+    expect(violations.some(v => v.includes("anxiety disorder"))).toBe(true);
+  });
+
+  test("54. Full prompt with modalities + DSM context stays under 1000 tokens", () => {
+    const input: SessionPrepInput = {
+      checkins: [
+        { week_label: "Week of Mar 10", rating: 8, notes: "Productive week with friends" },
+        { week_label: "Week of Mar 3", rating: 6, notes: "Struggled with sleep" },
+        { week_label: "Week of Feb 24", rating: 5, notes: "Overwhelmed by work" },
+      ],
+      goals: [
+        { label: "improve sleep habits", status: "active" },
+        { label: "build social connections", status: "completed" },
+      ],
+      patientFirstName: "Alex",
+      modalities: ["CBT", "ACT"],
+      dsmContext: ["generalized anxiety", "moderate depressive episode"],
+      clinicalNotes: "Patient shows improved affect. Homework compliance good.",
+    };
+    const prompt = buildSessionPrepPrompt(input);
+    const tokens = estimateTokenCount(prompt);
+    expect(tokens).toBeLessThan(1000);
+  });
+
+  test("55. DSM context instructs watch_for and try_this tailoring", () => {
+    const input: SessionPrepInput = {
+      ...baseInput,
+      dsmContext: ["generalized anxiety"],
+    };
+    const prompt = buildSessionPrepPrompt(input);
+    expect(prompt).toContain("watch for presentation-specific patterns");
+    expect(prompt).toContain("tailor the technique to the presentation");
   });
 });
