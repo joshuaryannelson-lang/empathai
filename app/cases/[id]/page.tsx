@@ -780,42 +780,30 @@ export default function CasePage() {
             {/* ── RIGHT COLUMN ── */}
             <div className="right-col">
 
-              {/* Action card */}
-              <div className={`action-card ${isLow ? "action-card--alert" : isDropping ? "action-card--warn" : "action-card--stable"}`}>
-                <div className="action-left">
-                  <div className="action-icon">{isLow || isDropping ? "⚠️" : "✓"}</div>
-                  <div>
-                    <div className="action-title" style={{ fontSize: 14 }}>
-                      {isLow ? `Reach out to ${d?.patient?.first_name} today`
-                       : isDropping ? `Score dropping — check in soon`
-                       : `${d?.patient?.first_name ?? "Patient"} is stable`}
-                    </div>
-                    <div className="action-body" style={{ fontSize: 12 }}>
-                      {isLow
-                        ? `Score of ${latest?.score} · ${latest?.created_at ? daysSince(latest.created_at) + "d ago" : ""} · "${noteText(latest) ?? "no note"}"`
-                        : isDropping ? `Down ${Math.abs(delta!).toFixed(1)} pts vs baseline`
-                        : `Avg ${avgScore?.toFixed(1) ?? "—"} · last check-in ${latest?.created_at ? fmtShort(latest.created_at) : "—"}`}
-                    </div>
+              {/* PATIENT ALERT — only when latest score ≤ 3 */}
+              {latest?.score != null && latest.score <= 3 && (
+                <div style={{ borderRadius: 10, border: "1px solid #1a1e2a", borderLeft: "4px solid #d97706", background: "rgba(217,119,6,0.08)", padding: "14px 16px", display: "grid", gap: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#fbbf24", letterSpacing: "0.04em" }}>PATIENT ALERT</div>
+                  <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.5 }}>
+                    {latest.score} this week · {noteText(latest) ? `${noteText(latest)!.slice(0, 60)}${noteText(latest)!.length > 60 ? "…" : ""}` : "no note"}
                   </div>
+                  <button
+                    className={`action-btn ${sessionPrepReviewed ? "action-btn--alert" : ""} ${copied === "action" ? "action-btn--done" : ""}`}
+                    onClick={() => sessionPrepReviewed && copy(outreachText, "action")}
+                    disabled={!sessionPrepReviewed}
+                    title={sessionPrepReviewed ? "Copy prep-informed message" : "Review session prep first"}
+                    style={{
+                      width: "100%", padding: "10px 18px", borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: sessionPrepReviewed ? "pointer" : "not-allowed", fontFamily: "inherit", transition: "all .15s",
+                      border: sessionPrepReviewed ? undefined : "1px solid #1f2533",
+                      background: sessionPrepReviewed ? undefined : "#111420",
+                      color: sessionPrepReviewed ? undefined : "#4b5563",
+                      opacity: sessionPrepReviewed ? 1 : 0.6,
+                    }}
+                  >
+                    {copied === "action" ? "✓ Copied" : sessionPrepReviewed ? "Copy prep-informed message" : "Review prep first"}
+                  </button>
                 </div>
-              </div>
-
-              {/* Copy outreach — only active after session prep reviewed */}
-              <button
-                className={`action-btn ${sessionPrepReviewed ? (isLow || isDropping ? "action-btn--alert" : "action-btn--stable") : ""} ${copied === "action" ? "action-btn--done" : ""}`}
-                onClick={() => sessionPrepReviewed && copy(outreachText, "action")}
-                disabled={!sessionPrepReviewed}
-                title={sessionPrepReviewed ? "Copy outreach message" : "Review session prep first"}
-                style={{
-                  width: "100%", padding: "10px 18px", borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: sessionPrepReviewed ? "pointer" : "not-allowed", fontFamily: "inherit", transition: "all .15s",
-                  border: sessionPrepReviewed ? undefined : "1px solid #1f2533",
-                  background: sessionPrepReviewed ? undefined : "#111420",
-                  color: sessionPrepReviewed ? undefined : "#4b5563",
-                  opacity: sessionPrepReviewed ? 1 : 0.6,
-                }}
-              >
-                {copied === "action" ? "✓ Copied" : sessionPrepReviewed ? "Copy outreach" : "Review prep to copy outreach"}
-              </button>
+              )}
 
               {/* Between Sessions */}
               <div className="ctx-card">
