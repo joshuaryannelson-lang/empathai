@@ -36,3 +36,7 @@ create policy qa_checks_insert on qa_checks
 create policy qa_checks_update on qa_checks
   for update using (true) with check (true);
 
+-- Anyone can delete their own results (clear/undo)
+create policy qa_checks_delete on qa_checks
+  for delete using (true);
+

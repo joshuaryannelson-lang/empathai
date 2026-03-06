@@ -28,6 +28,13 @@ const FONT = {
   mono: "'DM Mono', monospace",
 };
 
+// Consistent button style base
+const BTN_BASE: React.CSSProperties = {
+  padding: "4px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700,
+  fontFamily: FONT.body, transition: "all 0.15s", cursor: "pointer",
+  minWidth: 48, textAlign: "center",
+};
+
 // ── Checklist data ───────────────────────────────────────────────────────────
 
 type PageSection = {
@@ -258,13 +265,16 @@ export default function QABoard() {
   const [testerName, setTesterName] = useState("");
   const [results, setResults] = useState<CheckResult[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<string | null>(PAGES[0]?.id ?? null);
   const [noteInputs, setNoteInputs] = useState<Record<string, string>>({});
   const [noteExpanded, setNoteExpanded] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const [allNotesOpen, setAllNotesOpen] = useState(false);
+  const [namePromptKey, setNamePromptKey] = useState<string | null>(null);
+  const [badgeExpanded, setBadgeExpanded] = useState<Set<string>>(new Set());
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Load tester name from localStorage
   useEffect(() => {
@@ -287,16 +297,25 @@ export default function QABoard() {
     return () => clearInterval(iv);
   }, [fetchResults]);
 
-  // Save name
+  // Save name and clear prompt
   function handleNameChange(name: string) {
     setTesterName(name);
+    if (name.trim()) setNamePromptKey(null);
     try { localStorage.setItem("qa_tester_name", name); } catch {}
+  }
+
+  // Intercept click when no name — show prompt instead of submitting
+  function requireName(checkKey: string): boolean {
+    if (testerName.trim()) return true;
+    setNamePromptKey(checkKey);
+    nameInputRef.current?.focus();
+    return false;
   }
 
   // Submit a check — sends note for any status
   async function submitCheck(pageId: string, checkIndex: number, status: "pass" | "fail" | "skip") {
-    if (!testerName.trim()) return;
     const key = `${pageId}-${checkIndex}`;
+    if (!requireName(key)) return;
     setSubmitting(prev => new Set(prev).add(key));
 
     const note = noteInputs[key]?.trim() || null;
@@ -327,10 +346,31 @@ export default function QABoard() {
         setResults(prev => prev.map(r => r.id === optimistic.id ? json.data : r));
       }
     } catch {
-      // Rollback optimistic
       setResults(prev => prev.filter(r => r.id !== optimistic.id));
     } finally {
       setSubmitting(prev => { const n = new Set(prev); n.delete(key); return n; });
+    }
+  }
+
+  // Clear (delete) my result for a check
+  async function clearCheck(pageId: string, checkIndex: number) {
+    const key = `${pageId}-${checkIndex}`;
+    if (!requireName(key)) return;
+    const name = testerName.trim();
+
+    // Optimistic remove
+    const removed = results.find(r => r.page_id === pageId && r.check_index === checkIndex && r.tester_name === name);
+    if (!removed) return;
+    setResults(prev => prev.filter(r => r !== removed));
+    setNoteInputs(prev => { const n = { ...prev }; delete n[key]; return n; });
+    setNoteExpanded(prev => { const n = new Set(prev); n.delete(key); return n; });
+
+    try {
+      const params = new URLSearchParams({ page_id: pageId, check_index: String(checkIndex), tester_name: name });
+      const res = await fetch(`/api/qa?${params}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+    } catch {
+      if (removed) setResults(prev => [...prev, removed]);
     }
   }
 
@@ -428,11 +468,13 @@ export default function QABoard() {
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'DM Sans', sans-serif; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulseHighlight { 0%,100% { border-color: ${T.border.DEFAULT}; } 50% { border-color: ${T.accent}; } }
         .qa-fade { animation: fadeIn 0.25s ease; }
         .qa-sidebar-item { cursor: pointer; padding: 6px 12px; border-radius: 6px; font-size: 13px; transition: background 0.15s; }
         .qa-sidebar-item:hover { background: rgba(255,255,255,0.05); }
         .qa-note-toggle { cursor: pointer; font-size: 11px; color: rgba(255,255,255,0.35); border: none; background: none; padding: 0; font-family: 'DM Sans', sans-serif; }
         .qa-note-toggle:hover { color: rgba(255,255,255,0.6); }
+        .qa-name-highlight { animation: pulseHighlight 1s ease 2; }
         @media (max-width: 800px) {
           .qa-layout { flex-direction: column !important; }
           .qa-sidebar { display: none !important; }
@@ -508,15 +550,21 @@ export default function QABoard() {
         </div>
 
         {/* Name input */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: 12, marginBottom: 28,
-          padding: "14px 18px", borderRadius: 12,
-          background: T.bg.card, border: `1px solid ${T.border.DEFAULT}`,
-        }}>
+        <div
+          className={namePromptKey ? "qa-name-highlight" : ""}
+          style={{
+            display: "flex", alignItems: "center", gap: 12, marginBottom: 4,
+            padding: "14px 18px", borderRadius: 12,
+            background: T.bg.card,
+            border: `1px solid ${namePromptKey ? T.accent : T.border.DEFAULT}`,
+            transition: "border-color 0.2s",
+          }}
+        >
           <label style={{ fontSize: 13, fontWeight: 700, color: T.text.secondary, whiteSpace: "nowrap" }}>
             Your name:
           </label>
           <input
+            ref={nameInputRef}
             type="text"
             value={testerName}
             onChange={e => handleNameChange(e.target.value)}
@@ -529,6 +577,12 @@ export default function QABoard() {
             }}
           />
         </div>
+        {namePromptKey && (
+          <div style={{ fontSize: 12, color: T.accent, marginBottom: 20, paddingLeft: 18, fontWeight: 600 }}>
+            Enter your name first
+          </div>
+        )}
+        {!namePromptKey && <div style={{ marginBottom: 24 }} />}
 
         {/* Summary bar */}
         <div style={{
@@ -545,29 +599,33 @@ export default function QABoard() {
           {loading && <span style={{ color: T.text.disabled, fontStyle: "italic" }}>Loading...</span>}
         </div>
 
-        {/* All Notes — collapsible summary */}
-        {allNotes.length > 0 && (
-          <div style={{
-            marginBottom: 32, borderRadius: 12,
-            background: T.bg.card, border: `1px solid ${T.border.DEFAULT}`,
-            overflow: "hidden",
-          }}>
-            <button
-              onClick={() => setAllNotesOpen(prev => !prev)}
-              style={{
-                width: "100%", padding: "12px 18px",
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                background: "none", border: "none", cursor: "pointer",
-                fontSize: 13, fontWeight: 700, color: T.text.secondary,
-                fontFamily: FONT.body,
-              }}
-            >
-              <span>All Notes ({allNotes.length})</span>
-              <span style={{ fontSize: 11, color: T.text.muted }}>
-                {allNotesOpen ? "\u25B4 collapse" : "\u25BE expand"}
-              </span>
-            </button>
-            {allNotesOpen && (
+        {/* All Feedback — collapsible summary */}
+        <div style={{
+          marginBottom: 32, borderRadius: 12,
+          background: T.bg.card, border: `1px solid ${T.border.DEFAULT}`,
+          overflow: "hidden",
+        }}>
+          <button
+            onClick={() => setAllNotesOpen(prev => !prev)}
+            style={{
+              width: "100%", padding: "12px 18px",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              background: "none", border: "none", cursor: "pointer",
+              fontSize: 13, fontWeight: 700, color: T.text.secondary,
+              fontFamily: FONT.body,
+            }}
+          >
+            <span>All Feedback ({allNotes.length})</span>
+            <span style={{ fontSize: 11, color: T.text.muted }}>
+              {allNotesOpen ? "\u25B4 collapse" : "\u25BE expand"}
+            </span>
+          </button>
+          {allNotesOpen && (
+            allNotes.length === 0 ? (
+              <div style={{ padding: "0 18px 14px", fontSize: 12, color: T.text.disabled, fontStyle: "italic" }}>
+                No feedback submitted yet
+              </div>
+            ) : (
               <div style={{ padding: "0 18px 14px", display: "grid", gap: 10 }}>
                 {allNotes.map((n, i) => {
                   const colors = n.status === "pass" ? T.pass : n.status === "fail" ? T.fail : T.skip;
@@ -598,9 +656,9 @@ export default function QABoard() {
                   );
                 })}
               </div>
-            )}
-          </div>
-        )}
+            )
+          )}
+        </div>
 
         {/* Page cards */}
         {GROUPS.map(group => (
@@ -662,6 +720,10 @@ export default function QABoard() {
                       const skips = checkResults.filter(r => r.status === "skip");
                       const resultsWithNotes = checkResults.filter(r => r.note?.trim());
                       const showNoteInput = myResult && (myResult.status === "fail" || myResult.status === "skip" || noteExpanded.has(key));
+                      const badgeKey = `${page.id}-${i}`;
+                      const showAllBadges = badgeExpanded.has(badgeKey);
+                      const visibleBadges = showAllBadges ? checkResults : checkResults.slice(0, 2);
+                      const hiddenCount = checkResults.length - 2;
 
                       return (
                         <div key={i} style={{
@@ -676,7 +738,7 @@ export default function QABoard() {
                             {check}
                           </div>
 
-                          {/* Buttons */}
+                          {/* Buttons — never disabled, intercept when no name */}
                           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                             {(["pass", "fail", "skip"] as const).map(s => {
                               const isActive = myResult?.status === s;
@@ -686,14 +748,12 @@ export default function QABoard() {
                                 <button
                                   key={s}
                                   onClick={() => submitCheck(page.id, i, s)}
-                                  disabled={!testerName.trim() || isSubmitting}
+                                  disabled={isSubmitting}
                                   style={{
-                                    padding: "4px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700,
+                                    ...BTN_BASE,
                                     background: isActive ? colors.bg : "transparent",
                                     border: `1px solid ${isActive ? colors.border : T.border.DEFAULT}`,
                                     color: isActive ? colors.fg : T.text.disabled,
-                                    cursor: testerName.trim() ? "pointer" : "not-allowed",
-                                    fontFamily: FONT.body, transition: "all 0.15s",
                                     opacity: isSubmitting ? 0.5 : 1,
                                   }}
                                 >
@@ -701,6 +761,24 @@ export default function QABoard() {
                                 </button>
                               );
                             })}
+
+                            {/* Clear button — only visible when tester has a result */}
+                            {myResult && (
+                              <button
+                                onClick={() => clearCheck(page.id, i)}
+                                disabled={isSubmitting}
+                                style={{
+                                  ...BTN_BASE,
+                                  background: "transparent",
+                                  border: `1px solid transparent`,
+                                  color: T.text.disabled,
+                                  opacity: isSubmitting ? 0.5 : 0.6,
+                                  fontWeight: 500,
+                                }}
+                              >
+                                Clear
+                              </button>
+                            )}
 
                             {/* Aggregate counts */}
                             {checkResults.length > 0 && (
@@ -725,12 +803,19 @@ export default function QABoard() {
                             )}
                           </div>
 
+                          {/* Name prompt inline — shown on the specific check that was clicked */}
+                          {namePromptKey === key && (
+                            <div style={{ marginTop: 6, fontSize: 12, color: T.accent, fontWeight: 600 }}>
+                              \u2191 Enter your name above first
+                            </div>
+                          )}
+
                           {/* Note input — visible for fail/skip always, optional for pass */}
                           {showNoteInput && (
                             <div style={{ marginTop: 8 }}>
                               <input
                                 type="text"
-                                placeholder={myResult.status === "fail" ? "What went wrong? (optional)" : "Add a note (optional)"}
+                                placeholder={myResult.status === "fail" ? "What went wrong?" : myResult.status === "skip" ? "Why did you skip this?" : "Any suggestions or observations..."}
                                 value={noteInputs[key] ?? myResult.note ?? ""}
                                 onChange={e => setNoteInputs(prev => ({ ...prev, [key]: e.target.value }))}
                                 onBlur={() => saveNoteOnBlur(page.id, i, myResult)}
@@ -744,10 +829,10 @@ export default function QABoard() {
                             </div>
                           )}
 
-                          {/* Tester badges */}
+                          {/* Tester badges — collapse at 3+ */}
                           {checkResults.length > 0 && (
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
-                              {checkResults.map(r => {
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6, alignItems: "center" }}>
+                              {visibleBadges.map(r => {
                                 const colors = r.status === "pass" ? T.pass : r.status === "fail" ? T.fail : T.skip;
                                 return (
                                   <span
@@ -766,6 +851,19 @@ export default function QABoard() {
                                   </span>
                                 );
                               })}
+                              {hiddenCount > 0 && !showAllBadges && (
+                                <button
+                                  onClick={() => setBadgeExpanded(prev => new Set(prev).add(badgeKey))}
+                                  style={{
+                                    padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700,
+                                    background: "rgba(255,255,255,0.04)", border: `1px solid ${T.border.DEFAULT}`,
+                                    color: T.text.muted, cursor: "pointer",
+                                    fontFamily: FONT.body,
+                                  }}
+                                >
+                                  +{hiddenCount} more
+                                </button>
+                              )}
                             </div>
                           )}
 
