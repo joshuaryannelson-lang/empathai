@@ -205,7 +205,7 @@ const PAGES: PageSection[] = [
     id: "admin-home",
     name: "Admin Home",
     url: "/admin",
-    who: "This page requires a real admin account — if you don't have one, just verify that picking 'I'm a Manager' redirects you away from this page correctly",
+    who: "This page requires a real admin account — if you don't have one, just confirm that picking 'I'm a Manager' redirects you away from this page",
     group: "For Admin",
     checks: [
       "The page opens with an 'Admin Console' heading and a grid of tool cards",
@@ -273,8 +273,10 @@ export default function QABoard() {
   const [allNotesOpen, setAllNotesOpen] = useState(false);
   const [namePromptKey, setNamePromptKey] = useState<string | null>(null);
   const [badgeExpanded, setBadgeExpanded] = useState<Set<string>>(new Set());
+  const [noteVisible, setNoteVisible] = useState<Set<string>>(new Set());
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const deletedIds = useRef<Set<string>>(new Set());
 
   // Load tester name from localStorage
   useEffect(() => {
@@ -318,6 +320,11 @@ export default function QABoard() {
     if (!requireName(key)) return;
     setSubmitting(prev => new Set(prev).add(key));
 
+    // Show note input immediately for fail/skip
+    if (status === "fail" || status === "skip") {
+      setNoteVisible(prev => new Set(prev).add(key));
+    }
+
     const note = noteInputs[key]?.trim() || null;
 
     // Optimistic update
@@ -358,20 +365,24 @@ export default function QABoard() {
     if (!requireName(key)) return;
     const name = testerName.trim();
 
-    // Optimistic remove
+    // Find and permanently suppress this result
     const removed = results.find(r => r.page_id === pageId && r.check_index === checkIndex && r.tester_name === name);
     if (!removed) return;
+
+    // Add to deletedIds ref — survives polling, re-renders, name changes
+    if (!removed.id.startsWith("temp-")) {
+      deletedIds.current.add(removed.id);
+    }
+
+    // Optimistic remove + clean up note state
     setResults(prev => prev.filter(r => r !== removed));
     setNoteInputs(prev => { const n = { ...prev }; delete n[key]; return n; });
     setNoteExpanded(prev => { const n = new Set(prev); n.delete(key); return n; });
+    setNoteVisible(prev => { const n = new Set(prev); n.delete(key); return n; });
 
-    try {
-      const params = new URLSearchParams({ page_id: pageId, check_index: String(checkIndex), tester_name: name });
-      const res = await fetch(`/api/qa?${params}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
-    } catch {
-      if (removed) setResults(prev => [...prev, removed]);
-    }
+    // Fire DELETE — no rollback needed, deletedIds suppresses permanently
+    const params = new URLSearchParams({ page_id: pageId, check_index: String(checkIndex), tester_name: name });
+    fetch(`/api/qa?${params}`, { method: "DELETE" }).catch(() => {});
   }
 
   // Save note on blur — upserts the existing row
@@ -402,6 +413,7 @@ export default function QABoard() {
   const resultsByPage = useMemo(() => {
     const map: Record<string, CheckResult[]> = {};
     for (const r of results) {
+      if (deletedIds.current.has(r.id)) continue;
       (map[r.page_id] ??= []).push(r);
     }
     return map;
@@ -719,7 +731,7 @@ export default function QABoard() {
                       const fails = checkResults.filter(r => r.status === "fail");
                       const skips = checkResults.filter(r => r.status === "skip");
                       const resultsWithNotes = checkResults.filter(r => r.note?.trim());
-                      const showNoteInput = myResult && (myResult.status === "fail" || myResult.status === "skip" || noteExpanded.has(key));
+                      const showNoteInput = myResult && (noteVisible.has(key) || myResult.status === "fail" || myResult.status === "skip" || noteExpanded.has(key));
                       const badgeKey = `${page.id}-${i}`;
                       const showAllBadges = badgeExpanded.has(badgeKey);
                       const visibleBadges = showAllBadges ? checkResults : checkResults.slice(0, 2);
@@ -819,6 +831,7 @@ export default function QABoard() {
                                 value={noteInputs[key] ?? myResult.note ?? ""}
                                 onChange={e => setNoteInputs(prev => ({ ...prev, [key]: e.target.value }))}
                                 onBlur={() => saveNoteOnBlur(page.id, i, myResult)}
+                                onKeyDown={e => { if (e.key === "Enter") { e.currentTarget.blur(); } }}
                                 style={{
                                   width: "100%", padding: "6px 10px", borderRadius: 6, fontSize: 12,
                                   background: T.bg.surface,
