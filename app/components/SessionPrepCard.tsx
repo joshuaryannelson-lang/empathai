@@ -106,6 +106,14 @@ function CopyButton({ text }: { text: string }) {
 
 // ── Main component ───────────────────────────────────────────────────────────
 
+// Content hash for reviewed gate — ties reviewed state to specific AI output
+function contentHash(d: SessionPrepOutput): string {
+  const raw = [d.open_with ?? "", d.watch_for ?? "", d.try_this ?? "", d.send_this ?? ""].join("|");
+  let h = 0;
+  for (let i = 0; i < raw.length; i++) { h = ((h << 5) - h + raw.charCodeAt(i)) | 0; }
+  return h.toString(36);
+}
+
 export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardProps) {
   const searchParams = useSearchParams();
   const isDemo = searchParams?.get("demo") === "true";
@@ -116,14 +124,25 @@ export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardPr
 
   const storageKey = `reviewed_session_prep_${caseId}_${weekStart}`;
 
+  // Check reviewed state against content hash
   useEffect(() => {
-    try { setReviewed(localStorage.getItem(storageKey) === "true"); } catch { /* noop */ }
-  }, [storageKey]);
+    if (!data) return;
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setReviewed(parsed.hash === contentHash(data));
+      } else {
+        setReviewed(false);
+      }
+    } catch { setReviewed(false); }
+  }, [storageKey, data]);
 
   const markReviewed = useCallback(() => {
+    if (!data) return;
     setReviewed(true);
-    try { localStorage.setItem(storageKey, "true"); } catch { /* noop */ }
-  }, [storageKey]);
+    try { localStorage.setItem(storageKey, JSON.stringify({ hash: contentHash(data), reviewed: true })); } catch { /* noop */ }
+  }, [storageKey, data]);
 
   const loadPrep = useCallback(async () => {
     setLoading(true);
@@ -155,7 +174,8 @@ export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardPr
 
   return (
     <div style={{ borderRadius: 12, border: gate.border, background: gate.bg, overflow: "hidden" }}>
-      <style>{`@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`}</style>
+      <style>{`@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        @media (max-width: 768px) { .sp-grid { grid-template-columns: 1fr !important; grid-template-rows: auto !important; } }`}</style>
 
       {/* Panel header */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid #131720", background: "linear-gradient(160deg, #0a0e1c, #0d1018)" }}>
@@ -241,9 +261,10 @@ export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardPr
           )}
 
           {/* 4-card grid */}
-          <div style={{
+          <div className="sp-grid" style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
+            gridTemplateRows: "1fr 1fr",
             gap: 10,
             padding: "4px 18px 14px",
             filter: reviewed ? "none" : "blur(3px)",
@@ -261,7 +282,8 @@ export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardPr
                   border: `1px solid ${accentBorder}`,
                   background: accentBg,
                   padding: 14,
-                  gridColumn: key === "send_this" ? "1 / -1" : undefined,
+                  display: "flex",
+                  flexDirection: "column",
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                     <span style={{ fontSize: 14 }}>{icon}</span>
@@ -269,7 +291,7 @@ export default function SessionPrepCard({ caseId, weekStart }: SessionPrepCardPr
                       {label}
                     </span>
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.65, color: "#d1d5db" }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.65, color: "#d1d5db", flex: 1 }}>
                     {cardText ?? "Not enough check-in data yet"}
                   </div>
                   {key === "send_this" && cardText && <CopyButton text={cardText} />}

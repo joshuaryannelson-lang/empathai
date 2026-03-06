@@ -351,20 +351,22 @@ export default function CasePage() {
         .back   { font-size: 12px; font-weight: 500; color: #4b5563; text-decoration: none; letter-spacing: .05em; text-transform: uppercase; transition: color .15s; display: inline-block; margin-bottom: 20px; }
         .back:hover { color: #9ca3af; }
 
-        .layout { display: grid; grid-template-columns: 264px 1fr 256px; gap: 16px; align-items: start; }
-        @media (max-width: 1000px) { .layout { grid-template-columns: 264px 1fr; } .feed-col { display: none; } }
+        .layout { display: grid; grid-template-columns: 240px 1fr 280px; gap: 16px; align-items: start; }
+        @media (max-width: 1100px) { .layout { grid-template-columns: 240px 1fr; } .right-col { display: none; } }
         @media (max-width: 700px)  {
           .layout { grid-template-columns: 1fr; }
           .sidebar { position: static; }
+          .right-col { display: block !important; }
           .shell { padding: 16px 12px 60px; }
         }
 
+        /* ── RIGHT COLUMN ── */
+        .right-col { position: sticky; top: 24px; display: grid; gap: 12px; align-content: start; }
+
         /* ── ACTIVITY FEED ── */
-        .feed-col { position: sticky; top: 24px; border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; max-height: calc(100vh - 48px); display: flex; flex-direction: column; }
         .feed-head { padding: 13px 16px; border-bottom: 1px solid #131720; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
         .feed-title { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; }
         .feed-count { font-size: 11px; font-weight: 600; color: #4b5563; }
-        .feed-body { overflow-y: auto; flex: 1; padding: 4px 0 8px; }
         .feed-empty { padding: 24px 16px; font-size: 12px; color: #374151; text-align: center; }
         .feed-item { padding: 10px 14px; border-bottom: 1px solid #0f1218; display: flex; gap: 10px; align-items: flex-start; transition: background .15s; }
         .feed-item:last-child { border-bottom: none; }
@@ -422,7 +424,7 @@ export default function CasePage() {
         /* ── MAIN ── */
         .main { display: grid; gap: 12px; }
 
-        .action-card { padding: 18px 20px; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; gap: 16px; animation: fadeUp .3s ease .04s both; }
+        .action-card { padding: 18px 20px; border-radius: 14px; display: flex; flex-direction: column; gap: 8px; animation: fadeUp .3s ease .04s both; }
         .action-card--alert  { border: 1px solid #3d1a1a; background: linear-gradient(135deg, #140808, #0f0606); }
         .action-card--warn   { border: 1px solid #3d2800; background: linear-gradient(135deg, #140e04, #0f0b04); }
         .action-card--stable { border: 1px solid #0e2e1a; background: linear-gradient(135deg, #060f08, #040c06); }
@@ -670,31 +672,8 @@ export default function CasePage() {
             {/* ── MAIN COLUMN ── */}
             <div className="main">
 
-              {/* Action card */}
-              <div className={`action-card ${isLow ? "action-card--alert" : isDropping ? "action-card--warn" : "action-card--stable"}`}>
-                <div className="action-left">
-                  <div className="action-icon">{isLow || isDropping ? "⚠️" : "✓"}</div>
-                  <div>
-                    <div className="action-title">
-                      {isLow ? `Reach out to ${d?.patient?.first_name} today`
-                       : isDropping ? `Score dropping — check in soon`
-                       : `${d?.patient?.first_name ?? "Patient"} is stable`}
-                    </div>
-                    <div className="action-body">
-                      {isLow
-                        ? `Score of ${latest?.score} · ${latest?.created_at ? daysSince(latest.created_at) + "d ago" : ""} · "${noteText(latest) ?? "no note"}"`
-                        : isDropping ? `Down ${Math.abs(delta!).toFixed(1)} pts vs baseline`
-                        : `Avg ${avgScore?.toFixed(1) ?? "—"} · last check-in ${latest?.created_at ? fmtShort(latest.created_at) : "—"}`}
-                    </div>
-                  </div>
-                </div>
-                <button
-                  className={`action-btn ${isLow || isDropping ? "action-btn--alert" : "action-btn--stable"} ${copied === "action" ? "action-btn--done" : ""}`}
-                  onClick={() => copy(outreachText, "action")}
-                >
-                  {copied === "action" ? "✓ Copied" : "Copy outreach"}
-                </button>
-              </div>
+              {/* SESSION PREP — always first in main column */}
+              <SessionPrepCard caseId={id} weekStart={new Date().toISOString().slice(0, 10)} />
 
               {/* Trend row */}
               <div className="trend-row">
@@ -710,11 +689,6 @@ export default function CasePage() {
                   </div>
                 ))}
               </div>
-
-              {/* SESSION PREP — in demo mode, show immediately after stats */}
-              {isDemo && (
-                <SessionPrepCard caseId={id} weekStart={new Date().toISOString().slice(0, 10)} />
-              )}
 
               {/* Clinical notes (editable) */}
               <div className="cn-wrap">
@@ -766,92 +740,58 @@ export default function CasePage() {
                 </div>
               </div>
 
-              {/* Treatment goals + Messages */}
-              <div className="context-row">
-                <div className="ctx-card">
-                  <div className="ctx-head">
-                    <div className="ctx-title">Treatment goals</div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      {goalsTotal > 0 && <div className="ctx-badge">{goalsDone}/{goalsTotal} complete</div>}
-                      <button className="cn-btn" onClick={() => setShowAddGoal(v => !v)}>
-                        {showAddGoal ? "Cancel" : "+ Add"}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="ctx-body">
-                    {showAddGoal && (
-                      <div className="goal-add-row" style={{ marginBottom: 10 }}>
-                        <input
-                          className="goal-add-input"
-                          placeholder="Goal title..."
-                          value={newGoalTitle}
-                          onChange={e => setNewGoalTitle(e.target.value)}
-                          onKeyDown={e => e.key === "Enter" && addGoal()}
-                        />
-                        <button className="goal-add-btn" onClick={addGoal}>Add</button>
-                      </div>
-                    )}
-                    {goalsTotal > 0 && (
-                      <div className="goals-bar">
-                        {goals.map(g => {
-                          const done = g.status === "done" || g.status === "completed";
-                          return <div key={g.id} className="goals-pip" style={{ background: done ? "#0e2e1a" : "#1a1e2a" }} />;
-                        })}
-                      </div>
-                    )}
-                    {goals.length === 0 && !showAddGoal
-                      ? <p className="notes-empty">No goals set yet.</p>
-                      : goals.map(g => {
-                          const done = g.status === "done" || g.status === "completed";
-                          return (
-                            <div key={g.id} className="goal-item">
-                              <div
-                                className={`goal-check ${done ? "goal-check--done" : "goal-check--open"}`}
-                                style={{ cursor: "pointer" }}
-                                onClick={() => toggleGoalStatus(g)}
-                              >
-                                {done ? "✓" : ""}
-                              </div>
-                              <div>
-                                <div className={`goal-text ${done ? "goal-text--done" : "goal-text--open"}`}>{g.title}</div>
-                                {g.target_date && <div className="goal-date">Target: {fmtDate(g.target_date)}</div>}
-                              </div>
-                            </div>
-                          );
-                        })}
+              {/* Treatment goals */}
+              <div className="ctx-card">
+                <div className="ctx-head">
+                  <div className="ctx-title">Treatment goals</div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {goalsTotal > 0 && <div className="ctx-badge">{goalsDone}/{goalsTotal} complete</div>}
+                    <button className="cn-btn" onClick={() => setShowAddGoal(v => !v)}>
+                      {showAddGoal ? "Cancel" : "+ Add"}
+                    </button>
                   </div>
                 </div>
-
-                {/* Messages placeholder */}
-                <div className="msg-wrap">
-                  <div className="msg-head">
-                    <div className="msg-title">Messages</div>
-                  </div>
-                  <div className="msg-body">
-                    {isDemo ? (
-                      <div style={{ display: "flex", flexDirection: "column" }}>
-                        <div className="msg-bubble msg-bubble--patient">
-                          <div className="msg-sender">Patient</div>
-                          Had a rough week, feeling anxious about work
-                        </div>
-                        <div className="msg-bubble msg-bubble--therapist">
-                          <div className="msg-sender">Therapist</div>
-                          Thanks for checking in. We&apos;ll talk through this in our next session.
-                        </div>
-                        <div className="msg-bubble msg-bubble--patient">
-                          <div className="msg-sender">Patient</div>
-                          That helps, see you Thursday
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="msg-placeholder">
-                        <div className="msg-placeholder-icon">💬</div>
-                        <div className="msg-placeholder-text">
-                          Patient messaging is coming soon. You&apos;ll be able to send check-in prompts and follow-ups directly here.
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                <div className="ctx-body">
+                  {showAddGoal && (
+                    <div className="goal-add-row" style={{ marginBottom: 10 }}>
+                      <input
+                        className="goal-add-input"
+                        placeholder="Goal title..."
+                        value={newGoalTitle}
+                        onChange={e => setNewGoalTitle(e.target.value)}
+                        onKeyDown={e => e.key === "Enter" && addGoal()}
+                      />
+                      <button className="goal-add-btn" onClick={addGoal}>Add</button>
+                    </div>
+                  )}
+                  {goalsTotal > 0 && (
+                    <div className="goals-bar">
+                      {goals.map(g => {
+                        const done = g.status === "done" || g.status === "completed";
+                        return <div key={g.id} className="goals-pip" style={{ background: done ? "#0e2e1a" : "#1a1e2a" }} />;
+                      })}
+                    </div>
+                  )}
+                  {goals.length === 0 && !showAddGoal
+                    ? <p className="notes-empty">No goals set yet.</p>
+                    : goals.map(g => {
+                        const done = g.status === "done" || g.status === "completed";
+                        return (
+                          <div key={g.id} className="goal-item">
+                            <div
+                              className={`goal-check ${done ? "goal-check--done" : "goal-check--open"}`}
+                              style={{ cursor: "pointer" }}
+                              onClick={() => toggleGoalStatus(g)}
+                            >
+                              {done ? "✓" : ""}
+                            </div>
+                            <div>
+                              <div className={`goal-text ${done ? "goal-text--done" : "goal-text--open"}`}>{g.title}</div>
+                              {g.target_date && <div className="goal-date">Target: {fmtDate(g.target_date)}</div>}
+                            </div>
+                          </div>
+                        );
+                      })}
                 </div>
               </div>
 
@@ -874,6 +814,66 @@ export default function CasePage() {
                   </div>
                 </div>
               )}
+
+              {/* Check-in history (inline in main for context) */}
+              <div className="history-wrap">
+                <div className="feed-head">
+                  <span className="feed-title">Check-in history</span>
+                  <span className="feed-count">{checkins.length} entries</span>
+                </div>
+                <div style={{ padding: "4px 0 8px" }}>
+                  {checkins.length === 0 ? (
+                    <div className="feed-empty">No check-ins recorded yet</div>
+                  ) : checkins.map((ci, idx) => {
+                    const h = scoreHue(ci.score);
+                    return (
+                      <div key={ci.id} className="feed-item">
+                        <div className="feed-score" style={{ background: h.bg, border: `1px solid ${h.border}`, color: h.fg }}>
+                          {ci.score ?? "—"}
+                        </div>
+                        <div className="feed-info">
+                          <div className="feed-date">{fmtFull(ci.created_at)}{idx === 0 ? " · latest" : ""}</div>
+                          {noteText(ci)
+                            ? <div className="feed-note">&quot;{noteText(ci)}&quot;</div>
+                            : <div className="feed-note" style={{ opacity: 0.3 }}>No note</div>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+
+            {/* ── RIGHT COLUMN (actions, tasks, messages) ── */}
+            <div className="right-col">
+
+              {/* Action card */}
+              <div className={`action-card ${isLow ? "action-card--alert" : isDropping ? "action-card--warn" : "action-card--stable"}`}>
+                <div className="action-left">
+                  <div className="action-icon">{isLow || isDropping ? "⚠️" : "✓"}</div>
+                  <div>
+                    <div className="action-title" style={{ fontSize: 14 }}>
+                      {isLow ? `Reach out to ${d?.patient?.first_name} today`
+                       : isDropping ? `Score dropping — check in soon`
+                       : `${d?.patient?.first_name ?? "Patient"} is stable`}
+                    </div>
+                    <div className="action-body" style={{ fontSize: 12 }}>
+                      {isLow
+                        ? `Score of ${latest?.score} · ${latest?.created_at ? daysSince(latest.created_at) + "d ago" : ""} · "${noteText(latest) ?? "no note"}"`
+                        : isDropping ? `Down ${Math.abs(delta!).toFixed(1)} pts vs baseline`
+                        : `Avg ${avgScore?.toFixed(1) ?? "—"} · last check-in ${latest?.created_at ? fmtShort(latest.created_at) : "—"}`}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  className={`action-btn ${isLow || isDropping ? "action-btn--alert" : "action-btn--stable"} ${copied === "action" ? "action-btn--done" : ""}`}
+                  onClick={() => copy(outreachText, "action")}
+                  style={{ width: "100%", marginTop: 8 }}
+                >
+                  {copied === "action" ? "✓ Copied" : "Copy outreach"}
+                </button>
+              </div>
 
               {/* Tasks */}
               <div className="tasks-wrap">
@@ -962,39 +962,38 @@ export default function CasePage() {
                 )}
               </div>
 
-              {/* ── SESSION PREP (4-card AI panel) — non-demo position ── */}
-              {!isDemo && (
-                <SessionPrepCard caseId={id} weekStart={new Date().toISOString().slice(0, 10)} />
-              )}
-
-            </div>
-
-            {/* ── ACTIVITY FEED ── */}
-            <div className="feed-col">
-              <div className="feed-head">
-                <span className="feed-title">Check-in history</span>
-                <span className="feed-count">{checkins.length} entries</span>
-              </div>
-              <div className="feed-body">
-                {checkins.length === 0 ? (
-                  <div className="feed-empty">No check-ins recorded yet</div>
-                ) : checkins.map((ci, idx) => {
-                  const h = scoreHue(ci.score);
-                  return (
-                    <div key={ci.id} className="feed-item">
-                      <div className="feed-score" style={{ background: h.bg, border: `1px solid ${h.border}`, color: h.fg }}>
-                        {ci.score ?? "—"}
+              {/* Messages */}
+              <div className="msg-wrap">
+                <div className="msg-head">
+                  <div className="msg-title">Messages</div>
+                </div>
+                <div className="msg-body">
+                  {isDemo ? (
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <div className="msg-bubble msg-bubble--patient">
+                        <div className="msg-sender">Patient</div>
+                        Had a rough week, feeling anxious about work
                       </div>
-                      <div className="feed-info">
-                        <div className="feed-date">{fmtFull(ci.created_at)}{idx === 0 ? " · latest" : ""}</div>
-                        {noteText(ci)
-                          ? <div className="feed-note">&quot;{noteText(ci)}&quot;</div>
-                          : <div className="feed-note" style={{ opacity: 0.3 }}>No note</div>}
+                      <div className="msg-bubble msg-bubble--therapist">
+                        <div className="msg-sender">Therapist</div>
+                        Thanks for checking in. We&apos;ll talk through this in our next session.
+                      </div>
+                      <div className="msg-bubble msg-bubble--patient">
+                        <div className="msg-sender">Patient</div>
+                        That helps, see you Thursday
                       </div>
                     </div>
-                  );
-                })}
+                  ) : (
+                    <div className="msg-placeholder">
+                      <div className="msg-placeholder-icon">💬</div>
+                      <div className="msg-placeholder-text">
+                        Patient messaging is coming soon.
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
+
             </div>
 
           </div>
