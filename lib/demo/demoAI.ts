@@ -1,9 +1,7 @@
 // lib/demo/demoAI.ts
 // Canned AI responses for demo mode. No real Claude API calls.
 
-import type { GeneratedTask } from "@/lib/services/taskGeneration";
 import type { BriefingResult } from "@/lib/services/briefing";
-import type { TaskGenerationResult } from "@/lib/services/taskGeneration";
 import type { SessionPrepOutput } from "@/lib/ai/sessionPrepPrompt";
 
 // ── Briefings ────────────────────────────────────────────────────────────────
@@ -78,40 +76,4 @@ const DEFAULT_STRUCTURED_PREP: SessionPrepOutput = {
 
 export function getDemoSessionPrepStructured(caseId: string): SessionPrepOutput {
   return STRUCTURED_SESSION_PREPS[caseId] ?? DEFAULT_STRUCTURED_PREP;
-}
-
-// ── Task Generation ──────────────────────────────────────────────────────────
-
-const CASE_TASKS: Record<string, GeneratedTask[]> = {
-  "demo-case-03": [
-    { title: "Follow up with patient before next session", description: "Patient's score dropped to 2 \u2014 check in via phone or message before the scheduled appointment.", assignedToRole: "therapist", dueDate: futureDate(2), sourceCheckinId: "demo-ci-03a", redactionFlags: [] },
-    { title: "Complete a brief mood check each morning", description: "Rate your mood 1-10 when you wake up. Bring the log to your next session.", assignedToRole: "patient", dueDate: futureDate(5), sourceCheckinId: "demo-ci-03a", redactionFlags: [] },
-    { title: "Review and update safety plan", description: "Patient's declining trajectory warrants a safety plan review in the next session.", assignedToRole: "therapist", dueDate: futureDate(3), sourceCheckinId: "demo-ci-03a", redactionFlags: [] },
-  ],
-  "demo-case-05": [
-    { title: "Explore relationship stressors in next session", description: "Patient mentioned relationship stress as primary concern this week.", assignedToRole: "therapist", dueDate: futureDate(4), redactionFlags: [] },
-    { title: "Write down three things that went well today", description: "Practice positive reframing each evening this week.", assignedToRole: "patient", dueDate: futureDate(6), redactionFlags: [] },
-  ],
-  "demo-case-10": [
-    { title: "Assess workplace burnout risk", description: "Patient scored 3 \u2014 explore burnout coping options.", assignedToRole: "therapist", dueDate: futureDate(3), redactionFlags: [] },
-    { title: "Identify one healthy boundary to set at work", description: "Choose one specific situation where you'll practice saying no this week.", assignedToRole: "patient", dueDate: futureDate(5), redactionFlags: [] },
-  ],
-};
-
-const DEFAULT_TASKS: GeneratedTask[] = [
-  { title: "Review treatment goals with patient", description: "Check progress and adjust goals based on recent check-in data.", assignedToRole: "therapist", dueDate: futureDate(5), redactionFlags: [] },
-  { title: "Complete weekly mood journal", description: "Write 2-3 sentences about your week each evening.", assignedToRole: "patient", dueDate: futureDate(6), redactionFlags: [] },
-];
-
-function futureDate(days: number): string {
-  return new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
-}
-
-export function getDemoTasks(caseId: string): TaskGenerationResult {
-  const tasks = CASE_TASKS[caseId] ?? DEFAULT_TASKS;
-  return {
-    tasks,
-    blocked: false,
-    auditId: `demo-audit-${Date.now()}`,
-  };
 }

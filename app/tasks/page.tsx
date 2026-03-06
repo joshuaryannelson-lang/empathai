@@ -189,7 +189,7 @@ export default function TasksPage() {
           ) : filtered.length === 0 ? (
             <div className="tp-empty">
               {tasks.length === 0
-                ? "No tasks yet — generate tasks from a case detail page or add them manually"
+                ? "No tasks yet — add tasks from a case detail page"
                 : "No tasks match the current filters"}
             </div>
           ) : (

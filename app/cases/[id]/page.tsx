@@ -94,8 +94,6 @@ export default function CasePage() {
   };
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
-  const [taskGenLoading, setTaskGenLoading] = useState(false);
-  const [taskGenError, setTaskGenError] = useState<string | null>(null);
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDesc, setNewTaskDesc] = useState("");
@@ -195,34 +193,6 @@ export default function CasePage() {
       setTasks(json?.data ?? []);
     } catch { /* ignore */ }
     finally { setTasksLoading(false); }
-  }
-
-  async function generateTasksAI() {
-    setTaskGenLoading(true);
-    setTaskGenError(null);
-    try {
-      const demoSuffix = isDemo ? "?demo=true" : "";
-      const res = await fetch(`/api/cases/${id}/tasks${demoSuffix}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trigger: "ai", therapistId: d?.therapist?.name ?? "" }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || json?.error) {
-        setTaskGenError(json?.error?.message ?? "Couldn't generate tasks — try again");
-        return;
-      }
-      const generated = json?.data?.tasks;
-      if (Array.isArray(generated) && generated.length > 0) {
-        setTasks(prev => [...generated, ...prev]);
-      } else {
-        await loadTasks();
-      }
-    } catch {
-      setTaskGenError("Couldn't generate tasks — try again");
-    } finally {
-      setTaskGenLoading(false);
-    }
   }
 
   async function addManualTask() {
@@ -548,8 +518,6 @@ export default function CasePage() {
         }
         .tasks-btn { font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 7px; border: 1px solid #1f2533; background: #111420; color: #9ca3af; cursor: pointer; font-family: inherit; transition: all .15s; }
         .tasks-btn:hover { border-color: #2e3650; color: #e8eaf0; }
-        .tasks-btn--ai { border-color: #2a3560; background: #0d1220; color: #6b82d4; }
-        .tasks-btn--ai:hover { background: #141b34; }
         .tasks-btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .tasks-group { padding: 8px 14px; }
         .tasks-group-label { font-size: 10px; font-weight: 700; color: #4b5563; text-transform: uppercase; letter-spacing: .06em; padding: 6px 4px 4px; }
@@ -981,20 +949,11 @@ export default function CasePage() {
                     <div className="tasks-count">{tasks.filter(t => t.status !== "completed" && t.status !== "dismissed").length} open</div>
                   </div>
                   <div className="tasks-actions">
-                    <button className="tasks-btn tasks-btn--ai" onClick={generateTasksAI} disabled={taskGenLoading}>
-                      {taskGenLoading ? "Generating..." : "Generate Tasks"}
-                    </button>
                     <button className="tasks-btn" onClick={() => setShowAddTask(v => !v)}>
                       {showAddTask ? "Cancel" : "+ Add Task"}
                     </button>
                   </div>
                 </div>
-
-                {taskGenError && (
-                  <div style={{ padding: "8px 14px", fontSize: 12, color: "#fb923c", background: "#1a1000", borderBottom: "1px solid #131720" }}>
-                    {taskGenError}
-                  </div>
-                )}
 
                 {showAddTask && (
                   <div className="task-add-form">
@@ -1011,7 +970,7 @@ export default function CasePage() {
                 )}
 
                 {tasks.length === 0 && !tasksLoading ? (
-                  <div className="tasks-empty">No tasks yet — generate from session data or add manually</div>
+                  <div className="tasks-empty">No tasks yet — use + Add Task to create one</div>
                 ) : (
                   <>
                     {therapistTasks.length > 0 && (
