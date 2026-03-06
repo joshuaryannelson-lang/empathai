@@ -1,6 +1,6 @@
 // app/api/cases/[id]/assign/route.ts
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(
   req: Request,
@@ -26,7 +26,7 @@ export async function POST(
   }
 
   // NOTE: If your table is named "cases" instead of "case", change it below.
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("cases")
     .update({ therapist_id })
     .eq("id", id)

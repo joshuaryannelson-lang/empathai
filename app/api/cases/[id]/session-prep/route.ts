@@ -102,6 +102,10 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
 
   const startTime = Date.now();
 
+  // Diagnostic: log the [id] param and whether service role key is configured
+  const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+  console.log(`[session-prep] caseId="${caseId}" hasServiceRoleKey=${hasServiceKey} url=${req.url}`);
+
   // ── Fetch case data for prompt ──
   // Use supabaseAdmin (service role) — anon key returns 0 rows when RLS
   // restricts SELECT to authenticated users (checkins_select, goals_select).
@@ -118,7 +122,7 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
     .order("created_at", { ascending: false })
     .limit(4);
 
-  console.log(`[session-prep] case=${caseId} checkins_found=${checkinsRes.data?.length ?? 0} checkins_error=${checkinsRes.error?.message ?? "none"}`);
+  console.log(`[session-prep] case=${caseId} case_found=${!!caseRes.data} case_error=${caseRes.error?.message ?? "none"} checkins_found=${checkinsRes.data?.length ?? 0} checkins_error=${checkinsRes.error?.message ?? "none"} first_checkin=${JSON.stringify(checkinsRes.data?.[0] ?? null)}`);
 
   // FIX 2: fetch all goals (active + completed) so model can reference recent wins
   const goalsRes = await supabaseAdmin

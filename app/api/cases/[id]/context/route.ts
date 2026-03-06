@@ -1,7 +1,7 @@
 // app/api/cases/[id]/context/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoCase, getDemoPatient, getDemoTherapist, demoPractice } from "@/lib/demo/demoData";
 
@@ -32,7 +32,7 @@ export async function GET(
   }
 
   // Case
-  const { data: c, error: cErr } = await supabase
+  const { data: c, error: cErr } = await supabaseAdmin
     .from("cases")
     .select("id, title, status, practice_id, therapist_id")
     .eq("id", caseId)
@@ -45,7 +45,7 @@ export async function GET(
   // Guard in case practice_id is missing (if your schema allows it)
   let practice: { id: string; name: string | null } | null = null;
   if ((c as any).practice_id) {
-    const { data: p } = await supabase
+    const { data: p } = await supabaseAdmin
       .from("practice")
       .select("id, name")
       .eq("id", (c as any).practice_id)
@@ -59,10 +59,10 @@ export async function GET(
   const patientId = (c as any).patient_id as string | null;
   const [{ data: t }, { data: pat }] = await Promise.all([
     therapistId
-      ? supabase.from("therapists").select("id, name, extended_profile").eq("id", therapistId).single()
+      ? supabaseAdmin.from("therapists").select("id, name, extended_profile").eq("id", therapistId).single()
       : Promise.resolve({ data: null } as any),
     patientId
-      ? supabase.from("patients").select("id, first_name, extended_profile").eq("id", patientId).single()
+      ? supabaseAdmin.from("patients").select("id, first_name, extended_profile").eq("id", patientId).single()
       : Promise.resolve({ data: null } as any),
   ]);
 

@@ -1,6 +1,6 @@
 // app/api/cases/[id]/goals/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 import { bad, getIdFromContext, ok, RouteContextWithId } from "@/lib/route-helpers";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoCaseGoals } from "@/lib/demo/demoData";
@@ -11,7 +11,7 @@ export async function GET(_req: Request, ctx: RouteContextWithId) {
 
   if (isDemoMode(_req.url)) return ok(getDemoCaseGoals(caseId));
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("goals")
     .select("id, case_id, title, status, target_date, created_at")
     .eq("case_id", caseId)
@@ -52,7 +52,7 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
 
   if (!title) return bad("Missing title");
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("goals")
     .insert([{ case_id: caseId, title, status, target_date }])
     .select()
@@ -84,7 +84,7 @@ export async function PATCH(req: Request, ctx: RouteContextWithId) {
 
   if (Object.keys(patch).length === 0) return bad("No fields to update");
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("goals")
     .update(patch)
     .eq("id", goalId)

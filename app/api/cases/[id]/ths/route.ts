@@ -1,7 +1,7 @@
 // app/api/cases/[id]/ths/route.ts
 // Patient-level THS: deterministic score + optional LLM narrative.
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 import { bad, getIdFromContext, ok, RouteContextWithId } from "@/lib/route-helpers";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { checkRateLimit } from "@/lib/rateLimit";
@@ -30,7 +30,7 @@ export async function GET(_req: Request, ctx: RouteContextWithId) {
 
   // ── Gather component data ──
   // W: average check-in rating
-  const checkinsRes = await supabase
+  const checkinsRes = await supabaseAdmin
     .from("checkins")
     .select("score")
     .eq("case_id", caseId)

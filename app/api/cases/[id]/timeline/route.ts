@@ -2,7 +2,7 @@
 // FILE: app/api/cases/[id]/timeline/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoTimeline } from "@/lib/demo/demoData";
 
@@ -28,7 +28,7 @@ export async function GET(
   }
 
   // 1) Load the case (to get patient_id / therapist_id / title)
-  const { data: caseRow, error: caseErr } = await supabase
+  const { data: caseRow, error: caseErr } = await supabaseAdmin
     .from("cases")
     .select("id, title, status, created_at, practice_id, therapist_id, patient_id")
     .eq("id", caseId)
@@ -44,10 +44,10 @@ export async function GET(
   const [{ data: patientRow, error: patientErr }, { data: therapistRow, error: therapistErr }] =
     await Promise.all([
       patientId
-        ? supabase.from("patients").select("id, first_name, extended_profile").eq("id", patientId).single()
+        ? supabaseAdmin.from("patients").select("id, first_name, extended_profile").eq("id", patientId).single()
         : Promise.resolve({ data: null, error: null } as any),
       therapistId
-        ? supabase.from("therapists").select("id, name, extended_profile").eq("id", therapistId).single()
+        ? supabaseAdmin.from("therapists").select("id, name, extended_profile").eq("id", therapistId).single()
         : Promise.resolve({ data: null, error: null } as any),
     ]);
 
@@ -55,7 +55,7 @@ export async function GET(
   if (therapistErr) return NextResponse.json({ data: null, error: therapistErr }, { status: 500 });
 
   // 3) Load last N check-ins (this is your “timeline”)
-  const { data: checkins, error: ciErr } = await supabase
+  const { data: checkins, error: ciErr } = await supabaseAdmin
     .from("checkins")
     .select("id, case_id, score, mood, created_at, note, notes")
     .eq("case_id", caseId)

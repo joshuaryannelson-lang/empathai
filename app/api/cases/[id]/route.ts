@@ -1,6 +1,6 @@
 // app/api/cases/[id]/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 import { bad, getIdFromContext, ok, RouteContextWithId } from "@/lib/route-helpers";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoCase } from "@/lib/demo/demoData";
@@ -15,7 +15,7 @@ export async function GET(_req: Request, ctx: RouteContextWithId) {
     return ok(c);
   }
 
-  const { data, error } = await supabase.from("cases").select("*").eq("id", id).single();
+  const { data, error } = await supabaseAdmin.from("cases").select("*").eq("id", id).single();
 
   if (error) return bad(error.message, 400, error);
   return ok(data);
@@ -50,7 +50,7 @@ export async function PATCH(req: Request, ctx: RouteContextWithId) {
     return bad("No fields to update (send title, status, practice_id, therapist_id, clinical_notes, and/or dsm_codes)");
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("cases")
     .update(patch)
     .eq("id", id)
@@ -67,7 +67,7 @@ export async function DELETE(_req: Request, ctx: RouteContextWithId) {
   const id = await getIdFromContext(ctx);
   if (!id) return bad("Missing case id");
 
-  const { data, error } = await supabase.from("cases").delete().eq("id", id).select().single();
+  const { data, error } = await supabaseAdmin.from("cases").delete().eq("id", id).select().single();
 
   if (error) return bad(error.message, 400, error);
   return ok(data);
