@@ -515,9 +515,8 @@ export default function PatientManagerPage() {
           return (
             <div key={p.id} style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 1.2fr 1.4fr 0.7fr 120px", padding: "14px", borderBottom: "1px solid #1a1e2a", alignItems: "center", fontSize: 13 }}>
               <div>
-                <div style={{ fontWeight: 800 }}>{p.name ?? "—"}</div>
-                {ep.email && <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>{ep.email}</div>}
-                {ep.date_of_birth && <div style={{ fontSize: 11, opacity: 0.5 }}>DOB: {ep.date_of_birth}</div>}
+                <div style={{ fontWeight: 800 }}>{p.name ? p.name.split(" ")[0] : "—"}</div>
+                {ep.email && <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>{ep.email.slice(0, 2)}***@***.com</div>}
                 <div style={{ marginTop: 3, fontSize: 10, fontFamily: "monospace", opacity: 0.25 }}>{p.id}</div>
               </div>
               <div>

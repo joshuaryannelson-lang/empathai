@@ -50,6 +50,13 @@ export async function PATCH(req: Request, ctx: RouteContextWithId) {
     return bad("No fields to update (send title, status, practice_id, therapist_id, clinical_notes, and/or dsm_codes)");
   }
 
+  // Capture previous therapist for audit if assignment is changing
+  let previousTherapistId: string | null = null;
+  if (patch.therapist_id !== undefined) {
+    const prev = await supabaseAdmin.from("cases").select("therapist_id").eq("id", id).single();
+    previousTherapistId = prev.data?.therapist_id ?? null;
+  }
+
   const { data, error } = await supabaseAdmin
     .from("cases")
     .update(patch)
@@ -58,6 +65,20 @@ export async function PATCH(req: Request, ctx: RouteContextWithId) {
     .single();
 
   if (error) return bad(error.message, 400, error);
+
+  // Audit log for assignment changes
+  if (patch.therapist_id !== undefined && patch.therapist_id !== previousTherapistId) {
+    await supabaseAdmin.from("audit_log").insert({
+      event_type: "case_assigned",
+      case_id: id,
+      old_therapist_id: previousTherapistId,
+      new_therapist_id: patch.therapist_id,
+      timestamp: new Date().toISOString(),
+    }).then(({ error: auditErr }) => {
+      if (auditErr) console.error(`[cases] audit log error: ${auditErr.message}`);
+    });
+  }
+
   return ok(data);
 }
 

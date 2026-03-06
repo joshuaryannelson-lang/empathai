@@ -197,20 +197,35 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   const estimatedInputTokens = estimateTokenCount(prompt);
   console.log(`[session-prep] case=${caseId} model=${MODEL} estimated_input_tokens=${estimatedInputTokens}`);
 
-  // ── Call Anthropic ──
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "anthropic-version": "2023-06-01",
-      "x-api-key": apiKey,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
+  // ── Call Anthropic (10s timeout) ──
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  let res: Response;
+  try {
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "anthropic-version": "2023-06-01",
+        "x-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: MAX_TOKENS,
+        messages: [{ role: "user", content: prompt }],
+      }),
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    clearTimeout(timeout);
+    if (err?.name === "AbortError") {
+      console.error(`[session-prep] case=${caseId} TIMEOUT after 10000ms`);
+      return bad("Session prep timed out — try again", 504);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const json = await res.json();
   if (!res.ok) return bad(json?.error?.message ?? "Anthropic API error", res.status);
@@ -220,7 +235,7 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   const promptTokens = json?.usage?.input_tokens ?? estimatedInputTokens;
   const completionTokens = json?.usage?.output_tokens ?? 0;
 
-  console.log(`[session-prep] case=${caseId} duration_ms=${durationMs} tokens=${completionTokens}`);
+  console.log(`[session-prep] case=${caseId} duration_ms=${durationMs} timeout=10000 tokens=${completionTokens}`);
 
   // ── Parse structured output ──
   // Strip markdown fences the model may wrap around JSON (e.g. ```json ... ```)

@@ -76,6 +76,22 @@ describe("Suite 6: Crisis Detection", () => {
     expect(detectCrisisLanguage("I hurt my knee yesterday")).toBe(false);
     expect(detectCrisisLanguage("I hurt my back lifting boxes")).toBe(false);
   });
+
+  test("30k. detects 'I'm not safe right now'", () => {
+    expect(detectCrisisLanguage("I'm not safe right now")).toBe(true);
+  });
+
+  test("30l. detects 'I don't feel safe'", () => {
+    expect(detectCrisisLanguage("I don't feel safe")).toBe(true);
+  });
+
+  test("30m. does NOT flag 'This road is not safe' (environmental, not self-referential)", () => {
+    expect(detectCrisisLanguage("This road is not safe")).toBe(false);
+  });
+
+  test("30n. does NOT flag 'The house isn't safe' (environmental, not self-referential)", () => {
+    expect(detectCrisisLanguage("The house isn't safe")).toBe(false);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════

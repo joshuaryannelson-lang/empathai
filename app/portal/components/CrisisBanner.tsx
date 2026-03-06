@@ -5,6 +5,7 @@ import { useMemo } from "react";
 const CRISIS_PATTERNS = [
   /\b(sui[c]id[ea]l?|kill\s*(my|him|her|them)?self|end\s*(my\s*life|it\s*all|things)|don[''\u2019]?t\s*want\s*to\s*(live|be\s*alive|be\s*here|go\s*on)|(?:hurt|harm)(?:ing)?\s*(my|him|her|them)?self|self[\s-]?harm)\b/i,
   /\b(want\s*to\s*(die|hurt\s*myself)|better\s*off\s*dead|no\s*(point|reason)\s*(to|in)\s*(live|living|go\s*on)|can[''\u2019]?t\s*go\s*on)\b/i,
+  /\b(i[''\u2019]?m\s+not\s+safe|i\s+don[''\u2019]?t\s+feel\s+safe|i\s+feel\s+unsafe|i\s+am\s+not\s+safe)\b/i,
 ];
 
 /** Returns true if text contains crisis-related language */
