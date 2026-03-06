@@ -205,7 +205,7 @@ const PAGES: PageSection[] = [
     id: "admin-home",
     name: "Admin Home",
     url: "/admin",
-    who: "Admins only (pick 'I'm an Admin' on the home page — requires a real admin login for full access)",
+    who: "This page requires a real admin account — if you don't have one, just verify that picking 'I'm a Manager' redirects you away from this page correctly",
     group: "For Admin",
     checks: [
       "The page opens with an 'Admin Console' heading and a grid of tool cards",
