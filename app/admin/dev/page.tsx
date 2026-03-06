@@ -346,7 +346,7 @@ const CHECKS: CheckDef[] = [
       if (status >= 400) return { severity: "critical", summary: `HTTP ${status}`, rca: "Could not fetch overview data." };
       const t = json?.data?.totals;
       if (!t) return { severity: "critical", summary: "No totals in response", rca: "Check endpoint health first." };
-      if (t.at_risk_checkins > 0) return { severity: "warning", summary: `${t.at_risk_checkins} at-risk check-in${t.at_risk_checkins !== 1 ? "s" : ""} this week`, rca: "Review the Manager Dashboard risk panels for follow-up." };
+      if (t.at_risk_checkins > 0) return { severity: "info", summary: `${t.at_risk_checkins} at-risk check-in${t.at_risk_checkins !== 1 ? "s" : ""} this week — review in Manager Dashboard` };
       return { severity: "info", summary: "No at-risk check-ins in current window" };
     },
   },

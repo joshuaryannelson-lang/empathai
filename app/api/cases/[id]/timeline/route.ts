@@ -44,7 +44,7 @@ export async function GET(
   const [{ data: patientRow, error: patientErr }, { data: therapistRow, error: therapistErr }] =
     await Promise.all([
       patientId
-        ? supabase.from("patients").select("id, first_name, last_name, extended_profile").eq("id", patientId).single()
+        ? supabase.from("patients").select("id, first_name, extended_profile").eq("id", patientId).single()
         : Promise.resolve({ data: null, error: null } as any),
       therapistId
         ? supabase.from("therapists").select("id, name, extended_profile").eq("id", therapistId).single()

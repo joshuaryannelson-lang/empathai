@@ -6,7 +6,9 @@ import { DEMO_CONFIG } from "./demoMode";
 
 // ── IDs ──────────────────────────────────────────────────────────────────────
 
-const P = DEMO_CONFIG.practiceId;
+const P = DEMO_CONFIG.practiceId;           // "demo-practice-01"
+const P2 = "demo-practice-02";
+const P3 = "demo-practice-03";
 const T1 = DEMO_CONFIG.therapistId;       // "demo-therapist-01"
 const T2 = "demo-therapist-02";
 const T3 = "demo-therapist-03";
@@ -31,6 +33,19 @@ export const demoPractice = {
   name: "Sunrise Wellness Group",
 };
 
+export const demoPractices = [
+  { id: P,  name: "Sunrise Wellness Group" },
+  { id: P2, name: "Harbor Mind Center" },
+  { id: P3, name: "Evergreen Therapy Collective" },
+];
+
+// Manager-practice assignments: demo manager is assigned to P and P2 only.
+// P3 remains unassigned — verifies RLS scoping in tests.
+export const demoManagerAssignments = [
+  { id: "demo-mpa-01", manager_id: DEMO_CONFIG.managerId, practice_id: P,  assigned_at: daysAgo(30), assigned_by: "demo-admin-01" },
+  { id: "demo-mpa-02", manager_id: DEMO_CONFIG.managerId, practice_id: P2, assigned_at: daysAgo(30), assigned_by: "demo-admin-01" },
+];
+
 // ── Therapists ───────────────────────────────────────────────────────────────
 
 export const demoTherapists = [
@@ -42,18 +57,18 @@ export const demoTherapists = [
 // ── Patients ─────────────────────────────────────────────────────────────────
 
 export const demoPatients = [
-  { id: patientId(1),  first_name: "Alex",    last_name: "R." },
-  { id: patientId(2),  first_name: "Jordan",  last_name: "M." },
-  { id: patientId(3),  first_name: "Sam",     last_name: "T." },
-  { id: patientId(4),  first_name: "Riley",   last_name: "K." },
-  { id: patientId(5),  first_name: "Morgan",  last_name: "L." },
-  { id: patientId(6),  first_name: "Casey",   last_name: "W." },
-  { id: patientId(7),  first_name: "Taylor",  last_name: "B." },
-  { id: patientId(8),  first_name: "Quinn",   last_name: "D." },
-  { id: patientId(9),  first_name: "Avery",   last_name: "H." },
-  { id: patientId(10), first_name: "Cameron", last_name: "F." },
-  { id: patientId(11), first_name: "Drew",    last_name: "P." },
-  { id: patientId(12), first_name: "Sage",    last_name: "N." },
+  { id: patientId(1),  first_name: "Alex",    case_code: "EM-1001" },
+  { id: patientId(2),  first_name: "Jordan",  case_code: "EM-1002" },
+  { id: patientId(3),  first_name: "Sam",     case_code: "EM-1003" },
+  { id: patientId(4),  first_name: "Riley",   case_code: "EM-1004" },
+  { id: patientId(5),  first_name: "Morgan",  case_code: "EM-1005" },
+  { id: patientId(6),  first_name: "Casey",   case_code: "EM-1006" },
+  { id: patientId(7),  first_name: "Taylor",  case_code: "EM-1007" },
+  { id: patientId(8),  first_name: "Quinn",   case_code: "EM-1008" },
+  { id: patientId(9),  first_name: "Avery",   case_code: "EM-1009" },
+  { id: patientId(10), first_name: "Cameron", case_code: "EM-1010" },
+  { id: patientId(11), first_name: "Drew",    case_code: "EM-1011" },
+  { id: patientId(12), first_name: "Sage",    case_code: "EM-1012" },
 ];
 
 // ── Cases ────────────────────────────────────────────────────────────────────
@@ -62,19 +77,19 @@ export const demoPatients = [
 
 export const demoCases = [
   // Dr. Maya Chen's caseload
-  { id: caseId(1),  practice_id: P, therapist_id: T1, patient_id: patientId(1),  title: "Anxiety & Sleep Management", status: "active", created_at: daysAgo(60) },
-  { id: caseId(2),  practice_id: P, therapist_id: T1, patient_id: patientId(2),  title: "Generalized Anxiety", status: "active", created_at: daysAgo(45) },
-  { id: caseId(3),  practice_id: P, therapist_id: T1, patient_id: patientId(3),  title: "Crisis Intervention", status: "active", created_at: daysAgo(30) }, // CRITICAL
-  { id: caseId(4),  practice_id: P, therapist_id: T1, patient_id: patientId(4),  title: "Adjustment Disorder", status: "active", created_at: daysAgo(55) },
+  { id: caseId(1),  practice_id: P, therapist_id: T1, patient_id: patientId(1),  title: "Sleep & Stress Management", status: "active", created_at: daysAgo(60) },
+  { id: caseId(2),  practice_id: P, therapist_id: T1, patient_id: patientId(2),  title: "Weekly Support", status: "active", created_at: daysAgo(45) },
+  { id: caseId(3),  practice_id: P, therapist_id: T1, patient_id: patientId(3),  title: "Urgent Support", status: "active", created_at: daysAgo(30) }, // CRITICAL
+  { id: caseId(4),  practice_id: P, therapist_id: T1, patient_id: patientId(4),  title: "Life Transition", status: "active", created_at: daysAgo(55) },
   // Dr. James Okafor's caseload
   { id: caseId(5),  practice_id: P, therapist_id: T2, patient_id: patientId(5),  title: "Relationship & Communication", status: "active", created_at: daysAgo(50) },
-  { id: caseId(6),  practice_id: P, therapist_id: T2, patient_id: patientId(6),  title: "CBT for Depression", status: "active", created_at: daysAgo(40) },
+  { id: caseId(6),  practice_id: P, therapist_id: T2, patient_id: patientId(6),  title: "Mood & Coping Skills", status: "active", created_at: daysAgo(40) },
   { id: caseId(7),  practice_id: P, therapist_id: T2, patient_id: patientId(7),  title: "Mood Monitoring", status: "active", created_at: daysAgo(35) },
-  { id: caseId(8),  practice_id: P, therapist_id: T2, patient_id: patientId(8),  title: "Social Anxiety", status: "active", created_at: daysAgo(42) },
+  { id: caseId(8),  practice_id: P, therapist_id: T2, patient_id: patientId(8),  title: "Confidence Building", status: "active", created_at: daysAgo(42) },
   // Dr. Priya Sharma's caseload
   { id: caseId(9),  practice_id: P, therapist_id: T3, patient_id: patientId(9),  title: "Family Dynamics", status: "active", created_at: daysAgo(38) },
-  { id: caseId(10), practice_id: P, therapist_id: T3, patient_id: patientId(10), title: "Workplace Burnout", status: "active", created_at: daysAgo(28) },
-  { id: caseId(11), practice_id: P, therapist_id: T3, patient_id: patientId(11), title: "Self-Esteem Building", status: "active", created_at: daysAgo(22) },
+  { id: caseId(10), practice_id: P, therapist_id: T3, patient_id: patientId(10), title: "Work-Life Balance", status: "active", created_at: daysAgo(28) },
+  { id: caseId(11), practice_id: P, therapist_id: T3, patient_id: patientId(11), title: "Personal Growth", status: "active", created_at: daysAgo(22) },
   { id: caseId(12), practice_id: P, therapist_id: T3, patient_id: patientId(12), title: "Grief Processing", status: "active", created_at: daysAgo(18) },
 ];
 
@@ -402,8 +417,7 @@ export function getDemoNormalizedCases(practiceId?: string, therapistId?: string
       patient_id: c.patient_id,
       therapist_name: therapist?.name ?? null,
       patient_first_name: patient?.first_name ?? null,
-      patient_last_name: patient?.last_name ?? null,
-      patient_name: patient ? `${patient.first_name} ${patient.last_name}` : null,
+      case_code: patient?.case_code ?? null,
       latest_score: latest?.score ?? null,
       latest_checkin: latest?.created_at ?? null,
     };
@@ -419,7 +433,7 @@ export function getDemoTimeline(caseIdVal: string) {
   const checkins = getDemoCaseCheckins(caseIdVal);
   return {
     case: { id: c.id, title: c.title, status: c.status, created_at: c.created_at },
-    patient: patient ? { first_name: patient.first_name, last_name: patient.last_name, extended_profile: {} } : null,
+    patient: patient ? { first_name: patient.first_name, case_code: patient.case_code, extended_profile: {} } : null,
     therapist: therapist ? { name: therapist.name, extended_profile: therapist.extended_profile } : null,
     checkins: checkins.map(ci => ({ ...ci, notes: ci.note })),
   };
@@ -441,7 +455,7 @@ export function getDemoTherapistCare(therapistIdVal: string) {
       case_id: c.id,
       case_title: c.title,
       patient_first_name: patient?.first_name ?? null,
-      patient_last_name: patient?.last_name ?? null,
+      case_code: patient?.case_code ?? null,
       checkins: checkins.length,
       avg_score: avg,
       lowest_score: scores.length ? Math.min(...scores) : null,

@@ -47,7 +47,7 @@ export default function TherapistDashboardPage() {
 
         const caseList: CaseInfo[] = (careData?.cases ?? []).map((c: any) => ({
           id: c.case_id,
-          title: `${c.patient_first_name ?? ""} ${c.patient_last_name ?? ""}`.trim() || c.case_title || c.case_id.slice(0, 8),
+          title: (c.patient_first_name ?? "").trim() || c.case_title || c.case_id.slice(0, 8),
         }));
         setCases(caseList);
 

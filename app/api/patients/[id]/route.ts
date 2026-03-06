@@ -9,7 +9,7 @@ export async function GET(
   const { id } = await context.params;
   const { data, error } = await supabase
     .from("patients")
-    .select("id, first_name, last_name, extended_profile")
+    .select("id, first_name, extended_profile")
     .eq("id", id)
     .single();
 
@@ -73,7 +73,7 @@ export async function PATCH(
     .from("patients")
     .update(updates)
     .eq("id", id)
-    .select("id, first_name, last_name, extended_profile")
+    .select("id, first_name, extended_profile")
     .single();
 
   if (error) return NextResponse.json({ data: null, error }, { status: 500 });

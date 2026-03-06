@@ -25,7 +25,7 @@ export async function GET(
         case: { id: c.id, title: c.title, status: c.status },
         practice: { id: demoPractice.id, name: demoPractice.name },
         therapist: therapist ? { id: therapist.id, name: therapist.name, extended_profile: therapist.extended_profile } : null,
-        patient: patient ? { id: patient.id, first_name: patient.first_name, last_name: patient.last_name, extended_profile: {} } : null,
+        patient: patient ? { id: patient.id, first_name: patient.first_name, extended_profile: {} } : null,
       },
       error: null,
     });
@@ -62,7 +62,7 @@ export async function GET(
       ? supabase.from("therapists").select("id, name, extended_profile").eq("id", therapistId).single()
       : Promise.resolve({ data: null } as any),
     patientId
-      ? supabase.from("patients").select("id, first_name, last_name, extended_profile").eq("id", patientId).single()
+      ? supabase.from("patients").select("id, first_name, extended_profile").eq("id", patientId).single()
       : Promise.resolve({ data: null } as any),
   ]);
 
@@ -75,7 +75,7 @@ export async function GET(
       },
       practice: practice ?? { id: (c as any).practice_id ?? null, name: null },
       therapist: t ? { id: (t as any).id, name: (t as any).name ?? null, extended_profile: (t as any).extended_profile ?? {} } : null,
-      patient: pat ? { id: (pat as any).id, first_name: (pat as any).first_name ?? null, last_name: (pat as any).last_name ?? null, extended_profile: (pat as any).extended_profile ?? {} } : null,
+      patient: pat ? { id: (pat as any).id, first_name: (pat as any).first_name ?? null, extended_profile: (pat as any).extended_profile ?? {} } : null,
     },
     error: null,
   });

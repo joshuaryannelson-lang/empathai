@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { isDemoMode, enableDemoMode, disableDemoMode, DEMO_CONFIG } from "@/lib/demo/demoMode";
+import { setRole, clearRole } from "@/lib/roleContext";
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 type Practice = { id: string; name: string | null };
@@ -78,7 +79,7 @@ const PERSONAS = [
     accent: "#f5a623",
     accentRgb: "245,166,35",
     highlights: ["Practice health scores", "At-risk trend patterns", "Engagement benchmarks"],
-    cta: "Explore the insights",
+    cta: "Coming soon",
     badge: "Coming soon",
   },
 ];
@@ -479,25 +480,36 @@ export default function DemoLanding() {
       .finally(() => setPracticesLoading(false));
   }, [selected, managerMode, practices.length]);
 
+  function storeRole(role: "therapist" | "manager" | "patient") {
+    setRole(role);
+    // Backward compat: keep localStorage keys until all consumers migrate to getRole()
+    try { localStorage.setItem("user_role", role); } catch {}
+    try { localStorage.setItem("selected_persona", role); } catch {}
+  }
+
   function handlePersonaSelect(id: string) {
     if (id === "patient") {
+      storeRole("patient");
       setSelected(id); setLaunched(true);
-      setTimeout(() => router.push("/portal"), 300);
+      setTimeout(() => router.push("/portal/onboarding"), 300);
       return;
     }
     if (id === "admin") {
+      // Admin role comes from JWT only — do not call setRole()
+      // Clear any stale sessionStorage role so getRole() falls through to JWT
+      clearRole();
       setSelected(id); setLaunched(true);
       try { localStorage.setItem("selected_persona", "admin"); } catch {}
       setTimeout(() => router.push("/admin"), 300);
       return;
     }
     if (id === "analytics") {
-      setSelected(id); setLaunched(true);
-      try { localStorage.setItem("selected_persona", "analytics"); } catch {}
-      setTimeout(() => router.push("/analytics"), 300);
+      // Coming soon — just select, don't route
+      setSelected((prev) => (prev === id ? null : id));
       return;
     }
     if (id === "therapist") {
+      storeRole("therapist");
       setSelected(id); setLaunched(true);
       fetch("/api/therapists", { cache: "no-store" })
         .then((res) => res.json())
@@ -507,7 +519,6 @@ export default function DemoLanding() {
             const t = list[Math.floor(Math.random() * list.length)];
             try { localStorage.setItem("selected_practice_id", t.practice_id); } catch {}
             try { localStorage.setItem("selected_therapist_id", t.id); } catch {}
-            try { localStorage.setItem("selected_persona", "therapist"); } catch {}
             router.push(`/dashboard/therapists/${encodeURIComponent(t.id)}/care?week_start=${encodeURIComponent(weekStart)}`);
           } else {
             setLaunched(false); setSelected(null);
@@ -516,33 +527,35 @@ export default function DemoLanding() {
         .catch(() => { setLaunched(false); setSelected(null); });
       return;
     }
+    if (id === "manager") {
+      // First click selects and shows manager sub-mode action bar.
+      // The action bar Launch button calls handleLaunch() which routes.
+      // But if already selected, treat as a direct launch to /admin/status.
+      if (selected === "manager") {
+        storeRole("manager");
+        setLaunched(true);
+        setTimeout(() => router.push("/admin/status"), 300);
+        return;
+      }
+      setSelected("manager");
+      return;
+    }
     setSelected((prev) => (prev === id ? null : id));
   }
 
 function handleLaunch() {
     if (!selected) return;
     if (selected === "manager" && managerMode === "multi") {
-      try { localStorage.setItem("selected_persona", "manager"); } catch {}
+      storeRole("manager");
       try { localStorage.setItem("selected_manager_mode", "multi"); } catch {}
       setLaunched(true);
-      setTimeout(() => router.push("/dashboard/manager"), 300);
+      setTimeout(() => router.push("/admin/status"), 300);
     } else if (selected === "manager" && managerMode === "single" && harperPractice) {
-      try { localStorage.setItem("selected_persona", "manager"); } catch {}
+      storeRole("manager");
       try { localStorage.setItem("selected_manager_mode", "single"); } catch {}
       try { localStorage.setItem("selected_practice_id", harperPractice.id); } catch {}
       setLaunched(true);
-      setTimeout(() => router.push(`/practices/${encodeURIComponent(harperPractice.id)}/therapist-overview?week_start=${encodeURIComponent(weekStart)}`), 300);
-    } else if (selected === "analytics") {
-      try { localStorage.setItem("selected_persona", "analytics"); } catch {}
-      setLaunched(true);
-      setTimeout(() => router.push("/analytics"), 300);
-    } else if (selected === "admin") {
-      try { localStorage.setItem("selected_persona", "admin"); } catch {}
-      setLaunched(true);
-      setTimeout(() => router.push("/admin"), 300);
-    } else if (selected === "patient") {
-      setLaunched(true);
-      setTimeout(() => router.push("/portal"), 300);
+      setTimeout(() => router.push(`/admin/status?practice_id=${encodeURIComponent(harperPractice.id)}`), 300);
     }
   }
 

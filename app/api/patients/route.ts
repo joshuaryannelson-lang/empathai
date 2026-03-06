@@ -74,7 +74,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       data: demoPatients.map(p => ({
         id: p.id,
-        name: `${p.first_name} ${p.last_name}`,
+        first_name: p.first_name,
         case_id: null,
         practice_id: null,
         practice_name: null,
@@ -90,8 +90,8 @@ export async function GET(request: Request) {
   // Load all patients
   const { data: patients, error: patientsErr } = await supabase
     .from("patients")
-    .select("id, first_name, last_name, extended_profile")
-    .order("last_name", { ascending: true });
+    .select("id, first_name, extended_profile")
+    .order("first_name", { ascending: true });
 
   if (patientsErr) return NextResponse.json({ data: null, error: patientsErr }, { status: 500 });
 
@@ -127,10 +127,9 @@ export async function GET(request: Request) {
 
   const rows = (patients ?? []).map((patient) => {
     const c = caseMap.get(patient.id);
-    const name = `${patient.first_name ?? ""} ${patient.last_name ?? ""}`.trim() || null;
     return {
       id: patient.id,
-      name,
+      first_name: patient.first_name ?? null,
       case_id: c?.id ?? null,
       practice_id: c?.practice_id ?? null,
       practice_name: c ? (practiceMap.get(c.practice_id)?.name ?? null) : null,

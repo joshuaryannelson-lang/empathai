@@ -44,7 +44,7 @@ export function getDemoPatientIdentity(caseId?: string): PatientIdentity | null 
   if (!p) return null;
   return {
     patient_id: p.id,
-    patient_name: `${p.first_name} ${p.last_name}`,
+    patient_name: p.first_name,
     case_id: c.id,
   };
 }

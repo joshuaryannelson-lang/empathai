@@ -28,6 +28,9 @@ export async function GET() {
   // Check Anthropic API key presence (don't call the API — just verify config)
   checks.anthropic_key = process.env.ANTHROPIC_API_KEY ? "configured" : "missing";
 
+  // Check PATIENT_JWT_SECRET presence (required for patient portal auth)
+  checks.patient_jwt = (process.env.PATIENT_JWT_SECRET || process.env.SUPABASE_JWT_SECRET) ? "configured" : "missing";
+
   const allOk = checks.supabase === "ok" && checks.anthropic_key === "configured";
 
   return NextResponse.json(

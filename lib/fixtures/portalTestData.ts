@@ -29,6 +29,16 @@ export const CRISIS_PHRASES = [
   "end it all",
   "no reason to go on",
   "self-harm",
+  "suicide",
+  "I want to hurt myself",
+  "hurt myself",
+  "end my life",
+  "self harm",
+  "I don\u2019t want to be here",
+  "can't go on",
+  "no reason to live",
+  "I've been thinking about hurting myself",
+  "I can\u2019t go on like this",
 ];
 
 export const SAFE_PHRASES = [

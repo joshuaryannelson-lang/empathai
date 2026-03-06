@@ -65,20 +65,20 @@ export default function OnboardingPage() {
       if (!practices.length) throw new Error("No practices found in demo data.");
 
       const shuffled = [...practices].sort(() => Math.random() - 0.5);
-      let picked: { id: string; patient_id: string; patient_first_name: string; patient_last_name: string } | null = null;
+      let picked: { id: string; patient_id: string; patient_first_name: string } | null = null;
       for (const practice of shuffled) {
         const casesJson = await fetch(`/api/cases?practice_id=${practice.id}&limit=50`, { cache: "no-store" }).then(r => r.json());
-        const cases: { id: string; patient_id: string | null; patient_first_name: string | null; patient_last_name: string | null }[] = casesJson?.data ?? [];
+        const cases: { id: string; patient_id: string | null; patient_first_name: string | null }[] = casesJson?.data ?? [];
         const eligible = cases.filter(c => c.patient_id && c.patient_first_name);
         if (eligible.length) {
           const c = eligible[Math.floor(Math.random() * eligible.length)];
-          picked = { id: c.id, patient_id: c.patient_id!, patient_first_name: c.patient_first_name!, patient_last_name: c.patient_last_name ?? "" };
+          picked = { id: c.id, patient_id: c.patient_id!, patient_first_name: c.patient_first_name! };
           break;
         }
       }
       if (!picked) throw new Error("No patient cases found in demo data.");
 
-      const patientName = `${picked.patient_first_name} ${picked.patient_last_name}`.trim();
+      const patientName = picked.patient_first_name;
       setSession({
         case_code: picked.id,
         token: "",

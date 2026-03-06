@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { getRole, clearRole, type Role } from "@/lib/roleContext";
 
 type NavItem = {
   label: string;
@@ -54,12 +55,13 @@ export function NavSidebar({
       }
     : { label: "Care dashboard", href: "#", dim: true, note: "select a therapist" };
 
-  // Role detection from localStorage (set during auth)
-  const storedRole = typeof window !== "undefined"
-    ? (() => { try { return localStorage.getItem("user_role"); } catch { return null; } })()
-    : null;
-  const isManager = storedRole === "manager";
-  const isTherapist = storedRole === "therapist";
+  // Role detection via unified getRole()
+  // If null but on /admin*, infer admin for display only (no sessionStorage write)
+  const resolvedRole: Role = getRole();
+  const displayRole: Role = resolvedRole ?? (pathname.startsWith("/admin") ? "admin" : null);
+  const currentRole = displayRole;
+  const isManager = currentRole === "manager";
+  const isTherapist = currentRole === "therapist";
 
   const adminItems: NavItem[] = [
     { label: "Practice Status", href: "/admin/status" },
@@ -129,6 +131,9 @@ export function NavSidebar({
     ? baseGroups.filter(g => !hideGroups.includes(g.label))
     : baseGroups;
 
+  const roleLabel: Record<string, string> = { therapist: "Therapist", manager: "Manager", admin: "Admin", patient: "Patient" };
+  const roleAccent: Record<string, string> = { therapist: "#7c5cfc", manager: "#00c8a0", admin: "#e879f9", patient: "#38bdf8" };
+
   const navContent = (
     <>
       {/* Brand */}
@@ -184,6 +189,34 @@ export function NavSidebar({
           </div>
         ))}
       </div>
+
+      {/* Role indicator + switch */}
+      {currentRole && (
+        <div style={{ marginTop: "auto", paddingTop: 24, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <div style={{
+              width: 8, height: 8, borderRadius: "50%",
+              background: roleAccent[currentRole] ?? "#9ca3af",
+              boxShadow: `0 0 6px ${roleAccent[currentRole] ?? "#9ca3af"}`,
+              flexShrink: 0,
+            }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: roleAccent[currentRole] ?? "#9ca3af", letterSpacing: 0.5 }}>
+              {resolvedRole ? (roleLabel[currentRole] ?? currentRole) : `Viewing as: ${roleLabel[currentRole] ?? currentRole}`}
+            </span>
+          </div>
+          <Link
+            href="/"
+            onClick={() => { clearRole(); setMobileOpen(false); }}
+            style={{
+              display: "block", fontSize: 11, fontWeight: 600,
+              color: "rgba(255,255,255,0.35)", textDecoration: "none",
+              padding: "4px 0",
+            }}
+          >
+            Switch role
+          </Link>
+        </div>
+      )}
     </>
   );
 

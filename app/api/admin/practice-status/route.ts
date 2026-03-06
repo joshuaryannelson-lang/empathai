@@ -23,9 +23,32 @@ function toISO(d: Date) { return d.toISOString().slice(0, 10); }
 function ok(data: any) { return NextResponse.json({ data, error: null }); }
 function bad(msg: string, status = 500) { return NextResponse.json({ data: null, error: { message: msg } }, { status }); }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(request: Request) {
   if (isDemoMode(request.url)) {
     return ok(buildDemoData());
+  }
+
+  // Optional practice_id scoping
+  const { searchParams } = new URL(request.url);
+  const rawPracticeId = searchParams.get("practice_id");
+  const practiceId = rawPracticeId && UUID_RE.test(rawPracticeId) ? rawPracticeId : null;
+
+  // Optional manager_id — scope to assigned practices only
+  const rawManagerId = searchParams.get("manager_id");
+  const managerId = rawManagerId && UUID_RE.test(rawManagerId) ? rawManagerId : null;
+  let managerPracticeIds: string[] | null = null;
+  if (managerId) {
+    const { data: assignments, error: aErr } = await supabase
+      .from("manager_practice_assignments")
+      .select("practice_id")
+      .eq("manager_id", managerId);
+    if (aErr) return bad(aErr.message);
+    managerPracticeIds = (assignments ?? []).map((a: { practice_id: string }) => a.practice_id);
+    if (managerPracticeIds.length === 0) {
+      return ok(buildEmptyData());
+    }
   }
 
   try {
@@ -44,11 +67,27 @@ export async function GET(request: Request) {
     const lastWeekISO = lastWeekStart.toISOString();
 
     // ── Fetch core data ──
-    const [casesRes, checkinsRes, therapistsRes, auditRes] = await Promise.all([
-      supabase.from("cases").select("id, case_code, therapist_id, status, created_at"),
+    // Scope by practice_id (single) or managerPracticeIds (multi)
+    let casesQuery = supabase.from("cases").select("id, case_code, therapist_id, practice_id, status, created_at");
+    let therapistsQuery = supabase.from("therapists").select("id, name, practice_id");
+    if (practiceId) {
+      // If manager_id is set, verify practiceId is in their assignments
+      if (managerPracticeIds && !managerPracticeIds.includes(practiceId)) {
+        return bad("Practice not assigned to manager", 403);
+      }
+      casesQuery = casesQuery.eq("practice_id", practiceId);
+      therapistsQuery = therapistsQuery.eq("practice_id", practiceId);
+    } else if (managerPracticeIds) {
+      casesQuery = casesQuery.in("practice_id", managerPracticeIds);
+      therapistsQuery = therapistsQuery.in("practice_id", managerPracticeIds);
+    }
+
+    const [casesRes, checkinsRes, therapistsRes, auditRes, practicesRes] = await Promise.all([
+      casesQuery,
       supabase.from("checkins").select("case_id, score, created_at").gte("created_at", fourWeeksAgoISO),
-      supabase.from("therapists").select("id, name, practice_id"),
+      therapistsQuery,
       supabase.from("portal_audit_log").select("event, case_code, created_at").gte("created_at", thisWeekISO).order("created_at", { ascending: false }).limit(50),
+      supabase.from("practice").select("id, name"),
     ]);
 
     if (casesRes.error) return bad(casesRes.error.message);
@@ -58,12 +97,21 @@ export async function GET(request: Request) {
     const auditLogs = auditRes.data ?? [];
 
     const cases = casesRes.data ?? [];
-    const allCheckins = checkinsRes.data ?? [];
     const therapists = therapistsRes.data ?? [];
+
+    // Build practice name lookup
+    const practiceNameById: Record<string, string> = {};
+    for (const p of (practicesRes.data ?? []) as any[]) {
+      if (p.id && p.name) practiceNameById[p.id] = p.name;
+    }
 
     // Map case_id → case record
     const caseById: Record<string, any> = {};
     for (const c of cases) caseById[c.id] = c;
+
+    // Filter checkins to only scoped cases (important when practice_id is set)
+    const scopedCaseIds = new Set(cases.map((c: any) => c.id));
+    const allCheckins = (checkinsRes.data ?? []).filter((ci: any) => scopedCaseIds.has(ci.case_id));
 
     // ── This week's check-ins ──
     const thisWeekCheckins = allCheckins.filter((ci: any) => ci.created_at >= thisWeekISO);
@@ -165,6 +213,7 @@ export async function GET(request: Request) {
       return {
         id: t.id,
         name: displayName,
+        practiceName: practiceNameById[t.practice_id] ?? null,
         casesAssigned: therapistCases.length,
         checkinsThisWeek: therapistCheckins.length,
         sessionRatings: null as number | null, // GA Prep — not available yet
@@ -173,33 +222,48 @@ export async function GET(request: Request) {
     }).sort((a: any, b: any) => b.checkinsThisWeek - a.checkinsThisWeek);
 
     // ── Activity feed ──
-    const crisisEvents = auditLogs.filter((a: any) => a.event === "crisis_detected");
-    const joinEvents = auditLogs.filter((a: any) => a.event === "join_code_redeemed");
-    const checkinEvents = auditLogs.filter((a: any) => a.event === "checkin_submitted");
+    // If scoped to a practice, filter audit logs to only events for that practice's cases
+    const scopedCaseCodes = new Set(cases.map((c: any) => c.case_code).filter(Boolean));
+    const scopedAuditLogs = (practiceId || managerPracticeIds)
+      ? auditLogs.filter((a: any) => !a.case_code || scopedCaseCodes.has(a.case_code))
+      : auditLogs;
+
+    const crisisEvents = scopedAuditLogs.filter((a: any) => a.event === "crisis_detected");
+    const joinEvents = scopedAuditLogs.filter((a: any) => a.event === "join_code_redeemed");
+    const checkinEvents = scopedAuditLogs.filter((a: any) => a.event === "checkin_submitted");
 
     // join_code_failed: only show if >3 from same IP in an hour (we don't have IP grouping here,
     // so we show if total failures this week > 5 as a heuristic)
-    const failedJoinEvents = auditLogs.filter((a: any) => a.event === "join_code_failed");
+    const failedJoinEvents = scopedAuditLogs.filter((a: any) => a.event === "join_code_failed");
     const showJoinFailure = failedJoinEvents.length > 5;
 
-    const activityFeed: Array<{ type: string; message: string; time: string }> = [];
+    // Helper to resolve practice name from an audit log event's case_code
+    function practiceNameForAudit(event: any): string | null {
+      if (!event.case_code) return null;
+      const c = cases.find((cs: any) => cs.case_code === event.case_code);
+      if (!c) return null;
+      return practiceNameById[(c as any).practice_id] ?? null;
+    }
+
+    const activityFeed: Array<{ type: string; message: string; time: string; practiceName?: string | null }> = [];
 
     if (crisisEvents.length > 0) {
       activityFeed.push({
         type: "crisis",
         message: "A patient indicated they may be struggling this week. The 988 Lifeline was surfaced to them in the portal. If you have not already, consider checking in with their therapist.",
         time: crisisEvents[0].created_at,
+        practiceName: practiceNameForAudit(crisisEvents[0]),
       });
     }
 
     for (const e of joinEvents.slice(0, 5)) {
-      activityFeed.push({ type: "join", message: "A new patient joined the portal", time: e.created_at });
+      activityFeed.push({ type: "join", message: "A new patient joined the portal", time: e.created_at, practiceName: practiceNameForAudit(e) });
     }
     for (const e of checkinEvents.slice(0, 5)) {
-      activityFeed.push({ type: "checkin", message: "A patient completed their weekly check-in", time: e.created_at });
+      activityFeed.push({ type: "checkin", message: "A patient completed their weekly check-in", time: e.created_at, practiceName: practiceNameForAudit(e) });
     }
     if (showJoinFailure) {
-      activityFeed.push({ type: "unusual", message: "Unusual join attempt activity detected", time: failedJoinEvents[0].created_at });
+      activityFeed.push({ type: "unusual", message: "Unusual join attempt activity detected", time: failedJoinEvents[0].created_at, practiceName: practiceNameForAudit(failedJoinEvents[0]) });
     }
 
     // Sort by time, limit to 10
@@ -254,6 +318,20 @@ export async function GET(request: Request) {
   } catch (e: any) {
     return bad(e?.message ?? "Failed to compute practice status");
   }
+}
+
+// ── Empty data (zero-assignment manager) ──
+function buildEmptyData() {
+  return {
+    checkinRate: { numerator: 0, denominator: 0, rate: null },
+    avgRating: { value: null, delta: null },
+    needsAttention: { count: 0 },
+    practiceHealthScore: { value: null, confidence: null, partialNote: null },
+    therapistActivity: [],
+    activityFeed: [],
+    hasMoreActivity: false,
+    trends: [],
+  };
 }
 
 // ── Demo data ──

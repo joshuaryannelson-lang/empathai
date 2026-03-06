@@ -21,7 +21,6 @@ type CaseRowApi = {
   patient_id: string | null;
   therapist_name?: string | null;
   patient_first_name?: string | null;
-  patient_last_name?: string | null;
   latest_score?: number | null;
   latest_checkin?: string | null;
 };
@@ -41,13 +40,12 @@ async function fetchJson(url: string) {
 }
 
 function patientFullName(c: CaseRowApi) {
-  return `${(c.patient_first_name ?? "").trim()} ${(c.patient_last_name ?? "").trim()}`.trim() || "—";
+  return (c.patient_first_name ?? "").trim() || "—";
 }
 
 function patientInitials(c: CaseRowApi) {
   const f = (c.patient_first_name ?? "").trim()[0] ?? "";
-  const l = (c.patient_last_name ?? "").trim()[0] ?? "";
-  return (f + l).toUpperCase() || "?";
+  return f.toUpperCase() || "?";
 }
 
 function fmtScore(n: number | null | undefined): number | null {

@@ -13,7 +13,6 @@ type CaseRow = {
   case_id: string;
   case_title: string | null;
   patient_first_name: string | null;
-  patient_last_name: string | null;
   checkins: number;
   avg_score: number | null;
   lowest_score: number | null;
@@ -47,17 +46,16 @@ function shortId(id: string) {
   return id.length > 10 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
 }
 
-function displayName(c: Pick<CaseRow, "patient_first_name" | "patient_last_name" | "case_title" | "case_id">) {
-  const full = `${c.patient_first_name ?? ""} ${c.patient_last_name ?? ""}`.trim();
-  if (full) return full;
+function displayName(c: Pick<CaseRow, "patient_first_name" | "case_title" | "case_id">) {
+  const name = (c.patient_first_name ?? "").trim();
+  if (name) return name;
   if (c.case_title?.trim()) return c.case_title.trim();
   return `Case ${shortId(c.case_id)}`;
 }
 
-function initials(c: Pick<CaseRow, "patient_first_name" | "patient_last_name">) {
+function initials(c: Pick<CaseRow, "patient_first_name">) {
   const f = (c.patient_first_name ?? "").trim()[0] ?? "";
-  const l = (c.patient_last_name ?? "").trim()[0] ?? "";
-  return (f + l).toUpperCase() || "?";
+  return f.toUpperCase() || "?";
 }
 
 function fmtDate(iso: string | null | undefined) {
@@ -117,7 +115,7 @@ function TherapistCareDashboard() {
   const [aiError, setAiError] = useState<string | null>(null);
 
   // Unassigned cases state
-  type UnassignedCase = { id: string; title: string | null; patient_first_name: string | null; patient_last_name: string | null };
+  type UnassignedCase = { id: string; title: string | null; patient_first_name: string | null };
   const [unassigned, setUnassigned] = useState<UnassignedCase[]>([]);
   const [unassignedLoading, setUnassignedLoading] = useState(false);
   const [assigningIds, setAssigningIds] = useState<Set<string>>(new Set());
@@ -209,10 +207,10 @@ function TherapistCareDashboard() {
             avg_score: careData.totals.avg_score,
             at_risk_checkins: careData.totals.at_risk_checkins,
             missing_checkins: careData.totals.missing_checkins,
-            low_score_patients: lowList.map(c => `${c.patient_first_name ?? ""} ${c.patient_last_name ?? ""}`.trim() || "Unknown"),
-            missing_patients: missList.map(c => `${c.patient_first_name ?? ""} ${c.patient_last_name ?? ""}`.trim() || "Unknown"),
+            low_score_patients: lowList.map(c => (c.patient_first_name ?? "").trim() || "Unknown"),
+            missing_patients: missList.map(c => (c.patient_first_name ?? "").trim() || "Unknown"),
             low_score_details: lowList.map(c => ({
-              name: `${c.patient_first_name ?? ""} ${c.patient_last_name ?? ""}`.trim() || "Unknown",
+              name: (c.patient_first_name ?? "").trim() || "Unknown",
               lowest_score: c.lowest_score,
               last_checkin_at: c.last_checkin_at,
             })),
@@ -604,8 +602,8 @@ function TherapistCareDashboard() {
             ) : (
               <div className="section-body">
                 {unassigned.map((c) => {
-                  const name = `${c.patient_first_name ?? ""} ${c.patient_last_name ?? ""}`.trim() || c.title || `Case ${c.id.slice(0, 6)}…`;
-                  const ini = ((c.patient_first_name?.[0] ?? "") + (c.patient_last_name?.[0] ?? "")).toUpperCase() || "?";
+                  const name = (c.patient_first_name ?? "").trim() || c.title || `Case ${c.id.slice(0, 6)}…`;
+                  const ini = (c.patient_first_name?.[0] ?? "").toUpperCase() || "?";
                   const busy = assigningIds.has(c.id);
                   return (
                     <div key={c.id} className="patient-row" style={{ cursor: "default" }}>

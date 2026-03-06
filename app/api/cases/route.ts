@@ -6,6 +6,7 @@ import { BUCKET } from "@/lib/constants";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoNormalizedCases } from "@/lib/demo/demoData";
 
+
 export const dynamic = "force-dynamic";
 
 type CaseRow = {
@@ -16,18 +17,12 @@ type CaseRow = {
   created_at: string;
   therapist_id: string | null;
   patient_id: string | null;
+  case_code: string | null;
 };
 
 type TherapistRow = { id: string; name: string | null };
-type PatientRow = { id: string; first_name: string | null; last_name: string | null };
+type PatientRow = { id: string; first_name: string | null; case_code?: string | null };
 type CheckinRow = { id: string; case_id: string; score: number | null; created_at: string };
-
-function fullName(first: string | null, last: string | null) {
-  const f = (first ?? "").trim();
-  const l = (last ?? "").trim();
-  const name = `${f} ${l}`.trim();
-  return name.length ? name : null;
-}
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -56,7 +51,7 @@ export async function GET(req: Request) {
   // 1) Load cases (minimal)
   let casesQuery = supabase
     .from("cases")
-    .select("id, practice_id, title, status, created_at, therapist_id, patient_id", { count: "exact" })
+    .select("id, practice_id, title, status, created_at, therapist_id, patient_id, case_code", { count: "exact" })
     .eq("practice_id", practiceId)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
@@ -102,7 +97,7 @@ export async function GET(req: Request) {
   if (patientIds.length) {
     const { data: pData, error: pErr } = await supabase
       .from("patients")
-      .select("id, first_name, last_name")
+      .select("id, first_name")
       .in("id", patientIds);
 
     if (pErr) return NextResponse.json({ data: null, error: pErr }, { status: 500 });
@@ -148,8 +143,7 @@ export async function GET(req: Request) {
 
       therapist_name: t?.name ?? null,
       patient_first_name: p?.first_name ?? null,
-      patient_last_name: p?.last_name ?? null,
-      patient_name: fullName(p?.first_name ?? null, p?.last_name ?? null),
+      case_code: c.case_code ?? null,
 
       latest_score: latest?.score ?? null,
       latest_checkin: latest?.created_at ?? null,

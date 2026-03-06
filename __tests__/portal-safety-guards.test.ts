@@ -31,6 +31,51 @@ describe("Suite 6: Crisis Detection", () => {
     expect(detectCrisisLanguage("hi")).toBe(false);
     expect(detectCrisisLanguage("ok")).toBe(false);
   });
+
+  // ── Expanded crisis phrase coverage (10 new tests) ──
+
+  test("30a. detects 'suicide' standalone", () => {
+    expect(detectCrisisLanguage("I keep thinking about suicide")).toBe(true);
+  });
+
+  test("30b. detects 'suicidal'", () => {
+    expect(detectCrisisLanguage("I'm feeling suicidal today")).toBe(true);
+  });
+
+  test("30c. detects 'want to hurt myself'", () => {
+    expect(detectCrisisLanguage("sometimes I want to hurt myself")).toBe(true);
+  });
+
+  test("30d. detects 'hurt myself' in longer sentence", () => {
+    expect(detectCrisisLanguage("I've been thinking about hurting myself a lot")).toBe(true);
+  });
+
+  test("30e. detects 'end my life'", () => {
+    expect(detectCrisisLanguage("I want to end my life")).toBe(true);
+  });
+
+  test("30f. detects 'don\u2019t want to be here'", () => {
+    expect(detectCrisisLanguage("I don\u2019t want to be here anymore")).toBe(true);
+    expect(detectCrisisLanguage("I don't want to be here")).toBe(true);
+  });
+
+  test("30g. detects 'can\u2019t go on'", () => {
+    expect(detectCrisisLanguage("I can\u2019t go on like this")).toBe(true);
+    expect(detectCrisisLanguage("I can't go on")).toBe(true);
+  });
+
+  test("30h. detects 'no reason to live'", () => {
+    expect(detectCrisisLanguage("there is no reason to live")).toBe(true);
+  });
+
+  test("30i. detects 'self harm' without hyphen", () => {
+    expect(detectCrisisLanguage("I have thoughts of self harm")).toBe(true);
+  });
+
+  test("30j. does NOT flag 'I hurt my knee' (false positive check)", () => {
+    expect(detectCrisisLanguage("I hurt my knee yesterday")).toBe(false);
+    expect(detectCrisisLanguage("I hurt my back lifting boxes")).toBe(false);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════

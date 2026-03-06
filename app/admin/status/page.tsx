@@ -6,10 +6,15 @@
 
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { NavSidebar } from "@/app/components/NavSidebar";
+import { PracticeSelector } from "./components/PracticeSelector";
+import { getRole, type Role } from "@/lib/roleContext";
+import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+type PracticeOption = { id: string; name: string };
 
 type StatusData = {
   checkinRate: { numerator: number; denominator: number; rate: number | null };
@@ -19,12 +24,13 @@ type StatusData = {
   therapistActivity: Array<{
     id: string;
     name: string;
+    practiceName?: string | null;
     casesAssigned: number;
     checkinsThisWeek: number;
     sessionRatings: number | null;
     lastActivity: string | null;
   }>;
-  activityFeed: Array<{ type: string; message: string; time: string }>;
+  activityFeed: Array<{ type: string; message: string; time: string; practiceName?: string | null }>;
   hasMoreActivity: boolean;
   trends: Array<{ weekStart: string; checkinRate: number | null; avgRating: number | null }>;
 };
@@ -159,11 +165,22 @@ function Sparkline({ data, color, width = 200, height = 48 }: { data: (number | 
 
 // ── Main page content ─────────────────────────────────────────────────────────
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function PracticeStatusContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [data, setData] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Practices list for the selector
+  const [practices, setPractices] = useState<PracticeOption[]>([]);
+
+  // Current user context for manager scoping
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<Role>(null);
 
   const weekStart = useMemo(() => toMondayYYYYMMDD(toYYYYMMDD(new Date())), []);
   const [sidebarPracticeId, setSidebarPracticeId] = useState<string | null>(null);
@@ -171,10 +188,76 @@ function PracticeStatusContent() {
 
   const demoParam = searchParams?.get("demo") === "true" ? "&demo=true" : "";
 
+  // Read practice_id from URL, validate UUID format
+  const rawPracticeId = searchParams?.get("practice_id") ?? null;
+  const selectedPracticeId = rawPracticeId && UUID_RE.test(rawPracticeId) ? rawPracticeId : null;
+
+  // Determine if multi-practice view (selector visible, "All practices" mode possible)
+  const isMulti = practices.length > 1;
+  const selectedPracticeName = selectedPracticeId
+    ? practices.find((p) => p.id === selectedPracticeId)?.name ?? null
+    : null;
+
+  // Resolve user identity and role, then fetch practices
+  useEffect(() => {
+    async function init() {
+      const role = getRole();
+      setUserRole(role);
+
+      let uid: string | null = null;
+      try {
+        const sb = getSupabaseBrowser();
+        const { data: { session } } = await sb.auth.getSession();
+        uid = session?.user?.id ?? null;
+        setUserId(uid);
+      } catch {}
+
+      // Manager: scope practices to assignments
+      const managerParam = role === "manager" && uid ? `?manager_id=${uid}` : "";
+      try {
+        const res = await fetch(`/api/practices${managerParam}`, { cache: "no-store" });
+        const json = await res.json();
+        const list: PracticeOption[] = Array.isArray(json?.data)
+          ? json.data.filter((p: any) => p.id && p.name).map((p: any) => ({ id: p.id, name: p.name }))
+          : [];
+        setPractices(list);
+      } catch {}
+    }
+    init();
+  }, []);
+
+  // On first mount for single-practice managers: auto-select their practice from localStorage.
+  // Multi-practice managers always default to "All practices" (selectedId = null).
+  useEffect(() => {
+    if (rawPracticeId) return; // URL already has one
+    if (practices.length !== 1) return; // Multi-practice: default to "All"
+    try {
+      const stored = localStorage.getItem("selected_practice_id");
+      if (stored && UUID_RE.test(stored) && practices.some((p) => p.id === stored)) {
+        const params = new URLSearchParams(searchParams?.toString() ?? "");
+        params.set("practice_id", stored);
+        router.replace(`${pathname}?${params.toString()}`);
+      }
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [practices]); // Only run when practices load
+
+  const handlePracticeChange = useCallback((id: string | null) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    if (id) {
+      params.set("practice_id", id);
+    } else {
+      params.delete("practice_id");
+    }
+    router.replace(`${pathname}?${params.toString()}`);
+  }, [searchParams, router, pathname]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/practice-status?_t=${Date.now()}${demoParam}`, { cache: "no-store" });
+      const pidParam = selectedPracticeId ? `&practice_id=${encodeURIComponent(selectedPracticeId)}` : "";
+      const mgrParam = userRole === "manager" && userId ? `&manager_id=${userId}` : "";
+      const res = await fetch(`/api/admin/practice-status?_t=${Date.now()}${demoParam}${pidParam}${mgrParam}`, { cache: "no-store" });
       const json = await res.json();
       if (json.error) throw new Error(typeof json.error === "string" ? json.error : json.error?.message ?? "API error");
       setData(json.data);
@@ -184,7 +267,7 @@ function PracticeStatusContent() {
     } finally {
       setLoading(false);
     }
-  }, [demoParam]);
+  }, [demoParam, selectedPracticeId, userRole, userId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -229,24 +312,32 @@ function PracticeStatusContent() {
           <Link href="/admin" style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "#374151", textDecoration: "none", letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 20 }}>
             &larr; Admin
           </Link>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{
-              width: 38, height: 38, borderRadius: 11,
-              background: "linear-gradient(135deg, #0e7490, #38bdf8)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 18, flexShrink: 0,
-              boxShadow: "0 0 24px rgba(56,189,248,0.2)",
-            }}>{"\u25C9"}</div>
-            <div>
-              <h1 style={{ fontFamily: FONT.display, fontSize: 24, fontWeight: 800, letterSpacing: -0.5, color: T.text.heading, lineHeight: 1 }}>
-                Practice Status
-              </h1>
-              <div style={{ fontSize: 13, color: "#374151", marginTop: 3 }}>
-                How your practice is doing this week
-              </div>
-            </div>
+          <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: 1.5, textTransform: "uppercase", color: "rgba(255,255,255,0.35)", fontFamily: FONT.mono, marginBottom: 8 }}>
+            Practice Status
+          </div>
+          <div className="status-header-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+            <h1 style={{ fontFamily: FONT.display, fontSize: 22, fontWeight: 800, letterSpacing: -0.5, color: T.text.heading, lineHeight: 1, margin: 0 }}>
+              {selectedPracticeId && selectedPracticeName
+                ? selectedPracticeName
+                : isMulti
+                  ? (userRole === "manager" ? "All My Practices" : "All Practices")
+                  : practices.length === 1
+                    ? practices[0].name
+                    : "Practice Status"}
+            </h1>
+            <PracticeSelector
+              practices={practices}
+              selectedId={selectedPracticeId}
+              onChange={handlePracticeChange}
+              allLabel={userRole === "manager" ? "All my practices" : "All practices"}
+            />
           </div>
         </div>
+        <style>{`
+          @media (max-width: 640px) {
+            .status-header-row { flex-direction: column !important; align-items: stretch !important; }
+          }
+        `}</style>
 
         {/* Error state */}
         {error && (
@@ -259,6 +350,22 @@ function PracticeStatusContent() {
         {loading && !data && (
           <div style={{ textAlign: "center", padding: "60px 0" }}>
             <Ghost>Loading practice status...</Ghost>
+          </div>
+        )}
+
+        {/* Zero-assignment empty state for managers */}
+        {!loading && !error && userRole === "manager" && practices.length === 0 && (
+          <div style={{
+            textAlign: "center", padding: "80px 24px",
+            borderRadius: 12, border: `1px solid ${T.border.DEFAULT}`,
+            background: T.bg.card,
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: T.text.secondary, marginBottom: 8 }}>
+              No practices assigned yet
+            </div>
+            <div style={{ fontSize: 13, color: T.text.tertiary, maxWidth: 340, margin: "0 auto" }}>
+              Contact your administrator to get access to one or more practices.
+            </div>
           </div>
         )}
 
@@ -408,6 +515,9 @@ function PracticeStatusContent() {
                           }} />
                           <div style={{ flex: 1, fontSize: 13, color: T.text.secondary }}>
                             {event.message}
+                            {isMulti && !selectedPracticeId && event.practiceName && (
+                              <span style={{ color: T.text.disabled, fontSize: 11 }}>{" · "}{event.practiceName}</span>
+                            )}
                           </div>
                           <div style={{ fontSize: 11, color: T.text.disabled, fontFamily: FONT.mono, flexShrink: 0 }}>
                             {timeAgo(event.time)}
@@ -463,7 +573,14 @@ function PracticeStatusContent() {
                         fontStyle: isInactive ? "italic" : "normal",
                         fontSize: 13,
                       }}>
-                        <span style={{ fontWeight: 600, color: isInactive ? T.text.disabled : T.text.primary }}>{t.name}</span>
+                        <span style={{ fontWeight: 600, color: isInactive ? T.text.disabled : T.text.primary }}>
+                          {t.name}
+                          {isMulti && !selectedPracticeId && t.practiceName && (
+                            <span style={{ display: "block", fontSize: 10, fontWeight: 500, color: T.text.disabled, marginTop: 1 }}>
+                              {t.practiceName}
+                            </span>
+                          )}
+                        </span>
                         <span>{t.casesAssigned}</span>
                         <span>{t.checkinsThisWeek}</span>
                         <span style={{ color: T.text.disabled }}>{t.sessionRatings !== null ? t.sessionRatings : "\u2014"}</span>

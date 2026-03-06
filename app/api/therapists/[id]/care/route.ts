@@ -193,11 +193,11 @@ export async function GET(
     if (r.patient_id) patientIds.add(r.patient_id);
   }
 
-  const patientById = new Map<string, { first_name: string | null; last_name: string | null }>();
+  const patientById = new Map<string, { first_name: string | null }>();
   if (patientIds.size) {
     const { data: pRows, error: pErr } = await supabase
       .from("patients")
-      .select("id, first_name, last_name")
+      .select("id, first_name")
       .in("id", Array.from(patientIds));
 
     if (pErr) {
@@ -205,7 +205,7 @@ export async function GET(
     }
 
     for (const p of (pRows ?? []) as any[]) {
-      patientById.set(p.id, { first_name: p.first_name ?? null, last_name: p.last_name ?? null });
+      patientById.set(p.id, { first_name: p.first_name ?? null });
     }
   }
 
@@ -221,7 +221,6 @@ export async function GET(
       case_id,
       case_title: meta?.title ?? null,
       patient_first_name: patient?.first_name ?? null,
-      patient_last_name: patient?.last_name ?? null,
       checkins: stats.count,
       avg_score: avg,
       lowest_score: stats.lowest,

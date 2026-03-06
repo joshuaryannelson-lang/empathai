@@ -4,6 +4,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { NavSidebar } from "@/app/components/NavSidebar";
+import { getRole } from "@/lib/roleContext";
+import { PracticeManagerAssignments } from "./components/PracticeManagerAssignments";
 
 type AdminOverview = {
   totals: {
@@ -49,8 +51,8 @@ function DemoSeedCard() {
       if (!res.ok) throw new Error(json?.error?.message ?? JSON.stringify(json?.error));
       setMsg(json?.data?.message ?? "Done.");
       setStatus("done");
-    } catch (e: any) {
-      setMsg(e?.message ?? String(e));
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : String(e));
       setStatus("error");
     }
   }
@@ -175,7 +177,7 @@ export default function AdminPage() {
     try {
       setSidebarPracticeId(localStorage.getItem("selected_practice_id"));
       setSidebarTherapistId(localStorage.getItem("selected_therapist_id"));
-      setUserRole(localStorage.getItem("user_role"));
+      setUserRole(getRole());
     } catch {}
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -312,9 +314,59 @@ export default function AdminPage() {
               </div>
             ))}
           </div>
+
+          {/* ── Practice Manager Assignments (admin only) ── */}
+          {userRole === "admin" && data && (data.practices ?? []).length > 0 && (
+            <PracticeAssignmentsSection practices={data.practices} />
+          )}
         </div>
 
       </main>
+    </div>
+  );
+}
+
+function PracticeAssignmentsSection({ practices }: { practices: Array<{ id: string; name: string | null }> }) {
+  const [selectedPracticeId, setSelectedPracticeId] = useState<string | null>(
+    practices.length > 0 ? practices[0].id : null
+  );
+
+  return (
+    <div style={{ marginTop: 48 }}>
+      <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.6, color: "#374151", textTransform: "uppercase", marginBottom: 16 }}>
+        Practice Manager Assignments
+      </div>
+      <div style={{
+        padding: "24px 22px", borderRadius: 16,
+        border: "1px solid #1a1e2a", background: "#0d1018",
+      }}>
+        {/* Practice picker */}
+        <div style={{ marginBottom: 8 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.45)", marginBottom: 6, display: "block" }}>
+            Practice
+          </label>
+          <select
+            value={selectedPracticeId ?? ""}
+            onChange={e => setSelectedPracticeId(e.target.value || null)}
+            style={{
+              width: "100%", maxWidth: 320,
+              padding: "8px 12px", fontSize: 13,
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              background: "#111420", color: "#e2e8f0",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 8, outline: "none",
+            }}
+          >
+            {practices.map(p => (
+              <option key={p.id} value={p.id}>{p.name ?? p.id}</option>
+            ))}
+          </select>
+        </div>
+
+        {selectedPracticeId && (
+          <PracticeManagerAssignments practiceId={selectedPracticeId} />
+        )}
+      </div>
     </div>
   );
 }

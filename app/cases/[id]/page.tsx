@@ -42,7 +42,7 @@ type TimelineCheckin = {
 
 type TimelineResponse = {
   case: { id: string; title: string | null; status: string | null; created_at: string };
-  patient: { first_name: string | null; last_name: string | null; extended_profile?: ExtendedPatient } | null;
+  patient: { first_name: string | null; extended_profile?: ExtendedPatient } | null;
   therapist: { name: string | null; extended_profile?: ExtendedTherapist } | null;
   checkins: TimelineCheckin[];
 };
@@ -57,7 +57,7 @@ type Goal = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const fullName  = (f?: string | null, l?: string | null) => `${f ?? ""} ${l ?? ""}`.trim() || "Patient";
+const fullName  = (f?: string | null) => f?.trim() || "Patient";
 const fmtShort  = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 const fmtFull   = (iso: string) => new Date(iso).toLocaleString(undefined, { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 const fmtDate   = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -75,7 +75,7 @@ const scoreHue = (s: number | null) => {
 
 // ─── AI Prompt ────────────────────────────────────────────────────────────────
 function buildPrompt(d: TimelineResponse, goals: Goal[]): string {
-  const name = fullName(d.patient?.first_name, d.patient?.last_name);
+  const name = fullName(d.patient?.first_name);
   const ep = d.patient?.extended_profile ?? {};
   const te = d.therapist?.extended_profile ?? {};
   const history = d.checkins.slice(0, 6).map((c, i) =>
@@ -195,8 +195,8 @@ export default function CasePage() {
   const checkins    = d?.checkins ?? [];
   const latest      = checkins[0] ?? null;
   const prev        = checkins[1] ?? null;
-  const patientName = fullName(d?.patient?.first_name, d?.patient?.last_name);
-  const initials    = (d?.patient?.first_name?.[0] ?? "") + (d?.patient?.last_name?.[0] ?? "");
+  const patientName = fullName(d?.patient?.first_name);
+  const initials    = d?.patient?.first_name?.[0] ?? "";
   const avgScore    = avg(checkins.map(c => c.score).filter((n): n is number => n !== null));
   const baseline    = avg(checkins.slice(1, 4).map(c => c.score).filter((n): n is number => n !== null));
   const delta       = latest?.score != null && baseline != null ? latest.score - baseline : null;

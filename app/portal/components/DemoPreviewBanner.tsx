@@ -1,21 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getRole } from "@/lib/roleContext";
 
 /**
  * Shows a banner when a therapist/manager is previewing the patient portal.
- * Detection: checks localStorage for selected_persona = therapist | manager | admin.
+ * Detection: uses getRole() — therapist, manager, or admin viewing the portal.
  */
 export default function DemoPreviewBanner() {
   const [persona, setPersona] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const p = localStorage.getItem("selected_persona");
-      if (p && ["therapist", "manager", "admin"].includes(p)) {
-        setPersona(p);
-      }
-    } catch {}
+    const role = getRole();
+    if (role && ["therapist", "manager", "admin"].includes(role)) {
+      setPersona(role);
+    }
   }, []);
 
   if (!persona) return null;
