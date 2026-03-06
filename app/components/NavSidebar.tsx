@@ -54,14 +54,27 @@ export function NavSidebar({
       }
     : { label: "Care dashboard", href: "#", dim: true, note: "select a therapist" };
 
+  // Role detection from localStorage (set during auth)
+  const storedRole = typeof window !== "undefined"
+    ? (() => { try { return localStorage.getItem("user_role"); } catch { return null; } })()
+    : null;
+  const isManager = storedRole === "manager";
+  const isTherapist = storedRole === "therapist";
+
+  const adminItems: NavItem[] = [
+    { label: "Practice Status", href: "/admin/status" },
+    { label: "Admin", href: "/admin" },
+    { label: "Therapists", href: "/admin/therapists" },
+    { label: "Patients", href: "/admin/patients" },
+  ];
+  // Developer Tools only visible to non-manager roles (admin, dev)
+  if (!isManager) {
+    adminItems.push({ label: "Developer Tools", href: "/admin/dev" });
+  }
+
   const adminGroup: NavGroup = {
     label: "Admin",
-    items: [
-      { label: "Admin", href: "/admin" },
-      { label: "Therapists", href: "/admin/therapists" },
-      { label: "Patients", href: "/admin/patients" },
-      { label: "Developer Tools", href: "/admin/dev" },
-    ],
+    items: adminItems,
   };
 
   const allGroups: NavGroup[] = [
@@ -101,11 +114,16 @@ export function NavSidebar({
     adminGroup,
   ];
 
-  const baseGroups = adminOnly
+  const rawGroups = adminOnly
     ? allGroups.filter(g => g.label === "Admin")
     : mode === "practice"
       ? practiceGroups
       : allGroups;
+
+  // Therapists have zero access to /admin — hide the entire admin group
+  const baseGroups = isTherapist
+    ? rawGroups.filter(g => g.label !== "Admin")
+    : rawGroups;
 
   const groups = hideGroups.length
     ? baseGroups.filter(g => !hideGroups.includes(g.label))

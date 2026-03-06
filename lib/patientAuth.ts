@@ -27,7 +27,13 @@ export interface PatientJWTClaims extends JWTPayload {
  * Called after successful join code redemption.
  */
 export async function mintPatientJWT(caseCode: string): Promise<string> {
-  if (!JWT_SECRET) throw new Error("PATIENT_JWT_SECRET is not configured");
+  if (!JWT_SECRET) {
+    throw new Error(
+      "[patientAuth] PATIENT_JWT_SECRET is not set. " +
+      "Add it to Vercel Dashboard > Settings > Environment Variables > Production. " +
+      "Patient portal auth will not work without it."
+    );
+  }
 
   return new SignJWT({
     role: "patient",
@@ -44,7 +50,15 @@ export async function mintPatientJWT(caseCode: string): Promise<string> {
  * Verify and decode a patient JWT. Returns the claims or null if invalid.
  */
 export async function verifyPatientJWT(token: string): Promise<PatientJWTClaims | null> {
-  if (!JWT_SECRET) return null;
+  if (!JWT_SECRET) {
+    if (process.env.NODE_ENV === "production") {
+      console.error(
+        "[patientAuth] PATIENT_JWT_SECRET is not set — rejecting token. " +
+        "Add it to Vercel Dashboard > Settings > Environment Variables > Production."
+      );
+    }
+    return null;
+  }
 
   try {
     const { payload } = await jwtVerify(token, getSecret(), {

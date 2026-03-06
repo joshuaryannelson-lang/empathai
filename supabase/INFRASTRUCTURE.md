@@ -17,8 +17,16 @@
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client + Server | No (public) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server only | YES |
 | `ANTHROPIC_API_KEY` | Server only | YES |
-| `GOOGLE_PLACES_API_KEY` | Server only | YES |
-| `APOLLO_API_KEY` | Server only | YES |
+| `PATIENT_JWT_SECRET` | Server only | YES — required for patient portal auth |
+
+### Local scripts only (not needed in Vercel)
+
+These are used by `scripts/outreach/` tooling and are **not** required for the production application.
+
+| Variable | Used by |
+|----------|---------|
+| `GOOGLE_PLACES_API_KEY` | `scripts/outreach/google-maps-scraper.js` |
+| `APOLLO_API_KEY` | `scripts/outreach/email-enrichment.js` |
 
 Server-only secrets must NEVER be prefixed with `NEXT_PUBLIC_`.
 

@@ -9,19 +9,21 @@ import { NavSidebar } from "@/app/components/NavSidebar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Tab = "api" | "debug";
-type CheckLevel = "pass" | "warn" | "fail";
-type CheckState = "idle" | "running" | CheckLevel;
+
+type Severity = "critical" | "warning" | "info" | "empty";
+type CheckState = "idle" | "running" | "done";
 
 type CheckDef = {
   id: string;
   label: string;
   desc: string;
   url: string;
-  validate: (json: any, status: number) => { level: CheckLevel; summary: string; rca?: string };
+  validate: (json: any, status: number) => { severity: Severity; summary: string; rca?: string };
 };
 
 type CheckResult = {
   state: CheckState;
+  severity?: Severity;
   ms?: number;
   summary?: string;
   rca?: string;
@@ -41,6 +43,44 @@ function toMondayYYYYMMDD(s: string) {
   return toYYYYMMDD(d);
 }
 
+// ── Design tokens (from docs/ui-specs/design-system-tokens.ts) ────────────────
+const SEVERITY_STYLE: Record<Severity, {
+  borderLeft: string;
+  bg: string;
+  fg: string;
+  dotColor: string;
+  label: string;
+}> = {
+  critical: {
+    borderLeft: "3px solid #f87171",
+    bg: "#1a0808",
+    fg: "#f87171",
+    dotColor: "#f87171",
+    label: "CRITICAL",
+  },
+  warning: {
+    borderLeft: "3px solid #fb923c",
+    bg: "rgba(251,146,60,0.04)",
+    fg: "#fb923c",
+    dotColor: "#fb923c",
+    label: "WARNING",
+  },
+  info: {
+    borderLeft: "3px solid rgba(165,180,252,0.3)",
+    bg: "transparent",
+    fg: "#a5b4fc",
+    dotColor: "#a5b4fc",
+    label: "INFO",
+  },
+  empty: {
+    borderLeft: "3px solid transparent",
+    bg: "transparent",
+    fg: "rgba(255,255,255,0.35)",
+    dotColor: "rgba(255,255,255,0.15)",
+    label: "",
+  },
+};
+
 // ── Shared UI ─────────────────────────────────────────────────────────────────
 function Badge({ children, tone = "neutral" }: { children: any; tone?: "neutral" | "warn" | "bad" | "good" }) {
   const s = {
@@ -58,8 +98,8 @@ function Badge({ children, tone = "neutral" }: { children: any; tone?: "neutral"
 
 // ── Tab nav ───────────────────────────────────────────────────────────────────
 const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: "api",   label: "API Reference",  icon: "⌁" },
-  { id: "debug", label: "Diagnostics",    icon: "◎" },
+  { id: "api",   label: "API Reference",  icon: "\u2301" },
+  { id: "debug", label: "Diagnostics",    icon: "\u25CE" },
 ];
 
 function TabNav({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
@@ -187,7 +227,7 @@ function ApiTester({ defaultUrl }: { defaultUrl: string }) {
           style={{ flex: 1, padding: "9px 12px", borderRadius: 9, border: "1px solid #1f2533", background: "#0a0c10", color: "inherit", fontSize: 13, fontFamily: "monospace", outline: "none" }} />
         <button onClick={run} disabled={loading}
           style={{ padding: "9px 18px", borderRadius: 9, border: "1px solid #1f2533", background: loading ? "transparent" : "#0d1220", color: "inherit", fontWeight: 900, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.6 : 1, whiteSpace: "nowrap" }}>
-          {loading ? "Sending…" : "Send →"}
+          {loading ? "Sending\u2026" : "Send \u2192"}
         </button>
       </div>
       {method === "POST" && (
@@ -231,7 +271,7 @@ function ApiTab() {
     <div style={{ paddingTop: 28 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 20 }}>
         <div style={{ fontWeight: 900, fontSize: 16 }}>API Reference</div>
-        <div style={{ fontSize: 13, opacity: 0.4 }}>{total} endpoints · click Try → to test inline</div>
+        <div style={{ fontSize: 13, opacity: 0.4 }}>{total} endpoints &middot; click Try &rarr; to test inline</div>
       </div>
       <div style={{ display: "grid", gap: 28 }}>
         {API_GROUPS.map((group) => (
@@ -255,7 +295,7 @@ function ApiTab() {
                   )}
                   <button onClick={() => handleTry(ep.path.replace("[id]", "REPLACE_ID"))}
                     style={{ padding: "4px 10px", borderRadius: 7, border: "1px solid #1f2533", background: "transparent", color: "#6b7280", fontSize: 11, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
-                    Try →
+                    Try &rarr;
                   </button>
                 </div>
               ))}
@@ -266,7 +306,7 @@ function ApiTab() {
       <div ref={testerRef} style={{ marginTop: 40 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14 }}>
           <div style={{ fontWeight: 900, fontSize: 15 }}>API Tester</div>
-          <div style={{ fontSize: 12, opacity: 0.4 }}>manual request — click Try → above to pre-fill</div>
+          <div style={{ fontSize: 12, opacity: 0.4 }}>manual request &mdash; click Try &rarr; above to pre-fill</div>
         </div>
         <div style={{ border: "1px solid #1a1e2a", borderRadius: 12, padding: 18, background: "#0d1018" }}>
           <ApiTester defaultUrl={triedUrl} key={triedUrl} />
@@ -277,101 +317,158 @@ function ApiTab() {
 }
 
 // ── Diagnostics ───────────────────────────────────────────────────────────────
+
 const CHECKS: CheckDef[] = [
   {
     id: "admin-overview", label: "Admin overview", desc: "GET /api/admin/overview?range=7d", url: "/api/admin/overview?range=7d",
     validate: (json, status) => {
-      if (status >= 500) return { level: "fail", summary: "Server error (5xx)", rca: "Check the API route handler and Supabase connection string." };
-      if (status >= 400) return { level: "fail", summary: `HTTP ${status}`, rca: "Verify query params and environment variables." };
+      if (status >= 500) return { severity: "critical", summary: "Server error (5xx)", rca: "Check the API route handler and Supabase connection string." };
+      if (status >= 400) return { severity: "critical", summary: `HTTP ${status}`, rca: "Verify query params and environment variables." };
       const d = json?.data;
-      if (!d?.totals) return { level: "fail", summary: "Missing data.totals", rca: "Response does not contain the expected `data.totals` shape." };
-      if (d.totals.practices === 0) return { level: "warn", summary: "0 practices found", rca: "No practices in the database. Seed data may be missing." };
-      return { level: "pass", summary: `${d.totals.practices} practices · ${d.totals.therapists} therapists · ${d.totals.active_cases} active cases` };
+      if (!d?.totals) return { severity: "critical", summary: "Missing data.totals", rca: "Response does not contain the expected data shape." };
+      if (d.totals.practices === 0) return { severity: "empty", summary: "No practices created yet \u2014 seed data or create your first practice to get started" };
+      return { severity: "info", summary: `${d.totals.practices} practices \u00b7 ${d.totals.therapists} therapists \u00b7 ${d.totals.active_cases} active cases` };
     },
   },
   {
     id: "case-routing", label: "Case routing", desc: "Checks for unassigned cases via admin overview", url: "/api/admin/overview?range=7d",
     validate: (json, status) => {
-      if (status >= 400) return { level: "fail", summary: `HTTP ${status}`, rca: "Could not fetch overview data to audit routing." };
+      if (status >= 400) return { severity: "critical", summary: `HTTP ${status}`, rca: "Could not fetch overview data to audit routing." };
       const t = json?.data?.totals;
-      if (!t) return { level: "warn", summary: "No totals in response", rca: "Check endpoint health first." };
-      if (t.unassigned_cases > 0) return { level: "pass", summary: `${t.unassigned_cases} unassigned case${t.unassigned_cases !== 1 ? "s" : ""} — assign via Admin → Practices` };
-      return { level: "pass", summary: "All cases assigned" };
+      if (!t) return { severity: "critical", summary: "No totals in response", rca: "Check endpoint health first." };
+      if (t.unassigned_cases > 0) return { severity: "info", summary: `${t.unassigned_cases} case${t.unassigned_cases !== 1 ? "s" : ""} not yet assigned \u2014 assign via Admin \u2192 Practices when ready` };
+      return { severity: "info", summary: "All cases assigned" };
     },
   },
   {
     id: "risk-signals", label: "Risk signals", desc: "Checks for at-risk check-ins via admin overview", url: "/api/admin/overview?range=7d",
     validate: (json, status) => {
-      if (status >= 400) return { level: "fail", summary: `HTTP ${status}`, rca: "Could not fetch overview data." };
+      if (status >= 400) return { severity: "critical", summary: `HTTP ${status}`, rca: "Could not fetch overview data." };
       const t = json?.data?.totals;
-      if (!t) return { level: "warn", summary: "No totals in response", rca: "Check endpoint health first." };
-      if (t.at_risk_checkins > 0) return { level: "warn", summary: `${t.at_risk_checkins} at-risk check-in${t.at_risk_checkins !== 1 ? "s" : ""}`, rca: "Review the Manager Dashboard risk panels for follow-up." };
-      return { level: "pass", summary: "No at-risk check-ins in current window" };
+      if (!t) return { severity: "critical", summary: "No totals in response", rca: "Check endpoint health first." };
+      if (t.at_risk_checkins > 0) return { severity: "warning", summary: `${t.at_risk_checkins} at-risk check-in${t.at_risk_checkins !== 1 ? "s" : ""} this week`, rca: "Review the Manager Dashboard risk panels for follow-up." };
+      return { severity: "info", summary: "No at-risk check-ins in current window" };
     },
   },
   {
     id: "practices-list", label: "Practices endpoint", desc: "GET /api/practices", url: "/api/practices",
     validate: (json, status) => {
-      if (status >= 500) return { level: "fail", summary: "Server error (5xx)", rca: "Check app/api/practices/route.ts and Supabase credentials." };
-      if (status >= 400) return { level: "fail", summary: `HTTP ${status}`, rca: "Check middleware and auth configuration." };
+      if (status >= 500) return { severity: "critical", summary: "Server error (5xx)", rca: "Check app/api/practices/route.ts and Supabase credentials." };
+      if (status >= 400) return { severity: "critical", summary: `HTTP ${status}`, rca: "Check middleware and auth configuration." };
       const list = json?.data ?? json;
-      if (!Array.isArray(list)) return { level: "fail", summary: "Bad response shape", rca: "Expected an array from /api/practices." };
-      if (list.length === 0) return { level: "warn", summary: "Empty list returned", rca: "No practices in the DB." };
-      return { level: "pass", summary: `${list.length} practice${list.length !== 1 ? "s" : ""} returned` };
+      if (!Array.isArray(list)) return { severity: "critical", summary: "Bad response shape", rca: "Expected an array from /api/practices." };
+      if (list.length === 0) return { severity: "empty", summary: "No practices in the system yet \u2014 create one or run the seed script to get started" };
+      return { severity: "info", summary: `${list.length} practice${list.length !== 1 ? "s" : ""} returned` };
     },
   },
   {
     id: "therapists-list", label: "Therapists endpoint", desc: "GET /api/therapists (no filter)", url: "/api/therapists",
     validate: (json, status) => {
-      if (status >= 500) return { level: "fail", summary: "Server error (5xx)", rca: "Check the route handler and DB query." };
-      if (status === 400) return { level: "warn", summary: "400 — practice_id may be required", rca: "Use the API Tester with a valid practice_id to confirm." };
-      if (status >= 400) return { level: "fail", summary: `HTTP ${status}`, rca: "Unexpected error." };
+      if (status >= 500) return { severity: "critical", summary: "Server error (5xx)", rca: "Check the route handler and DB query." };
+      if (status === 400) return { severity: "info", summary: "Endpoint expects a practice_id filter \u2014 this is normal" };
+      if (status >= 400) return { severity: "critical", summary: `HTTP ${status}`, rca: "Unexpected error." };
       const list = json?.data ?? json;
-      if (!Array.isArray(list)) return { level: "warn", summary: "Non-array response", rca: "Test with practice_id." };
-      return { level: "pass", summary: `${list.length} therapist${list.length !== 1 ? "s" : ""} returned` };
+      if (!Array.isArray(list)) return { severity: "info", summary: "Non-array response \u2014 test with a practice_id for full results" };
+      return { severity: "info", summary: `${list.length} therapist${list.length !== 1 ? "s" : ""} returned` };
     },
   },
   {
     id: "health-score", label: "Health score endpoint", desc: "GET /api/health-score", url: "/api/health-score",
     validate: (_json, status) => {
-      if (status >= 500) return { level: "fail", summary: "Server error (5xx)", rca: "Check app/api/health-score/route.ts." };
-      if (status >= 400) return { level: "warn", summary: `HTTP ${status} — param may be required`, rca: "Health score may require ?practice_id=UUID." };
-      return { level: "pass", summary: "Endpoint reachable and responding" };
+      if (status >= 500) return { severity: "critical", summary: "Server error (5xx)", rca: "Check app/api/health-score/route.ts." };
+      if (status >= 400) return { severity: "info", summary: "Endpoint requires a practice_id param \u2014 this is expected" };
+      return { severity: "info", summary: "Endpoint reachable and responding" };
     },
   },
 ];
 
-const LEVEL_STYLE: Record<CheckLevel, { bg: string; bd: string; tx: string; dot: string; label: string }> = {
-  pass: { bg: "#061a0b", bd: "#0e2e1a", tx: "#4ade80", dot: "#4ade80", label: "PASS" },
-  warn: { bg: "#1a1000", bd: "#3d2800", tx: "#fb923c", dot: "#fb923c", label: "WARN" },
-  fail: { bg: "#1a0808", bd: "#3d1a1a", tx: "#f87171", dot: "#f87171", label: "FAIL" },
-};
+// ── Diagnostic check card ─────────────────────────────────────────────────────
 
 function CheckCard({ check, result }: { check: CheckDef; result: CheckResult | undefined }) {
   const state = result?.state ?? "idle";
   const isRunning = state === "running";
-  const level = (state === "pass" || state === "warn" || state === "fail") ? state : null;
-  const ls = level ? LEVEL_STYLE[level] : null;
+  const severity = result?.severity ?? null;
+  const ss = severity ? SEVERITY_STYLE[severity] : null;
+
+  const isEmpty = severity === "empty";
+
   return (
-    <div style={{ border: `1px solid ${ls ? ls.bd : "#1a1e2a"}`, borderRadius: 12, padding: 16, background: ls ? ls.bg : "#0d1018", display: "grid", gap: 10 }}>
+    <div style={{
+      borderLeft: ss ? ss.borderLeft : "3px solid #1a1e2a",
+      borderRadius: 8,
+      padding: "12px 16px",
+      background: ss ? ss.bg : "#0d1018",
+      border: severity === "critical" ? `1px solid #3d1a1a` : severity === "warning" ? "1px solid rgba(251,146,60,0.15)" : "1px solid #1a1e2a",
+      borderLeftWidth: 3,
+      borderLeftStyle: "solid",
+      borderLeftColor: ss ? (severity === "empty" ? "transparent" : ss.fg) : "#1a1e2a",
+      display: "grid",
+      gap: 6,
+    }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 10, height: 10, borderRadius: "50%", flexShrink: 0, background: isRunning ? "#6b7280" : ls ? ls.dot : "#2a2e3d", boxShadow: ls && level !== "pass" ? `0 0 6px ${ls.dot}55` : "none" }} />
-        <div style={{ fontWeight: 900, fontSize: 14, flex: 1 }}>{check.label}</div>
-        {level && <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 900, fontFamily: "monospace", background: "transparent", border: `1px solid ${ls!.bd}`, color: ls!.tx }}>{ls!.label}</span>}
-        {isRunning && <span style={{ fontSize: 12, opacity: 0.45 }}>running…</span>}
+        {!isRunning && severity && severity !== "empty" && (
+          <div style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: ss!.dotColor, boxShadow: severity === "critical" ? `0 0 6px ${ss!.dotColor}55` : "none" }} />
+        )}
+        <div style={{
+          fontWeight: isEmpty ? 500 : 700,
+          fontSize: 13,
+          flex: 1,
+          color: isEmpty ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.9)",
+          fontStyle: isEmpty ? "italic" : "normal",
+        }}>
+          {check.label}
+        </div>
+        {severity && severity !== "empty" && ss!.label && (
+          <span style={{
+            padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 900,
+            fontFamily: "'DM Mono', monospace",
+            background: "transparent",
+            border: `1px solid ${severity === "critical" ? "#3d1a1a" : severity === "warning" ? "#3d2800" : "#1f2240"}`,
+            color: ss!.fg,
+          }}>
+            {ss!.label}
+          </span>
+        )}
+        {isRunning && <span style={{ fontSize: 12, opacity: 0.45 }}>running&hellip;</span>}
         {state === "idle" && <span style={{ fontSize: 12, opacity: 0.3 }}>pending</span>}
-        {result?.ms != null && !isRunning && <span style={{ fontSize: 11, opacity: 0.35 }}>{result.ms}ms</span>}
+        {result?.ms != null && !isRunning && <span style={{ fontSize: 11, opacity: 0.3, fontFamily: "'DM Mono', monospace" }}>{result.ms}ms</span>}
       </div>
-      <code style={{ fontSize: 11, fontFamily: "monospace", opacity: 0.35 }}>{check.desc}</code>
-      {result?.summary && <div style={{ fontSize: 13, color: ls ? ls.tx : "inherit", fontWeight: level !== "pass" ? 700 : 400 }}>{result.summary}</div>}
-      {result?.rca && <div style={{ marginTop: 2, padding: "10px 12px", borderRadius: 9, border: `1px solid ${ls!.bd}`, background: "rgba(0,0,0,0.25)", fontSize: 12, color: ls!.tx, lineHeight: 1.6, opacity: 0.9 }}><span style={{ fontWeight: 900, marginRight: 6 }}>RCA</span>{result.rca}</div>}
+      {result?.summary && (
+        <div style={{
+          fontSize: 13,
+          color: isEmpty ? "rgba(255,255,255,0.3)" : severity === "critical" ? "#f87171" : severity === "warning" ? "#fb923c" : "rgba(255,255,255,0.55)",
+          fontWeight: severity === "critical" || severity === "warning" ? 600 : 400,
+          fontStyle: isEmpty ? "italic" : "normal",
+          lineHeight: 1.5,
+        }}>
+          {result.summary}
+        </div>
+      )}
+      {result?.rca && severity && (severity === "critical" || severity === "warning") && (
+        <div style={{
+          marginTop: 2,
+          padding: "8px 12px",
+          borderRadius: 8,
+          border: `1px solid ${severity === "critical" ? "#3d1a1a" : "#3d2800"}`,
+          background: "rgba(0,0,0,0.25)",
+          fontSize: 12,
+          color: ss!.fg,
+          lineHeight: 1.6,
+          opacity: 0.9,
+        }}>
+          <span style={{ fontWeight: 900, marginRight: 6 }}>RCA</span>{result.rca}
+        </div>
+      )}
     </div>
   );
 }
 
+// ── Diagnostics tab ───────────────────────────────────────────────────────────
+
 function DiagnosticsTab() {
   const [results, setResults] = useState<Record<string, CheckResult>>({});
   const [running, setRunning] = useState(false);
+  const [infoExpanded, setInfoExpanded] = useState(false);
 
   async function runCheck(check: CheckDef) {
     setResults((prev) => ({ ...prev, [check.id]: { state: "running" } }));
@@ -379,17 +476,18 @@ function DiagnosticsTab() {
     try {
       const { status, json } = await fetchRaw(check.url);
       const ms = Date.now() - t0;
-      const { level, summary, rca } = check.validate(json, status);
-      setResults((prev) => ({ ...prev, [check.id]: { state: level, ms, summary, rca } }));
+      const { severity, summary, rca } = check.validate(json, status);
+      setResults((prev) => ({ ...prev, [check.id]: { state: "done", severity, ms, summary, rca } }));
     } catch (e: any) {
       const ms = Date.now() - t0;
-      setResults((prev) => ({ ...prev, [check.id]: { state: "fail", ms, summary: "Network error", rca: e?.message ?? "Could not reach the endpoint." } }));
+      setResults((prev) => ({ ...prev, [check.id]: { state: "done", severity: "critical", ms, summary: "Network error", rca: e?.message ?? "Could not reach the endpoint." } }));
     }
   }
 
   async function runAll() {
     setRunning(true);
     setResults({});
+    setInfoExpanded(false);
     await Promise.all(CHECKS.map(runCheck));
     setRunning(false);
   }
@@ -397,40 +495,118 @@ function DiagnosticsTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { runAll(); }, []);
 
-  const counts = Object.values(results).reduce(
-    (acc, r) => { if (r.state === "pass") acc.pass++; else if (r.state === "warn") acc.warn++; else if (r.state === "fail") acc.fail++; return acc; },
-    { pass: 0, warn: 0, fail: 0 }
-  );
   const allDone = !running && Object.keys(results).length === CHECKS.length;
+
+  const counts = Object.values(results).reduce(
+    (acc, r) => {
+      if (r.severity === "critical") acc.critical++;
+      else if (r.severity === "warning") acc.warning++;
+      else if (r.severity === "info") acc.info++;
+      else if (r.severity === "empty") acc.empty++;
+      return acc;
+    },
+    { critical: 0, warning: 0, info: 0, empty: 0 }
+  );
+
+  const actionableCount = counts.critical + counts.warning;
+  const allHealthy = allDone && actionableCount === 0;
+
+  // Sort: critical first, then warning, then info, then empty
+  const sortedChecks = [...CHECKS].sort((a, b) => {
+    const order: Record<string, number> = { critical: 0, warning: 1, info: 2, empty: 3 };
+    const sA = results[a.id]?.severity;
+    const sB = results[b.id]?.severity;
+    return (order[sA ?? "info"] ?? 2) - (order[sB ?? "info"] ?? 2);
+  });
+
+  // Split into groups
+  const criticalItems = sortedChecks.filter(c => results[c.id]?.severity === "critical");
+  const warningItems = sortedChecks.filter(c => results[c.id]?.severity === "warning");
+  const infoItems = sortedChecks.filter(c => results[c.id]?.severity === "info");
+  const emptyItems = sortedChecks.filter(c => results[c.id]?.severity === "empty");
+  const pendingItems = sortedChecks.filter(c => !results[c.id]?.severity);
 
   return (
     <div style={{ paddingTop: 28 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
           <div style={{ fontWeight: 900, fontSize: 16 }}>System Diagnostics</div>
-          <div style={{ fontSize: 13, opacity: 0.4, marginTop: 3 }}>Automated health checks — failing checks include root cause analysis.</div>
+          <div style={{ fontSize: 13, opacity: 0.4, marginTop: 3 }}>Automated health checks across API endpoints.</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {allDone && (
+          {allDone && actionableCount > 0 && (
             <div style={{ display: "flex", gap: 8 }}>
-              {counts.fail > 0 && <Badge tone="bad">{counts.fail} failed</Badge>}
-              {counts.warn > 0 && <Badge tone="warn">{counts.warn} warn</Badge>}
-              {counts.pass > 0 && <Badge tone="good">{counts.pass} passed</Badge>}
+              {counts.critical > 0 && <Badge tone="bad">{counts.critical} critical</Badge>}
+              {counts.warning > 0 && <Badge tone="warn">{counts.warning} warning</Badge>}
             </div>
           )}
           <button onClick={runAll} disabled={running}
             style={{ padding: "9px 16px", borderRadius: 9, border: "1px solid #1f2533", background: running ? "transparent" : "#0d1220", color: "inherit", fontWeight: 800, fontSize: 13, cursor: running ? "not-allowed" : "pointer", opacity: running ? 0.6 : 1 }}>
-            {running ? "Running…" : "Run all checks"}
+            {running ? "Running\u2026" : "Run all checks"}
           </button>
         </div>
       </div>
-      <div style={{ display: "grid", gap: 10 }}>
-        {[...CHECKS]
-          .sort((a, b) => {
-            const order: Record<string, number> = { fail: 0, warn: 1, idle: 2, running: 2, pass: 3 };
-            return (order[results[a.id]?.state ?? "idle"] ?? 2) - (order[results[b.id]?.state ?? "idle"] ?? 2);
-          })
-          .map((check) => <CheckCard key={check.id} check={check} result={results[check.id]} />)}
+
+      {/* All healthy banner */}
+      {allHealthy && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "16px 20px", borderRadius: 12, marginBottom: 20,
+          background: "#061a0b", border: "1px solid #0e2e1a",
+        }}>
+          <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#4ade80", flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#4ade80" }}>All systems healthy</div>
+            <div style={{ fontSize: 12, color: "rgba(74,222,128,0.6)", marginTop: 2 }}>
+              {CHECKS.length} checks passed &middot; no items need attention
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Summary line when there are actionable items */}
+      {allDone && actionableCount > 0 && (
+        <div style={{ fontSize: 13, fontWeight: 700, color: counts.critical > 0 ? "#f87171" : "#fb923c", marginBottom: 16 }}>
+          {actionableCount} item{actionableCount !== 1 ? "s" : ""} need{actionableCount === 1 ? "s" : ""} attention
+        </div>
+      )}
+
+      <div style={{ display: "grid", gap: 8 }}>
+        {/* Critical items — always visible */}
+        {criticalItems.map((check) => <CheckCard key={check.id} check={check} result={results[check.id]} />)}
+
+        {/* Warning items — always visible */}
+        {warningItems.map((check) => <CheckCard key={check.id} check={check} result={results[check.id]} />)}
+
+        {/* Pending items (still running) */}
+        {pendingItems.map((check) => <CheckCard key={check.id} check={check} result={results[check.id]} />)}
+
+        {/* Info items — collapsed by default if > 3 */}
+        {infoItems.length > 0 && !allHealthy && (
+          <>
+            {infoItems.length > 3 && !infoExpanded ? (
+              <>
+                {infoItems.slice(0, 3).map((check) => <CheckCard key={check.id} check={check} result={results[check.id]} />)}
+                <button
+                  onClick={() => setInfoExpanded(true)}
+                  style={{
+                    padding: "8px 16px", borderRadius: 8,
+                    border: "1px solid #1f2240", background: "transparent",
+                    color: "#a5b4fc", fontSize: 12, fontWeight: 600,
+                    cursor: "pointer", textAlign: "left",
+                  }}
+                >
+                  Show {infoItems.length - 3} more info items&hellip;
+                </button>
+              </>
+            ) : (
+              infoItems.map((check) => <CheckCard key={check.id} check={check} result={results[check.id]} />)
+            )}
+          </>
+        )}
+
+        {/* Empty state items — always visible but ghost-styled */}
+        {emptyItems.map((check) => <CheckCard key={check.id} check={check} result={results[check.id]} />)}
       </div>
     </div>
   );
@@ -479,7 +655,7 @@ function AdminDevPage() {
         {/* Header */}
         <div style={{ marginBottom: 32 }}>
           <Link href="/admin" style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "#374151", textDecoration: "none", letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 20 }}>
-            ← Admin
+            &larr; Admin
           </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{
@@ -488,7 +664,7 @@ function AdminDevPage() {
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 18, flexShrink: 0,
               boxShadow: "0 0 24px rgba(79,110,247,0.25)",
-            }}>⌁</div>
+            }}>{"\u2301"}</div>
             <div>
               <h1 style={{ fontSize: 26, fontWeight: 900, letterSpacing: -0.8, color: "#f1f3f8", lineHeight: 1 }}>
                 Developer Tools

@@ -1,6 +1,10 @@
 // middleware.ts
 // Next.js Edge Middleware — enforces MFA for manager accounts on /admin routes.
 // Uses @supabase/ssr to read the Supabase session from cookies.
+//
+// NOTE: Next.js 16 emits a build warning suggesting 'proxy' instead of 'middleware'.
+// The 'proxy' file convention is experimental (Turbopack only) and not yet stable.
+// Keep using middleware.ts until the proxy API is GA. Revisit on next Next.js upgrade.
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";

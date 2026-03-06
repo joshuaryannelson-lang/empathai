@@ -8,6 +8,7 @@ Merging to `main` triggers automatic deployment.
 - [ ] All tests pass: `npx jest --forceExit`
 - [ ] No TypeScript errors: `npx tsc --noEmit`
 - [ ] No secrets in diff: `git diff --cached | grep -i "sk-\|password\|secret"` (should be empty)
+- [ ] `PATIENT_JWT_SECRET` is set in Vercel Production environment variables (required for patient portal auth)
 
 ### Deploy process
 1. Create PR against `main`
@@ -44,3 +45,5 @@ Migrations live in `supabase/migrations/`. They are applied manually.
 
 ## Supabase MFA Changes
 See `supabase/MFA_CONFIG.md` for TOTP configuration steps.
+
+<!-- Environment variables last verified: 2026-03-05 -->

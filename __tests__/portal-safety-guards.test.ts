@@ -182,13 +182,13 @@ describe("Suite 7: MFA Gate", () => {
     expect(result2.action).toBe("pass");
   });
 
-  test("32c. non-manager roles (therapist, patient, admin) are not affected by MFA gate", () => {
-    // Therapist at aal1 should pass
-    expect(checkMfaGate({ role: "therapist", aal: "aal1", path: "/admin" }).action).toBe("pass");
+  test("32c. non-manager/non-therapist roles are not affected by MFA gate on general /admin routes", () => {
     // Patient at aal1 should pass
     expect(checkMfaGate({ role: "patient", aal: "aal1", path: "/admin" }).action).toBe("pass");
-    // Admin at aal1 should pass
+    // Admin at aal1 should pass everywhere
     expect(checkMfaGate({ role: "admin", aal: "aal1", path: "/admin" }).action).toBe("pass");
+    expect(checkMfaGate({ role: "admin", aal: "aal1", path: "/admin/dev" }).action).toBe("pass");
+    expect(checkMfaGate({ role: "admin", aal: "aal1", path: "/admin/status" }).action).toBe("pass");
     // No role should pass (unauthenticated — page handles its own auth)
     expect(checkMfaGate({ role: null, aal: null, path: "/admin" }).action).toBe("pass");
   });
@@ -221,6 +221,17 @@ describe("Suite 7: MFA Gate", () => {
     const content = fs.readFileSync(middlewarePath, "utf-8");
     expect(content).toContain("checkMfaGate");
     expect(content).toContain("mfa.getAuthenticatorAssuranceLevel");
+  });
+
+  test("32h-1. therapist has zero access to any /admin route", () => {
+    const routes = ["/admin", "/admin/status", "/admin/dev", "/admin/therapists", "/admin/patients", "/admin/anything"];
+    for (const route of routes) {
+      const result = checkMfaGate({ role: "therapist", aal: "aal1", path: route });
+      expect(result.action).toBe("redirect");
+      if (result.action === "redirect") {
+        expect(result.destination).toBe("/");
+      }
+    }
   });
 
   test("32h. MFA enrollment page exists and cannot be skipped", () => {

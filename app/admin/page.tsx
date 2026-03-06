@@ -95,36 +95,49 @@ function DemoSeedCard() {
 
 const TOOLS = [
   {
+    href: "/admin/status",
+    icon: "\u25C9",
+    accent: "#38bdf8",
+    accentAlpha: "rgba(56,189,248,",
+    title: "Practice Status",
+    desc: "See how your practice is doing this week — check-in rates, patient wellbeing, cases needing attention, and therapist activity.",
+    managerVisible: true,
+  },
+  {
     href: "/admin/therapists",
-    icon: "◎",
+    icon: "\u25CE",
     accent: "#7c5cfc",
     accentAlpha: "rgba(124,92,252,",
     title: "Therapists",
     desc: "Manage therapist profiles, practice assignments, and caseload visibility. Add new clinicians or update credentials and affiliations.",
+    managerVisible: true,
   },
   {
     href: "/admin/patients",
-    icon: "⬟",
+    icon: "\u2B1F",
     accent: "#00c8a0",
     accentAlpha: "rgba(0,200,160,",
     title: "Patients",
     desc: "View and manage patient records, case assignments, and enrollment status. Archive inactive cases or reassign patients between therapists.",
+    managerVisible: true,
   },
   {
     href: "/admin/dev",
-    icon: "⌁",
+    icon: "\u2301",
     accent: "#4f6ef7",
     accentAlpha: "rgba(79,110,247,",
     title: "Developer Tools",
     desc: "Inspect API endpoints, run diagnostics, and review integration health. Use for debugging data pipelines and testing configuration changes.",
+    managerVisible: false,
   },
   {
     href: "/status",
-    icon: "◉",
+    icon: "\u25C9",
     accent: "#22c55e",
     accentAlpha: "rgba(34,197,94,",
     title: "System Status",
     desc: "Real-time health of every AI service — briefing, session prep, THS, task generation, redaction, and risk classification.",
+    managerVisible: false,
   },
 ];
 
@@ -153,6 +166,7 @@ export default function AdminPage() {
   const [data, setData] = useState<AdminOverview | null>(null);
   const [sidebarPracticeId, setSidebarPracticeId] = useState<string | null>(null);
   const [sidebarTherapistId, setSidebarTherapistId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   const weekStart = useMemo(() => toMondayYYYYMMDD(toYYYYMMDD(new Date())), []);
 
@@ -161,9 +175,17 @@ export default function AdminPage() {
     try {
       setSidebarPracticeId(localStorage.getItem("selected_practice_id"));
       setSidebarTherapistId(localStorage.getItem("selected_therapist_id"));
+      setUserRole(localStorage.getItem("user_role"));
     } catch {}
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Manager role → redirect to /admin/status
+  useEffect(() => {
+    if (userRole === "manager") {
+      window.location.href = "/admin/status";
+    }
+  }, [userRole]);
 
   useEffect(() => {
     fetch("/api/admin/overview?range=7d", { cache: "no-store" })
@@ -236,7 +258,7 @@ export default function AdminPage() {
             Tools
           </div>
           <div className="admin-tool-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 36 }}>
-            {TOOLS.map(({ href, icon, accent, accentAlpha, title, desc }) => (
+            {TOOLS.filter(t => userRole !== "manager" || t.managerVisible).map(({ href, icon, accent, accentAlpha, title, desc }) => (
               <Link key={href} href={href} style={{ textDecoration: "none", color: "inherit" }}>
                 <div
                   className="tool-card"

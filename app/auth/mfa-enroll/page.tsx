@@ -1,13 +1,40 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { Suspense, useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
 type EnrollState = "loading" | "enroll" | "verify" | "success" | "error";
 
+function MfaEnrollFallback() {
+  return (
+    <div style={{ minHeight: "100vh", background: "#080c12", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: "50%", margin: "0 auto 16px",
+          border: "3px solid rgba(162,28,175,0.2)",
+          borderTopColor: "#a21caf",
+          animation: "mfa-spin 0.8s linear infinite",
+        }} />
+        <style>{`@keyframes mfa-spin { to { transform: rotate(360deg); } }`}</style>
+        <div style={{ fontSize: 14, color: "rgba(255,255,255,0.3)", fontFamily: "'DM Sans',system-ui" }}>
+          Loading...
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MfaEnrollPage() {
+  return (
+    <Suspense fallback={<MfaEnrollFallback />}>
+      <MfaEnrollContent />
+    </Suspense>
+  );
+}
+
+function MfaEnrollContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextUrl = searchParams.get("next") ?? "/admin";

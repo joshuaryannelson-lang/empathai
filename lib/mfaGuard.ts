@@ -1,6 +1,9 @@
 // lib/mfaGuard.ts
-// Pure-function MFA gate logic for manager accounts.
+// Role-based access gate + MFA enforcement for /admin routes.
 // Extracted from middleware so it can be unit-tested without Next.js runtime.
+//
+// Future: /settings/therapist route planned for therapist
+// profile and preference management — not yet built
 
 export type MfaCheckInput = {
   /** User role from JWT claims (e.g. "manager", "therapist", "patient", "admin") */
@@ -16,16 +19,16 @@ export type MfaCheckResult =
   | { action: "redirect"; destination: string };
 
 /**
- * Determine whether a request should be blocked by the MFA gate.
+ * Role access rules for /admin/*:
+ *   admin     → full access to all /admin/* routes
+ *   manager   → /admin/status only (MFA required). /admin/dev → redirect to /admin/status.
+ *   therapist → zero /admin/* access → redirect to /
  *
- * Rules:
- * - Only /admin/* routes are gated
- * - Only manager role requires MFA
- * - Therapists, patients, admins are NOT subject to MFA gate
- * - Manager with aal2 passes
- * - Manager with aal1 (or no aal) is redirected to /auth/mfa-enroll
- * - Unauthenticated users on /admin are passed through (admin page handles
- *   its own auth redirect separately)
+ * MFA rules (manager only):
+ *   aal2 → pass
+ *   aal1 or null → redirect to /auth/mfa-enroll
+ *
+ * Unauthenticated (role = null) → pass (page handles its own auth)
  */
 export function checkMfaGate(input: MfaCheckInput): MfaCheckResult {
   // Only gate /admin routes
@@ -38,7 +41,21 @@ export function checkMfaGate(input: MfaCheckInput): MfaCheckResult {
     return { action: "pass" };
   }
 
-  // Only managers require MFA
+  // ── Blanket therapist gate — fires before any other check ──
+  // Therapists have zero access to /admin/*. Redirect to home.
+  if (input.role === "therapist") {
+    return { action: "redirect", destination: "/" };
+  }
+
+  // ── Manager sub-route gates ──
+
+  // /admin/dev: admin only — managers redirected to /admin/status
+  if (input.path.startsWith("/admin/dev") && input.role === "manager") {
+    return { action: "redirect", destination: "/admin/status" };
+  }
+
+  // ── MFA gate for managers ──
+
   if (input.role !== "manager") {
     return { action: "pass" };
   }
