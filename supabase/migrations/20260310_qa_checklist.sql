@@ -32,6 +32,7 @@ create policy qa_checks_select on qa_checks
 create policy qa_checks_insert on qa_checks
   for insert with check (true);
 
--- Anyone can delete (name-based, no auth)
-create policy qa_checks_delete on qa_checks
-  for delete using (true);
+-- Anyone can update (upsert overwrites previous result)
+create policy qa_checks_update on qa_checks
+  for update using (true) with check (true);
+

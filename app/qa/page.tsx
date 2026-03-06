@@ -264,16 +264,12 @@ export default function QABoard() {
   const [submitting, setSubmitting] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  // Database IDs of deleted results. Ref so it persists across all re-renders
-  // and name changes. Once an ID is here, it stays for the page lifetime.
-  const deletedIds = useRef<Set<string>>(new Set());
 
   // Load tester name from localStorage
   useEffect(() => {
     try { setTesterName(localStorage.getItem("qa_tester_name") ?? ""); } catch {}
   }, []);
 
-  // Fetch results — raw from server, deletedIds filtering happens in resultsByPage
   const fetchResults = useCallback(async () => {
     try {
       const res = await fetch("/api/qa", { cache: "no-store" });
@@ -337,18 +333,6 @@ export default function QABoard() {
     }
   }
 
-  // Delete a check result by database ID.
-  // Add ID to deletedIds ref (permanent, never cleared) then fire-and-forget the API call.
-  // The ref survives all re-renders and name changes for the page lifetime.
-  function deleteCheck(id: string, pageId: string, checkIndex: number, name: string) {
-    deletedIds.current.add(id);
-    // Force re-render so resultsByPage recalculates
-    setResults(prev => [...prev]);
-    // Fire and forget
-    const params = new URLSearchParams({ page_id: pageId, check_index: String(checkIndex), tester_name: name });
-    fetch(`/api/qa?${params}`, { method: "DELETE" }).catch(() => {});
-  }
-
   // Copy link
   function copyLink() {
     try {
@@ -364,11 +348,9 @@ export default function QABoard() {
     cardRefs.current[pageId]?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  // All rendering goes through this. Filter deletedIds here — once.
   const resultsByPage = useMemo(() => {
     const map: Record<string, CheckResult[]> = {};
     for (const r of results) {
-      if (deletedIds.current.has(r.id)) continue;
       (map[r.page_id] ??= []).push(r);
     }
     return map;
@@ -418,7 +400,6 @@ export default function QABoard() {
         .qa-fade { animation: fadeIn 0.25s ease; }
         .qa-sidebar-item { cursor: pointer; padding: 6px 12px; border-radius: 6px; font-size: 13px; transition: background 0.15s; }
         .qa-sidebar-item:hover { background: rgba(255,255,255,0.05); }
-        .qa-badge-delete:hover { color: white !important; }
         @media (max-width: 800px) {
           .qa-layout { flex-direction: column !important; }
           .qa-sidebar { display: none !important; }
@@ -670,7 +651,6 @@ export default function QABoard() {
                                 const colors = r.status === "pass" ? T.pass : r.status === "fail" ? T.fail : T.skip;
                                 const noteKey = `${r.page_id}-${r.check_index}-${r.tester_name}`;
                                 const hasNote = r.status === "fail" && r.note;
-                                const isMine = testerName.trim() !== "" && r.tester_name === testerName.trim();
                                 return (
                                   <span key={r.id}>
                                     <span
@@ -698,21 +678,6 @@ export default function QABoard() {
                                       {hasNote && (
                                         <span style={{ fontSize: 9, opacity: 0.7 }}>
                                           {expandedNotes.has(noteKey) ? "\u25B4" : "\u25BE"}
-                                        </span>
-                                      )}
-                                      {isMine && (
-                                        <span
-                                          className="qa-badge-delete"
-                                          role="button"
-                                          aria-label={`Remove ${r.tester_name} result`}
-                                          onClick={(e) => { e.stopPropagation(); deleteCheck(r.id, r.page_id, r.check_index, r.tester_name); }}
-                                          style={{
-                                            marginLeft: 2, fontSize: 10, lineHeight: 1,
-                                            color: "rgba(255,255,255,0.4)",
-                                            cursor: "pointer",
-                                          }}
-                                        >
-                                          ×
                                         </span>
                                       )}
                                     </span>

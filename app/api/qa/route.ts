@@ -1,5 +1,5 @@
 // app/api/qa/route.ts
-// GET: all check results, POST: submit a check result, DELETE: remove a result
+// GET: all check results, POST: submit a check result (upsert)
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
@@ -46,24 +46,4 @@ export async function POST(request: Request) {
   return ok(data, 201);
 }
 
-export async function DELETE(request: Request) {
-  const { searchParams } = new URL(request.url);
 
-  const pageId = searchParams.get("page_id")?.trim() ?? "";
-  const checkIndex = Number(searchParams.get("check_index") ?? "-1");
-  const testerName = searchParams.get("tester_name")?.trim() ?? "";
-
-  if (!pageId) return bad("page_id required");
-  if (checkIndex < 0 || !Number.isInteger(checkIndex)) return bad("check_index required");
-  if (!testerName) return bad("tester_name required");
-
-  const { error } = await supabase
-    .from("qa_checks")
-    .delete()
-    .eq("page_id", pageId)
-    .eq("check_index", checkIndex)
-    .eq("tester_name", testerName);
-
-  if (error) return bad(error.message, 500);
-  return ok(null);
-}
