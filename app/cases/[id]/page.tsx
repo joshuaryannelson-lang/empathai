@@ -74,6 +74,7 @@ export default function CasePage() {
   const [goals, setGoals]       = useState<Goal[]>([]);
 
   const [sidebarTab, setSidebarTab] = useState<"care" | "notes">("care");
+  const [alertDismissed, setAlertDismissed] = useState(false);
   const [notesOpen, setNotesOpen]     = useState(false);
   const [copied, setCopied]     = useState<string | null>(null);
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -592,6 +593,19 @@ export default function CasePage() {
         .msg-placeholder-icon { font-size: 28px; margin-bottom: 8px; opacity: 0.3; }
         .msg-placeholder-text { font-size: 13px; color: #374151; line-height: 1.6; }
 
+        /* ── CLINICAL ALERT BAR ── */
+        .clinical-alert { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 10px; border-left: 4px solid #d97706; background: rgba(217,119,6,0.08); animation: fadeUp .3s ease both; }
+        .clinical-alert-icon { font-size: 16px; flex-shrink: 0; line-height: 1.2; }
+        .clinical-alert-body { flex: 1; min-width: 0; }
+        .clinical-alert-title { font-size: 13px; font-weight: 700; color: #fbbf24; line-height: 1.4; }
+        .clinical-alert-detail { font-size: 12px; color: #92400e; margin-top: 2px; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .clinical-alert-dismiss { background: none; border: none; color: #92400e; font-size: 16px; cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0; transition: color .15s; }
+        .clinical-alert-dismiss:hover { color: #fbbf24; }
+
+        /* ── CHECK-IN SUMMARY SECTION ── */
+        .checkin-summary { border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; animation: fadeUp .3s ease .08s both; }
+        .checkin-summary-label { font-size: 10px; font-weight: 700; color: #4b5563; text-transform: uppercase; letter-spacing: .08em; padding: 14px 16px 10px; }
+
         /* ── SIDEBAR TABS ── */
         .tab-panel { border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; animation: fadeUp .3s ease .05s both; }
         .tab-bar { display: flex; gap: 4px; padding: 10px 14px 0; }
@@ -872,61 +886,77 @@ export default function CasePage() {
                 </div>
               )}
 
+              {/* Clinical alert bar — score ≤ 3 */}
+              {!alertDismissed && latest?.score != null && latest.score <= 3 && (
+                <div className="clinical-alert">
+                  <div className="clinical-alert-icon">⚠</div>
+                  <div className="clinical-alert-body">
+                    <div className="clinical-alert-title">Score dropped to {latest.score} this week</div>
+                    {noteText(latest) && (
+                      <div className="clinical-alert-detail">{noteText(latest)!.slice(0, 80)}{(noteText(latest)!.length > 80) ? "…" : ""}</div>
+                    )}
+                  </div>
+                  <button className="clinical-alert-dismiss" onClick={() => setAlertDismissed(true)} title="Dismiss">&times;</button>
+                </div>
+              )}
+
               {/* 1. SESSION PREP — always first */}
               <SessionPrepCard caseId={id} weekStart={new Date().toISOString().slice(0, 10)} onReviewedChange={setSessionPrepReviewed} />
 
-              {/* 2. Stats row */}
-              <div className="trend-row">
-                {[
-                  { label: "Previous",   value: prev?.score?.toString() ?? "—",  sub: prev?.created_at ? fmtShort(prev.created_at) : "—", color: scoreHue(prev?.score ?? null).fg },
-                  { label: "6-wk avg",   value: avgScore?.toFixed(1) ?? "—",      sub: `${checkins.length} check-ins`,                     color: scoreHue(avgScore ?? null).fg },
-                  { label: "Days since", value: latest?.created_at ? `${daysSince(latest.created_at)}d` : "—", sub: "last check-in", color: isStale ? "#f97316" : "#9ca3af" },
-                ].map((s) => (
-                  <div key={s.label} className="trend-card">
-                    <div className="trend-label">{s.label}</div>
-                    <div className="trend-value" style={{ color: s.color }}>{s.value}</div>
-                    <div className="trend-sub">{s.sub}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* 3. Check-in history — 3 expanded, rest collapsed */}
-              <div className="history-wrap">
-                <div className="feed-head">
-                  <span className="feed-title">Check-in history</span>
-                  <span className="feed-count">{checkins.length} entries</span>
+              {/* 2. Check-in summary — stats + history unified */}
+              <div className="checkin-summary">
+                <div className="checkin-summary-label">Check-in summary</div>
+                <div style={{ padding: "0 14px 12px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                  {[
+                    { label: "Previous",   value: prev?.score?.toString() ?? "—",  sub: prev?.created_at ? fmtShort(prev.created_at) : "—", color: scoreHue(prev?.score ?? null).fg },
+                    { label: "6-wk avg",   value: avgScore?.toFixed(1) ?? "—",      sub: `${checkins.length} check-ins`,                     color: scoreHue(avgScore ?? null).fg },
+                    { label: "Days since", value: latest?.created_at ? `${daysSince(latest.created_at)}d` : "—", sub: "last check-in", color: isStale ? "#f97316" : "#9ca3af" },
+                  ].map((s) => (
+                    <div key={s.label} className="trend-card" style={{ border: "none", background: "transparent", padding: "8px 0" }}>
+                      <div className="trend-label">{s.label}</div>
+                      <div className="trend-value" style={{ color: s.color }}>{s.value}</div>
+                      <div className="trend-sub">{s.sub}</div>
+                    </div>
+                  ))}
                 </div>
-                <div style={{ padding: "4px 0 8px" }}>
-                  {checkins.length === 0 ? (
-                    <div className="feed-empty">No check-ins recorded yet</div>
-                  ) : (
-                    <>
-                      {(historyExpanded ? checkins : checkins.slice(0, 3)).map((ci, idx) => {
-                        const h = scoreHue(ci.score);
-                        return (
-                          <div key={ci.id} className="feed-item">
-                            <div className="feed-score" style={{ background: h.bg, border: `1px solid ${h.border}`, color: h.fg }}>
-                              {ci.score ?? "—"}
+
+                <div style={{ borderTop: "1px solid #131720" }}>
+                  <div className="feed-head" style={{ borderBottom: checkins.length > 0 ? "1px solid #131720" : "none" }}>
+                    <span className="feed-title">History</span>
+                    <span className="feed-count">{checkins.length} entries</span>
+                  </div>
+                  <div style={{ padding: "4px 0 8px" }}>
+                    {checkins.length === 0 ? (
+                      <div className="feed-empty">No check-ins recorded yet</div>
+                    ) : (
+                      <>
+                        {(historyExpanded ? checkins : checkins.slice(0, 3)).map((ci, idx) => {
+                          const h = scoreHue(ci.score);
+                          return (
+                            <div key={ci.id} className="feed-item">
+                              <div className="feed-score" style={{ background: h.bg, border: `1px solid ${h.border}`, color: h.fg }}>
+                                {ci.score ?? "—"}
+                              </div>
+                              <div className="feed-info">
+                                <div className="feed-date">{fmtFull(ci.created_at)}{idx === 0 ? " · latest" : ""}</div>
+                                {noteText(ci)
+                                  ? <div className="feed-note">&quot;{noteText(ci)}&quot;</div>
+                                  : <div className="feed-note" style={{ opacity: 0.3 }}>No note</div>}
+                              </div>
                             </div>
-                            <div className="feed-info">
-                              <div className="feed-date">{fmtFull(ci.created_at)}{idx === 0 ? " · latest" : ""}</div>
-                              {noteText(ci)
-                                ? <div className="feed-note">&quot;{noteText(ci)}&quot;</div>
-                                : <div className="feed-note" style={{ opacity: 0.3 }}>No note</div>}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {checkins.length > 3 && (
-                        <button
-                          onClick={() => setHistoryExpanded(v => !v)}
-                          style={{ width: "100%", padding: "8px 14px", background: "none", border: "none", borderTop: "1px solid #0f1218", color: "#4b5563", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", letterSpacing: ".03em" }}
-                        >
-                          {historyExpanded ? "Show less" : `Show all ${checkins.length} check-ins`}
-                        </button>
-                      )}
-                    </>
-                  )}
+                          );
+                        })}
+                        {checkins.length > 3 && (
+                          <button
+                            onClick={() => setHistoryExpanded(v => !v)}
+                            style={{ width: "100%", padding: "8px 14px", background: "none", border: "none", borderTop: "1px solid #0f1218", color: "#4b5563", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", letterSpacing: ".03em" }}
+                          >
+                            {historyExpanded ? "Show less" : `Show all ${checkins.length} check-ins`}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 
