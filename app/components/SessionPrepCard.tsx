@@ -23,6 +23,7 @@ interface SessionPrepCardProps {
   caseId: string;
   weekStart: string;
   onReviewedChange?: (reviewed: boolean) => void;
+  onDataChange?: (data: SessionPrepOutput | null) => void;
 }
 
 // ── Design tokens ────────────────────────────────────────────────────────────
@@ -115,7 +116,7 @@ function contentHash(d: SessionPrepOutput): string {
   return h.toString(36);
 }
 
-export default function SessionPrepCard({ caseId, weekStart, onReviewedChange }: SessionPrepCardProps) {
+export default function SessionPrepCard({ caseId, weekStart, onReviewedChange, onDataChange }: SessionPrepCardProps) {
   const searchParams = useSearchParams();
   const isDemo = searchParams?.get("demo") === "true";
   const [data, setData] = useState<SessionPrepOutput | null>(null);
@@ -165,10 +166,13 @@ export default function SessionPrepCard({ caseId, weekStart, onReviewedChange }:
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || json?.error) throw new Error(json?.error?.message ?? JSON.stringify(json?.error ?? "Failed"));
-      setData(json?.data ?? null);
+      const d = json?.data ?? null;
+      setData(d);
+      onDataChange?.(d);
     } catch (e: any) {
       setError(e?.message ?? String(e));
       setData(null);
+      onDataChange?.(null);
     } finally {
       setLoading(false);
     }

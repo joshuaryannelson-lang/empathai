@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { RISK_THRESHOLDS } from "@/lib/services/risk";
-import SessionPrepCard from "@/app/components/SessionPrepCard";
+import SessionPrepCard, { type SessionPrepOutput } from "@/app/components/SessionPrepCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ExtendedPatient = {
@@ -81,6 +81,7 @@ export default function CasePage() {
   const [clinicalNotesCollapsed, setClinicalNotesCollapsed] = useState(true);
   const [activitiesExpanded, setActivitiesExpanded] = useState(false);
   const [sessionPrepReviewed, setSessionPrepReviewed] = useState(false);
+  const [sessionPrepData, setSessionPrepData] = useState<SessionPrepOutput | null>(null);
 
 
   // Clinical notes state
@@ -716,7 +717,7 @@ export default function CasePage() {
               )}
 
               {/* 1. SESSION PREP — always first */}
-              <SessionPrepCard caseId={id} weekStart={new Date().toISOString().slice(0, 10)} onReviewedChange={setSessionPrepReviewed} />
+              <SessionPrepCard caseId={id} weekStart={new Date().toISOString().slice(0, 10)} onReviewedChange={setSessionPrepReviewed} onDataChange={setSessionPrepData} />
 
               {/* 2. Check-in summary — stats + history unified */}
               <div className="checkin-summary">
@@ -781,29 +782,36 @@ export default function CasePage() {
             <div className="right-col">
 
               {/* PATIENT ALERT — only when latest score ≤ 3 */}
-              {latest?.score != null && latest.score <= 3 && (
-                <div style={{ borderRadius: 10, border: "1px solid #1a1e2a", borderLeft: "4px solid #d97706", background: "rgba(217,119,6,0.08)", padding: "14px 16px", display: "grid", gap: 10 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#fbbf24", letterSpacing: "0.04em" }}>PATIENT ALERT</div>
-                  <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.5 }}>
-                    {latest.score} this week · {noteText(latest) ? `${noteText(latest)!.slice(0, 60)}${noteText(latest)!.length > 60 ? "…" : ""}` : "no note"}
+              {latest?.score != null && latest.score <= 3 && (() => {
+                const flaggedText = sessionPrepData?.watch_for ?? sessionPrepData?.open_with ?? null;
+                const trendLabel = sessionPrepData?.rating_trend === "declining" ? "Declining trend detected" : null;
+                const prepLine = flaggedText
+                  ? `Prep flagged: ${flaggedText.slice(0, 80)}${flaggedText.length > 80 ? "…" : ""}`
+                  : trendLabel ?? null;
+                return (
+                  <div style={{ borderRadius: 10, border: "1px solid #1a1e2a", borderLeft: "4px solid #d97706", background: "#0d1018", padding: "14px 16px", display: "grid", gap: 10 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#d97706", letterSpacing: "0.04em" }}>PATIENT ALERT</div>
+                    <div style={{ fontSize: 12, color: prepLine ? "#9ca3af" : "#4b5563", lineHeight: 1.5 }}>
+                      {prepLine ?? "Generate prep to see AI-flagged signals"}
+                    </div>
+                    <button
+                      className={`action-btn ${sessionPrepReviewed ? "action-btn--alert" : ""} ${copied === "action" ? "action-btn--done" : ""}`}
+                      onClick={() => sessionPrepReviewed && copy(outreachText, "action")}
+                      disabled={!sessionPrepReviewed}
+                      title={sessionPrepReviewed ? "Copy prep-informed message" : "Review session prep first"}
+                      style={{
+                        width: "100%", padding: "10px 18px", borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: sessionPrepReviewed ? "pointer" : "not-allowed", fontFamily: "inherit", transition: "all .15s",
+                        border: sessionPrepReviewed ? undefined : "1px solid #1f2533",
+                        background: sessionPrepReviewed ? undefined : "#111420",
+                        color: sessionPrepReviewed ? undefined : "#4b5563",
+                        opacity: sessionPrepReviewed ? 1 : 0.6,
+                      }}
+                    >
+                      {copied === "action" ? "✓ Copied" : sessionPrepReviewed ? "Copy prep-informed message" : "Review prep first"}
+                    </button>
                   </div>
-                  <button
-                    className={`action-btn ${sessionPrepReviewed ? "action-btn--alert" : ""} ${copied === "action" ? "action-btn--done" : ""}`}
-                    onClick={() => sessionPrepReviewed && copy(outreachText, "action")}
-                    disabled={!sessionPrepReviewed}
-                    title={sessionPrepReviewed ? "Copy prep-informed message" : "Review session prep first"}
-                    style={{
-                      width: "100%", padding: "10px 18px", borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: sessionPrepReviewed ? "pointer" : "not-allowed", fontFamily: "inherit", transition: "all .15s",
-                      border: sessionPrepReviewed ? undefined : "1px solid #1f2533",
-                      background: sessionPrepReviewed ? undefined : "#111420",
-                      color: sessionPrepReviewed ? undefined : "#4b5563",
-                      opacity: sessionPrepReviewed ? 1 : 0.6,
-                    }}
-                  >
-                    {copied === "action" ? "✓ Copied" : sessionPrepReviewed ? "Copy prep-informed message" : "Review prep first"}
-                  </button>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Between Sessions */}
               <div className="ctx-card">
