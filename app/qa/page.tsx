@@ -259,10 +259,11 @@ export default function QABoard() {
   const [results, setResults] = useState<CheckResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<string | null>(null);
-  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
-  const [failNotes, setFailNotes] = useState<Record<string, string>>({});
+  const [noteInputs, setNoteInputs] = useState<Record<string, string>>({});
+  const [noteExpanded, setNoteExpanded] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
+  const [allNotesOpen, setAllNotesOpen] = useState(false);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Load tester name from localStorage
@@ -292,13 +293,13 @@ export default function QABoard() {
     try { localStorage.setItem("qa_tester_name", name); } catch {}
   }
 
-  // Submit a check
+  // Submit a check — sends note for any status
   async function submitCheck(pageId: string, checkIndex: number, status: "pass" | "fail" | "skip") {
     if (!testerName.trim()) return;
     const key = `${pageId}-${checkIndex}`;
     setSubmitting(prev => new Set(prev).add(key));
 
-    const note = status === "fail" ? (failNotes[key] || null) : null;
+    const note = noteInputs[key]?.trim() || null;
 
     // Optimistic update
     const optimistic: CheckResult = {
@@ -331,6 +332,16 @@ export default function QABoard() {
     } finally {
       setSubmitting(prev => { const n = new Set(prev); n.delete(key); return n; });
     }
+  }
+
+  // Save note on blur — upserts the existing row
+  function saveNoteOnBlur(pageId: string, checkIndex: number, myResult: CheckResult | null) {
+    if (!myResult) return;
+    const key = `${pageId}-${checkIndex}`;
+    const currentNote = noteInputs[key];
+    if (currentNote === undefined) return;
+    if (currentNote.trim() === (myResult.note ?? "")) return;
+    submitCheck(pageId, checkIndex, myResult.status);
   }
 
   // Copy link
@@ -369,10 +380,30 @@ export default function QABoard() {
     const pageResults = resultsByPage[page.id] ?? [];
     if (pageResults.length === 0) return "grey";
     if (pageResults.some(r => r.status === "fail")) return "red";
-    // Green only if every check has at least 1 pass
     const allPassed = page.checks.every((_, i) => pageResults.some(r => r.check_index === i && r.status === "pass"));
     return allPassed ? "green" : "grey";
   }
+
+  // Collect all notes across all pages for the summary
+  const allNotes = useMemo(() => {
+    const notes: { page: PageSection; checkIndex: number; checkText: string; tester: string; note: string; status: string }[] = [];
+    for (const page of PAGES) {
+      const pageResults = resultsByPage[page.id] ?? [];
+      for (const r of pageResults) {
+        if (r.note?.trim()) {
+          notes.push({
+            page,
+            checkIndex: r.check_index,
+            checkText: page.checks[r.check_index] ?? "",
+            tester: r.tester_name,
+            note: r.note,
+            status: r.status,
+          });
+        }
+      }
+    }
+    return notes;
+  }, [resultsByPage]);
 
   // Summary stats
   const totalChecks = PAGES.reduce((s, p) => s + p.checks.length, 0);
@@ -400,6 +431,8 @@ export default function QABoard() {
         .qa-fade { animation: fadeIn 0.25s ease; }
         .qa-sidebar-item { cursor: pointer; padding: 6px 12px; border-radius: 6px; font-size: 13px; transition: background 0.15s; }
         .qa-sidebar-item:hover { background: rgba(255,255,255,0.05); }
+        .qa-note-toggle { cursor: pointer; font-size: 11px; color: rgba(255,255,255,0.35); border: none; background: none; padding: 0; font-family: 'DM Sans', sans-serif; }
+        .qa-note-toggle:hover { color: rgba(255,255,255,0.6); }
         @media (max-width: 800px) {
           .qa-layout { flex-direction: column !important; }
           .qa-sidebar { display: none !important; }
@@ -499,7 +532,7 @@ export default function QABoard() {
 
         {/* Summary bar */}
         <div style={{
-          display: "flex", flexWrap: "wrap", gap: 20, marginBottom: 32,
+          display: "flex", flexWrap: "wrap", gap: 20, marginBottom: 16,
           padding: "14px 18px", borderRadius: 12,
           background: T.bg.card, border: `1px solid ${T.border.DEFAULT}`,
           fontSize: 13, color: T.text.secondary,
@@ -507,9 +540,67 @@ export default function QABoard() {
           <span><strong style={{ color: T.text.primary }}>{totalChecks}</strong> total checks</span>
           <span><strong style={{ color: T.pass.fg }}>{greenPages}</strong> pages all green</span>
           <span><strong style={{ color: failedChecks > 0 ? T.fail.fg : T.text.muted }}>{failedChecks}</strong> issues found</span>
+          <span><strong style={{ color: allNotes.length > 0 ? T.accent : T.text.muted }}>{allNotes.length}</strong> notes</span>
           {lastResult && <span style={{ color: T.text.muted }}>Last updated: {timeAgo(lastResult)}</span>}
           {loading && <span style={{ color: T.text.disabled, fontStyle: "italic" }}>Loading...</span>}
         </div>
+
+        {/* All Notes — collapsible summary */}
+        {allNotes.length > 0 && (
+          <div style={{
+            marginBottom: 32, borderRadius: 12,
+            background: T.bg.card, border: `1px solid ${T.border.DEFAULT}`,
+            overflow: "hidden",
+          }}>
+            <button
+              onClick={() => setAllNotesOpen(prev => !prev)}
+              style={{
+                width: "100%", padding: "12px 18px",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: 13, fontWeight: 700, color: T.text.secondary,
+                fontFamily: FONT.body,
+              }}
+            >
+              <span>All Notes ({allNotes.length})</span>
+              <span style={{ fontSize: 11, color: T.text.muted }}>
+                {allNotesOpen ? "\u25B4 collapse" : "\u25BE expand"}
+              </span>
+            </button>
+            {allNotesOpen && (
+              <div style={{ padding: "0 18px 14px", display: "grid", gap: 10 }}>
+                {allNotes.map((n, i) => {
+                  const colors = n.status === "pass" ? T.pass : n.status === "fail" ? T.fail : T.skip;
+                  return (
+                    <div key={i} style={{ fontSize: 12, lineHeight: 1.5 }}>
+                      <div style={{ color: T.text.muted, fontSize: 11, marginBottom: 2 }}>
+                        <span style={{ color: T.accent, cursor: "pointer" }} onClick={() => scrollToCard(n.page.id)}>
+                          {n.page.name}
+                        </span>
+                        {" \u2192 "}
+                        <span style={{ color: T.text.disabled }}>
+                          {n.checkText.length > 60 ? n.checkText.slice(0, 60) + "..." : n.checkText}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                        <span style={{
+                          display: "inline-block", padding: "1px 6px", borderRadius: 999,
+                          fontSize: 10, fontWeight: 700,
+                          background: colors.bg, border: `1px solid ${colors.border}`, color: colors.fg,
+                        }}>
+                          {n.tester}
+                        </span>
+                        <span style={{ color: T.text.secondary, fontStyle: "italic" }}>
+                          &ldquo;{n.note}&rdquo;
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Page cards */}
         {GROUPS.map(group => (
@@ -569,6 +660,8 @@ export default function QABoard() {
                       const passes = checkResults.filter(r => r.status === "pass");
                       const fails = checkResults.filter(r => r.status === "fail");
                       const skips = checkResults.filter(r => r.status === "skip");
+                      const resultsWithNotes = checkResults.filter(r => r.note?.trim());
+                      const showNoteInput = myResult && (myResult.status === "fail" || myResult.status === "skip" || noteExpanded.has(key));
 
                       return (
                         <div key={i} style={{
@@ -613,31 +706,38 @@ export default function QABoard() {
                             {checkResults.length > 0 && (
                               <span style={{ fontSize: 11, color: T.text.disabled, marginLeft: 8 }}>
                                 {passes.length > 0 && <span style={{ color: T.pass.fg }}>{passes.length} passed</span>}
-                                {passes.length > 0 && (fails.length > 0 || skips.length > 0) && " · "}
+                                {passes.length > 0 && (fails.length > 0 || skips.length > 0) && " \u00B7 "}
                                 {fails.length > 0 && <span style={{ color: T.fail.fg }}>{fails.length} failed</span>}
-                                {fails.length > 0 && skips.length > 0 && " · "}
+                                {fails.length > 0 && skips.length > 0 && " \u00B7 "}
                                 {skips.length > 0 && <span style={{ color: T.skip.fg }}>{skips.length} skipped</span>}
                               </span>
                             )}
+
+                            {/* "Add a note" toggle for pass results */}
+                            {myResult?.status === "pass" && !noteExpanded.has(key) && (
+                              <button
+                                className="qa-note-toggle"
+                                onClick={() => setNoteExpanded(prev => new Set(prev).add(key))}
+                                style={{ marginLeft: 4 }}
+                              >
+                                + Add a note
+                              </button>
+                            )}
                           </div>
 
-                          {/* Fail note input (show when my result is fail or about to be fail) */}
-                          {myResult?.status === "fail" && (
+                          {/* Note input — visible for fail/skip always, optional for pass */}
+                          {showNoteInput && (
                             <div style={{ marginTop: 8 }}>
                               <input
                                 type="text"
-                                placeholder="What went wrong? (optional)"
-                                value={failNotes[key] ?? myResult?.note ?? ""}
-                                onChange={e => setFailNotes(prev => ({ ...prev, [key]: e.target.value }))}
-                                onBlur={() => {
-                                  const note = failNotes[key];
-                                  if (note !== undefined && note !== (myResult?.note ?? "")) {
-                                    submitCheck(page.id, i, "fail");
-                                  }
-                                }}
+                                placeholder={myResult.status === "fail" ? "What went wrong? (optional)" : "Add a note (optional)"}
+                                value={noteInputs[key] ?? myResult.note ?? ""}
+                                onChange={e => setNoteInputs(prev => ({ ...prev, [key]: e.target.value }))}
+                                onBlur={() => saveNoteOnBlur(page.id, i, myResult)}
                                 style={{
                                   width: "100%", padding: "6px 10px", borderRadius: 6, fontSize: 12,
-                                  background: T.bg.surface, border: `1px solid ${T.fail.border}`,
+                                  background: T.bg.surface,
+                                  border: `1px solid ${myResult.status === "fail" ? T.fail.border : myResult.status === "skip" ? T.skip.border : T.border.emphasis}`,
                                   color: T.text.primary, outline: "none", fontFamily: FONT.body,
                                 }}
                               />
@@ -649,48 +749,47 @@ export default function QABoard() {
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
                               {checkResults.map(r => {
                                 const colors = r.status === "pass" ? T.pass : r.status === "fail" ? T.fail : T.skip;
-                                const noteKey = `${r.page_id}-${r.check_index}-${r.tester_name}`;
-                                const hasNote = r.status === "fail" && r.note;
                                 return (
-                                  <span key={r.id}>
-                                    <span
-                                      onClick={() => {
-                                        if (hasNote) {
-                                          setExpandedNotes(prev => {
-                                            const n = new Set(prev);
-                                            if (n.has(noteKey)) n.delete(noteKey); else n.add(noteKey);
-                                            return n;
-                                          });
-                                        }
-                                      }}
-                                      style={{
-                                        display: "inline-flex", alignItems: "center", gap: 4,
-                                        padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700,
-                                        background: colors.bg, border: `1px solid ${colors.border}`,
-                                        color: colors.fg,
-                                        cursor: hasNote ? "pointer" : "default",
-                                      }}
-                                    >
-                                      {r.tester_name}
-                                      {r.status === "pass" && " \u2713"}
-                                      {r.status === "fail" && " \u2717"}
-                                      {r.status === "skip" && " \u2014"}
-                                      {hasNote && (
-                                        <span style={{ fontSize: 9, opacity: 0.7 }}>
-                                          {expandedNotes.has(noteKey) ? "\u25B4" : "\u25BE"}
-                                        </span>
-                                      )}
-                                    </span>
-                                    {hasNote && expandedNotes.has(noteKey) && (
-                                      <div style={{
-                                        marginTop: 4, marginBottom: 2, padding: "4px 8px", borderRadius: 6,
-                                        background: T.fail.bg, border: `1px solid ${T.fail.border}`,
-                                        fontSize: 11, color: T.fail.fg, lineHeight: 1.4,
-                                      }}>
-                                        {r.note}
-                                      </div>
-                                    )}
+                                  <span
+                                    key={r.id}
+                                    style={{
+                                      display: "inline-flex", alignItems: "center", gap: 4,
+                                      padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700,
+                                      background: colors.bg, border: `1px solid ${colors.border}`,
+                                      color: colors.fg,
+                                    }}
+                                  >
+                                    {r.tester_name}
+                                    {r.status === "pass" && " \u2713"}
+                                    {r.status === "fail" && " \u2717"}
+                                    {r.status === "skip" && " \u2014"}
                                   </span>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Notes from all testers — always visible */}
+                          {resultsWithNotes.length > 0 && (
+                            <div style={{ marginTop: 6, display: "grid", gap: 4 }}>
+                              {resultsWithNotes.map(r => {
+                                const colors = r.status === "pass" ? T.pass : r.status === "fail" ? T.fail : T.skip;
+                                return (
+                                  <div key={`note-${r.id}`} style={{
+                                    display: "flex", alignItems: "baseline", gap: 6,
+                                    padding: "4px 8px", borderRadius: 6,
+                                    background: colors.bg, border: `1px solid ${colors.border}`,
+                                  }}>
+                                    <span style={{
+                                      fontSize: 10, fontWeight: 700, color: colors.fg,
+                                      flexShrink: 0,
+                                    }}>
+                                      {r.tester_name}:
+                                    </span>
+                                    <span style={{ fontSize: 11, color: T.text.secondary, lineHeight: 1.4 }}>
+                                      {r.note}
+                                    </span>
+                                  </div>
                                 );
                               })}
                             </div>
