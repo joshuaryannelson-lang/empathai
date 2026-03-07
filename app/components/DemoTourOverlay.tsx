@@ -1,5 +1,5 @@
 // app/components/DemoTourOverlay.tsx
-// Positioned tooltip overlay for persona-specific guided tours.
+// Positioned tooltip + spotlight overlay for persona-specific guided tours.
 // Mounted in root layout — only renders when sessionStorage has an active tour.
 "use client";
 
@@ -9,7 +9,6 @@ import { disableDemoMode } from "@/lib/demo/demoMode";
 import { clearRole } from "@/lib/roleContext";
 import {
   TOUR_SCRIPTS,
-  DEMO_TOUR_KEY,
   readTourState,
   writeTourState,
   clearTourState,
@@ -24,6 +23,7 @@ const ACCENT = "#6b82d4";
 const ACCENT_RGB = "107,130,212";
 const TEXT_PRIMARY = "#f1f5f9";
 const TEXT_SECONDARY = "#94a3b8";
+const OVERLAY_BG = "rgba(8, 12, 18, 0.82)";
 
 type HighlightRect = { top: number; left: number; width: number; height: number } | null;
 
@@ -66,7 +66,7 @@ export default function DemoTourOverlay() {
       } else {
         setHighlightRect(null);
       }
-    }, 300);
+    }, 400);
     return () => clearTimeout(timeout);
   }, []);
 
@@ -120,16 +120,21 @@ export default function DemoTourOverlay() {
     writeTourState(newState);
     setHighlightRect(null);
     setVer(v => v + 1);
-    // Only navigate if the page is different
-    if (nextDef.page !== currentStep?.page) {
+    // Extract base path (without query params) for comparison
+    const currentBase = currentStep?.page?.split("?")[0] ?? "";
+    const nextBase = nextDef.page.split("?")[0];
+    // Always navigate to get correct query params
+    if (nextBase !== currentBase || nextDef.page !== currentStep?.page) {
       router.push(nextDef.page);
     }
   }
 
   function handleNext() {
     if (isLast) {
+      // Tour complete — clean up
       clearTourState();
       try { sessionStorage.setItem("empathai_tour_complete", "1"); } catch {}
+      try { sessionStorage.removeItem("demoTourActive"); } catch {}
       setVer(v => v + 1);
       router.push("/demo");
     } else {
@@ -145,6 +150,8 @@ export default function DemoTourOverlay() {
     clearTourState();
     disableDemoMode();
     clearRole();
+    // Clear sessionStorage key
+    try { sessionStorage.removeItem("demoTourActive"); } catch {}
     // Clear portal session cookies
     if (typeof document !== "undefined") {
       document.cookie = "portal_token=; path=/portal; max-age=0";
@@ -167,13 +174,18 @@ export default function DemoTourOverlay() {
     router.push("/demo");
   }
 
-  // Tooltip positioning: near highlight if available, otherwise fixed bottom
+  // Build clip-path for spotlight cutout
+  const clipPath = highlightRect
+    ? buildClipPath(highlightRect)
+    : undefined;
+
+  // Tooltip positioning: near highlight if available, otherwise fixed bottom-right
   const tooltipPosition = isMobile || !highlightRect
-    ? { position: "fixed" as const, bottom: 24, left: 16, right: 16 }
+    ? { position: "fixed" as const, bottom: 24, right: 16, left: 16 }
     : {
         position: "absolute" as const,
         top: highlightRect.top + highlightRect.height + 16,
-        left: Math.max(16, Math.min(highlightRect.left, window.innerWidth - 400)),
+        left: Math.max(16, Math.min(highlightRect.left, window.innerWidth - 360)),
       };
 
   return (
@@ -197,6 +209,29 @@ export default function DemoTourOverlay() {
         .tour-tooltip-btn:hover { opacity: 0.85; }
       `}</style>
 
+      {/* Full-screen overlay with spotlight cutout */}
+      <div
+        data-demo-overlay="true"
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9998,
+          background: clipPath ? undefined : OVERLAY_BG,
+          pointerEvents: "none",
+        }}
+      >
+        {clipPath && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: OVERLAY_BG,
+              clipPath,
+            }}
+          />
+        )}
+      </div>
+
       {/* Highlight ring around target element */}
       {highlightRect && (
         <div
@@ -210,7 +245,7 @@ export default function DemoTourOverlay() {
             borderRadius: 8,
             border: `2px solid ${ACCENT}`,
             pointerEvents: "none",
-            zIndex: 9998,
+            zIndex: 9999,
             animation: "tourRingPulse 2s ease-in-out infinite",
           }}
         />
@@ -224,14 +259,14 @@ export default function DemoTourOverlay() {
         style={{
           ...tooltipPosition,
           zIndex: 9999,
-          width: isMobile ? undefined : 380,
+          width: isMobile ? undefined : 320,
           maxWidth: "calc(100vw - 32px)",
           background: CARD_BG,
           border: `1px solid ${CARD_BORDER}`,
-          borderRadius: 16,
-          padding: "20px 22px 18px",
+          borderRadius: 12,
+          padding: "20px 24px",
           fontFamily: "'DM Sans', system-ui",
-          boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(${ACCENT_RGB},0.1)`,
+          boxShadow: `0 0 0 2px ${ACCENT}, 0 16px 40px rgba(0,0,0,0.6)`,
         }}
       >
         {/* Step counter + Exit */}
@@ -290,19 +325,24 @@ export default function DemoTourOverlay() {
         {/* Navigation */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           {/* Step dots */}
-          <div style={{ display: "flex", gap: 4 }}>
-            {tour.steps.map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  width: i === stepIndex ? 16 : 6,
-                  height: 6,
-                  borderRadius: 3,
-                  background: i === stepIndex ? ACCENT : `rgba(${ACCENT_RGB},0.2)`,
-                  transition: "all 0.2s ease",
-                }}
-              />
-            ))}
+          <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+            {tour.steps.map((_, i) => {
+              const isCompleted = i < stepIndex;
+              const isCurrent = i === stepIndex;
+              return (
+                <div
+                  key={i}
+                  style={{
+                    width: isCurrent ? 10 : 6,
+                    height: isCurrent ? 10 : 6,
+                    borderRadius: "50%",
+                    background: isCompleted || isCurrent ? ACCENT : "transparent",
+                    border: isCompleted || isCurrent ? "none" : `1.5px solid rgba(${ACCENT_RGB},0.4)`,
+                    transition: "all 0.2s ease",
+                  }}
+                />
+              );
+            })}
           </div>
 
           {/* Prev / Next */}
@@ -346,4 +386,24 @@ export default function DemoTourOverlay() {
       </div>
     </>
   );
+}
+
+/**
+ * Build a CSS clip-path polygon that covers the full viewport
+ * EXCEPT for a rectangular cutout around the target element.
+ * Uses an inset box-shadow approach as fallback is not needed
+ * since polygon() is widely supported.
+ */
+function buildClipPath(rect: NonNullable<HighlightRect>): string {
+  const pad = 8;
+  const t = Math.max(0, rect.top - pad);
+  const l = Math.max(0, rect.left - pad);
+  const r = rect.left + rect.width + pad;
+  const b = rect.top + rect.height + pad;
+
+  // Polygon: outer rectangle (clockwise) then cutout (counter-clockwise)
+  return `polygon(
+    0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%,
+    ${l}px ${t}px, ${l}px ${b}px, ${r}px ${b}px, ${r}px ${t}px, ${l}px ${t}px
+  )`;
 }

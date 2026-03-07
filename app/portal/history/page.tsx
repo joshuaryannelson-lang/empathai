@@ -87,7 +87,7 @@ export default function HistoryPage() {
         <div style={{ display: "grid", gap: 14 }}>
           {/* Recent check-ins */}
           {checkins.length > 0 && (
-            <div className="card fade-in-1" data-tour="history-list">
+            <div className="card fade-in-1" data-tour="history-list" data-demo-spotlight="checkin-history">
               <div className="section-title">My recent check-ins</div>
               <div>
                 {checkins.slice(0, 10).map((ci, idx) => {

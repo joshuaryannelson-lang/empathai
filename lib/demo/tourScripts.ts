@@ -19,135 +19,137 @@ export type PersonaTour = {
   steps: TourStepDef[];
 };
 
-const DEMO_CASE_ID = "demo-case-03"; // Sam T. — at-risk showcase
-
 export const TOUR_SCRIPTS: Record<DemoPersona, PersonaTour> = {
-  therapist: {
-    persona: "therapist",
-    label: "Therapist",
-    steps: [
-      {
-        page: `/dashboard/therapists/${DEMO_CONFIG.therapistId}/care`,
-        headline: "Your caseload at a glance",
-        body: "See all your active cases, risk signals, and check-in status in one view. At-risk patients are surfaced automatically.",
-        targetSelector: "[data-tour='caseload-summary']",
-      },
-      {
-        page: "/cases",
-        headline: "All your active cases",
-        body: "Browse your full case list with status indicators, last check-in dates, and quick access to case details.",
-        targetSelector: "[data-tour='case-list']",
-      },
-      {
-        page: `/cases/${DEMO_CASE_ID}`,
-        headline: "Case detail",
-        body: "Dive into a specific case — see the patient's check-in history, mood trends, and recent notes all in one place.",
-        targetSelector: "[data-tour='checkin-summary']",
-      },
-      {
-        page: `/cases/${DEMO_CASE_ID}`,
-        headline: "AI session prep",
-        body: "Before each session, AI generates structured prep: what to open with, what to watch for, and a suggested technique — all based on real patient data.",
-        targetSelector: "[data-tour='session-prep']",
-      },
-      {
-        page: `/cases/${DEMO_CASE_ID}`,
-        headline: "Session notes",
-        body: "Document session observations and clinical notes. Everything stays connected to the case timeline.",
-        targetSelector: "[data-tour='session-notes']",
-      },
-      {
-        page: `/cases/${DEMO_CASE_ID}`,
-        headline: "Goals tracker",
-        body: "Track treatment goals collaboratively. Patients can see their goals in their portal too.",
-        targetSelector: "[data-tour='goals-panel']",
-      },
-    ],
-  },
-
-  patient: {
-    persona: "patient",
-    label: "Patient",
-    steps: [
-      {
-        page: "/portal/welcome",
-        headline: "Welcome to your portal",
-        body: "Your personal care hub. Check in weekly, view your history, and track treatment goals — all in one place.",
-        targetSelector: "[data-tour='welcome-cta']",
-      },
-      {
-        page: "/portal/checkin",
-        headline: "Your weekly check-in",
-        body: "A simple form that takes about 60 seconds. No app to download, no personal data stored.",
-        targetSelector: "[data-tour='checkin-form']",
-      },
-      {
-        page: "/portal/checkin",
-        headline: "How you're feeling",
-        body: "Rate how you're feeling from 1 to 10 and add an optional note. Your care team reviews this before your next session.",
-        targetSelector: "[data-tour='score-input']",
-      },
-      {
-        page: "/portal/history",
-        headline: "Your check-in history",
-        body: "See your check-in timeline and mood trends over time. Session notes from your therapist appear here too.",
-        targetSelector: "[data-tour='history-list']",
-      },
-      {
-        page: "/portal/goals",
-        headline: "Your goals",
-        body: "View treatment goals set by your care team. Track what you're working toward and celebrate progress.",
-        targetSelector: "[data-tour='goals-list']",
-      },
-    ],
-  },
-
+  // ── MANAGER TOUR (3 steps) ──────────────────────────────────
   manager: {
     persona: "manager",
     label: "Manager",
     steps: [
       {
-        page: `/admin/status`,
-        headline: "Practice health overview",
-        body: "See every practice, every therapist, every risk signal at a glance. The AI briefing highlights what needs attention this week.",
-        targetSelector: "[data-tour='status-summary']",
+        page: "/dashboard/manager?demo=true&step=1",
+        headline: "Your practice dashboard",
+        body: "Your practice dashboard — therapist performance, case distribution, and the AI-generated weekly briefing at a glance.",
+        targetSelector: "[data-demo-spotlight='manager-kpi-row']",
       },
       {
-        page: `/admin/status`,
-        headline: "Active cases",
-        body: "Monitor case counts, check-in completion rates, and average scores across your practice network.",
-        targetSelector: "[data-tour='case-metrics']",
+        page: "/dashboard/manager?demo=true&step=2",
+        headline: "Routing friction",
+        body: "Routing friction surfaces unassigned cases before the week's sessions start — no patient falls through the cracks.",
+        targetSelector: "[data-demo-spotlight='routing-friction']",
       },
       {
-        page: `/admin/status`,
-        headline: "Alerts and flags",
-        body: "At-risk cases and missing check-ins are flagged automatically. No patient falls through the cracks.",
-        targetSelector: "[data-tour='alerts-section']",
+        page: "/dashboard/manager?demo=true&step=3",
+        headline: "Risk signals",
+        body: "Risk signals flag check-ins ≤ 3 this week. You see the problem before your therapists do.",
+        targetSelector: "[data-demo-spotlight='risk-signals']",
       },
     ],
   },
 
+  // ── THERAPIST TOUR (6 steps) ────────────────────────────────
+  therapist: {
+    persona: "therapist",
+    label: "Therapist",
+    steps: [
+      {
+        page: `/dashboard/therapists/${DEMO_CONFIG.therapistId}/care?demo=true&step=1`,
+        headline: "Your caseload at a glance",
+        body: "Your caseload at a glance — active cases, risk signals, and check-in status updated in real time.",
+        targetSelector: "[data-demo-spotlight='therapist-stats']",
+      },
+      {
+        page: `/dashboard/therapists/${DEMO_CONFIG.therapistId}/care?demo=true&step=2`,
+        headline: "At-risk patients",
+        body: "At-risk patients are surfaced automatically — score ≤ 3 triggers an alert here before your next session.",
+        targetSelector: "[data-demo-spotlight='at-risk-section']",
+      },
+      {
+        page: `/dashboard/therapists/${DEMO_CONFIG.therapistId}/care?demo=true&step=3`,
+        headline: "AI briefing",
+        body: "Your AI briefing synthesizes every patient's week and flags who needs your attention — generated fresh each Monday.",
+        targetSelector: "[data-demo-spotlight='ai-briefing-panel']",
+      },
+      {
+        page: "/cases?demo=true&step=4",
+        headline: "All your cases",
+        body: "All your cases in one place — filter by risk level, score trend, or missing check-ins.",
+        targetSelector: "[data-demo-spotlight='case-list']",
+      },
+      {
+        page: "/cases/demo-case-01?demo=true&step=5",
+        headline: "AI session prep",
+        body: "AI session prep synthesizes recent check-ins, mood trends, and goals — so you walk in prepared every time.",
+        targetSelector: "[data-demo-spotlight='session-prep']",
+      },
+      {
+        page: "/cases/demo-case-01?demo=true&step=6",
+        headline: "Clinical notes",
+        body: "Review and approve AI output before it becomes part of the session record. You stay in control.",
+        targetSelector: "[data-demo-spotlight='clinical-notes']",
+      },
+    ],
+  },
+
+  // ── PATIENT TOUR (5 steps) ──────────────────────────────────
+  patient: {
+    persona: "patient",
+    label: "Patient",
+    steps: [
+      {
+        page: "/portal/welcome?demo=true&step=1",
+        headline: "Your secure portal",
+        body: "Your secure portal — private, simple, and built around how you actually feel.",
+        targetSelector: "[data-demo-spotlight='portal-welcome']",
+      },
+      {
+        page: "/portal/checkin?demo=true&step=2",
+        headline: "Weekly check-in",
+        body: "Weekly check-in takes 2 minutes. Your therapist sees your mood and notes before your next session.",
+        targetSelector: "[data-demo-spotlight='checkin-form']",
+      },
+      {
+        page: "/portal/checkin?demo=true&step=3",
+        headline: "Safety support",
+        body: "If you mention feeling unsafe, support resources appear immediately and your therapist is alerted.",
+        targetSelector: "[data-demo-spotlight='checkin-submit']",
+      },
+      {
+        page: "/portal/history?demo=true&step=4",
+        headline: "Your check-in history",
+        body: "Your check-in history — mood trends over time and session notes from your therapist.",
+        targetSelector: "[data-demo-spotlight='checkin-history']",
+      },
+      {
+        page: "/portal/goals?demo=true&step=5",
+        headline: "Your goals",
+        body: "Treatment goals set by your care team — track progress and celebrate what's working.",
+        targetSelector: "[data-demo-spotlight='goals-list']",
+      },
+    ],
+  },
+
+  // ── PRACTICE OWNER TOUR (3 steps) ───────────────────────────
   practice_owner: {
     persona: "practice_owner",
     label: "Practice Owner",
     steps: [
       {
-        page: "/dashboard/manager",
-        headline: "Your practice dashboard",
-        body: "See your practice's health at a glance — therapist performance, case distribution, and the AI-generated weekly briefing.",
-        targetSelector: "[data-tour='dashboard-header']",
+        page: "/dashboard/manager?demo=true&role=owner&step=1",
+        headline: "Your organization",
+        body: "Your organization — all practices, all therapists, all risk signals in one view. Built for group practices and health systems.",
+        targetSelector: "[data-demo-spotlight='manager-kpi-row']",
       },
       {
-        page: "/dashboard/manager",
-        headline: "Caseload summary",
-        body: "Monitor active cases, unassigned patients, and average check-in scores across your entire practice.",
-        targetSelector: "[data-tour='caseload-metrics']",
+        page: "/dashboard/manager?demo=true&role=owner&step=2",
+        headline: "Network routing friction",
+        body: "See routing friction across every practice in your network — not just one location.",
+        targetSelector: "[data-demo-spotlight='routing-friction']",
       },
       {
-        page: "/dashboard/manager",
-        headline: "Quick actions",
-        body: "Drill into specific practices, filter by therapist, or refresh data — all from one place.",
-        targetSelector: "[data-tour='quick-actions']",
+        page: "/dashboard/manager?demo=true&role=owner&step=3",
+        headline: "Network-wide risk signals",
+        body: "Network-wide risk signals. When a patient is in crisis, it surfaces here — regardless of which practice they're in.",
+        targetSelector: "[data-demo-spotlight='risk-signals']",
       },
     ],
   },

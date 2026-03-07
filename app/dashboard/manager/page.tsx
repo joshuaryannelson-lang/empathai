@@ -3,9 +3,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { NavSidebar } from "@/app/components/NavSidebar";
-import MarkdownContent from "@/app/components/MarkdownContent";
+import AIBriefing, { type AIBriefingData } from "@/app/components/ai/AIBriefing";
 
 type RangeKey = "1d" | "7d" | "30d" | "this_week" | "last_week";
 
@@ -53,7 +54,10 @@ function fmtAvg(n: number | null) {
 
 // AI prompt construction moved to server-side lib/services/briefing.ts
 
-export default function ManagerDashboard() {
+function ManagerDashboardInner() {
+  const searchParams = useSearchParams();
+  const roleParam = searchParams?.get("role") ?? null;
+  const isOwnerRole = roleParam === "owner";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<AdminOverview | null>(null);
@@ -61,11 +65,9 @@ export default function ManagerDashboard() {
   const [selectedPracticeId, setSelectedPracticeId] = useState<string | null>(null);
   const [selectedTherapistId, setSelectedTherapistId] = useState<string | null>(null);
 
-  // AI state
-  const [aiText, setAiText] = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiDone, setAiDone] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
+  // Structured AI briefing state
+  const [structuredBriefing, setStructuredBriefing] = useState<AIBriefingData | null>(null);
+  const [structuredLoading, setStructuredLoading] = useState(false);
 
   const defaultWeekStartISO = useMemo(() => toMondayYYYYMMDD(toYYYYMMDD(new Date())), []);
 
@@ -76,7 +78,9 @@ export default function ManagerDashboard() {
       const json = await fetchJson(`/api/admin/overview?range=7d`);
       const overview = json.data ?? null;
       setData(overview);
-      if (overview) generateAI(overview);
+      if (overview) {
+        loadStructuredBriefing(overview);
+      }
     } catch (e: any) {
       setError(e?.message ?? String(e));
       setData(null);
@@ -85,54 +89,24 @@ export default function ManagerDashboard() {
     }
   }
 
-  async function generateAI(overview: AdminOverview) {
-    setAiLoading(true);
-    setAiText("");
-    setAiDone(false);
-    setAiError(null);
+  async function loadStructuredBriefing(overview: AdminOverview) {
+    setStructuredLoading(true);
     try {
-      const res = await fetch("/api/briefing", {
+      const res = await fetch("/api/ai/briefing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          role: "network",
-          triggeredBy: "network-manager",
-          stream: true,
+          context: isOwnerRole ? "owner" : "manager",
           dataSnapshot: {
             totals: overview.totals,
-            practices: overview.practices.map(p => ({
-              name: p.name,
-              id: p.id,
-              therapists: p.therapists,
-              active_cases: p.active_cases,
-              unassigned_cases: p.unassigned_cases,
-              at_risk_checkins: p.at_risk_checkins,
-              avg_score: p.avg_score,
-            })),
+            practices: overview.practices,
           },
         }),
       });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error(json?.error?.message ?? "AI error");
-      }
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No response body");
-      const decoder = new TextDecoder();
-      let accumulated = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        accumulated += decoder.decode(value, { stream: true });
-        setAiText(accumulated);
-      }
-      if (!accumulated) throw new Error("Empty response");
-    } catch (e: any) {
-      setAiError(e?.message ?? String(e));
-    } finally {
-      setAiLoading(false);
-      setAiDone(true);
-    }
+      const json = await res.json().catch(() => ({}));
+      if (json?.data) setStructuredBriefing(json.data);
+    } catch { /* ignore */ }
+    finally { setStructuredLoading(false); }
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -185,18 +159,6 @@ export default function ManagerDashboard() {
     };
   }, [filterPracticeId, allPractices, data]);
 
-  // Parse AI sections
-  const aiSections = useMemo(() => {
-    if (!aiText) return null;
-    const keys = ["PRIORITY", "UNASSIGNED", "AT RISK", "THIS WEEK"];
-    const out: Record<string, string> = {};
-    for (const k of keys) {
-      const m = aiText.match(new RegExp(`${k}:\\s*(.+?)(?=\\n[A-Z ]+:|$)`, "s"));
-      if (m) out[k] = m[1].trim();
-    }
-    return Object.keys(out).length >= 2 ? out : null;
-  }, [aiText]);
-
   const scoreColor = (s: number | null) => {
     if (s === null) return "#6b7280";
     if (s <= 3) return "#f87171";
@@ -220,21 +182,25 @@ export default function ManagerDashboard() {
         <div className="mgr-header" data-tour="dashboard-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 28 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: "#4b5563", marginBottom: 6 }}>
-              {managerMode === "single" ? "Practice Owner" : "Network Manager"}
+              {isOwnerRole ? "Organization Owner" : managerMode === "single" ? "Practice Owner" : "Network Manager"}
             </div>
             <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: "#f1f3f8" }}>
-              {filterPracticeId
-                ? (allPractices.find(p => p.id === filterPracticeId)?.name ?? "Practice Operations")
-                : managerMode === "single"
-                  ? (allPractices[0]?.name ?? "Your Practice")
-                  : "Practice Operations"}
+              {isOwnerRole
+                ? "Your Organization"
+                : filterPracticeId
+                  ? (allPractices.find(p => p.id === filterPracticeId)?.name ?? "Practice Operations")
+                  : managerMode === "single"
+                    ? (allPractices[0]?.name ?? "Your Practice")
+                    : "Practice Operations"}
             </h1>
             <div style={{ marginTop: 4, fontSize: 13, color: "#4b5563" }}>
-              {filterPracticeId
-                ? "Single practice view · Last 7 days"
-                : managerMode === "single"
-                  ? "Your practice · Last 7 days"
-                  : "Network-wide view · Last 7 days"}
+              {isOwnerRole
+                ? "Network-level view · Last 7 days"
+                : filterPracticeId
+                  ? "Single practice view · Last 7 days"
+                  : managerMode === "single"
+                    ? "Your practice · Last 7 days"
+                    : "Network-wide view · Last 7 days"}
             </div>
           </div>
           <div data-tour="quick-actions" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
@@ -277,7 +243,7 @@ export default function ManagerDashboard() {
         )}
 
         {/* Stat tiles */}
-        <div className="mgr-stats" data-tour="caseload-metrics" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginBottom: 20 }}>
+        <div className="mgr-stats" data-tour="caseload-metrics" data-demo-spotlight="manager-kpi-row" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginBottom: 20 }}>
           {[
             { label: "Practices", value: totals?.practices ?? "—", accent: "#6b82d4" },
             { label: "Therapists", value: totals?.therapists ?? "—", accent: "#6b82d4" },
@@ -313,99 +279,20 @@ export default function ManagerDashboard() {
           ))}
         </div>
 
-        {/* AI Operational Briefing */}
-        <div style={{
-          borderRadius: 14, border: "1px solid #1a2240",
-          background: "linear-gradient(160deg, #0a0e1c, #0d1018)",
-          overflow: "hidden", marginBottom: 20,
-        }}>
-          <div style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "14px 20px", borderBottom: "1px solid #131a30",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: 8,
-                background: "linear-gradient(135deg, #3b4fd4, #6d3fc4)",
-                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
-              }}>✦</div>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: 0.8, textTransform: "uppercase" }}>
-                  Operational Briefing
-                </div>
-                <div style={{ fontSize: 11, color: "#374151", marginTop: 1 }}>
-                  AI-generated · based on this week&apos;s network data
-                </div>
-              </div>
-            </div>
-            {aiDone && (
-              <button
-                onClick={() => data && generateAI(data)}
-                style={{ fontSize: 11, fontWeight: 600, color: "#4b5563", background: "none", border: "1px solid #1f2533", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" }}
-              >
-                ↻ Regenerate
-              </button>
-            )}
-          </div>
-
-          <div style={{ padding: 16 }}>
-            {/* Loading skeletons */}
-            {aiLoading && !aiSections && (
-              <div className="mgr-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                {[["55%","85%","70%"], ["50%","90%","65%"], ["60%","80%","72%"], ["52%","88%","60%"]].map((ws, i) => (
-                  <div key={i} style={{ padding: "14px 16px", borderRadius: 10, border: "1px solid #131a30", background: "#080c18" }}>
-                    {ws.map((w, j) => (
-                      <div key={j} style={{ height: j === 0 ? 10 : 12, width: w, borderRadius: 4, marginBottom: j < ws.length - 1 ? 8 : 0, background: "linear-gradient(90deg,#111420 0%,#1a1e2a 50%,#111420 100%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {aiError && (
-              <div style={{ fontSize: 12, color: "#f87171", background: "#1a0808", border: "1px solid #3d1a1a", borderRadius: 8, padding: "10px 12px", fontFamily: "monospace" }}>
-                {aiError}
-              </div>
-            )}
-
-            {/* Raw text fallback while streaming (before sections parse) */}
-            {aiText && !aiSections && (
-              <div style={{ fontSize: 13, lineHeight: 1.8, color: "#c8d0e0", padding: "4px 2px" }}>
-                <MarkdownContent>{aiText}</MarkdownContent>
-                {aiLoading && <span style={{ display: "inline-block", width: 2, height: 13, background: "#6d3fc4", marginLeft: 3, verticalAlign: "middle", animation: "blink 1s step-end infinite" }} />}
-              </div>
-            )}
-
-            {/* Parsed sections */}
-            {aiSections && (
-              <div className="mgr-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                {[
-                  { key: "PRIORITY",   icon: "⚡", color: "#f87171", label: "Priority" },
-                  { key: "UNASSIGNED", icon: "⇄",  color: "#fb923c", label: "Unassigned cases" },
-                  { key: "AT RISK",    icon: "◉",  color: "#eab308", label: "At-risk signals" },
-                  { key: "THIS WEEK",  icon: "→",  color: "#4ade80", label: "This week" },
-                ].map(({ key, icon, color, label }) => (
-                  <div key={key} style={{ padding: "14px 16px", borderRadius: 10, border: "1px solid #131a30", background: "#080c18" }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", color, marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}>
-                      <span>{icon}</span>{label}
-                    </div>
-                    <div style={{ fontSize: 13, lineHeight: 1.65, color: "#c8d0e0" }}>
-                      {aiSections[key] ? <MarkdownContent>{aiSections[key]}</MarkdownContent> : "—"}
-                      {aiLoading && key === "THIS WEEK" && (
-                        <span style={{ display: "inline-block", width: 2, height: 13, background: "#6d3fc4", marginLeft: 3, verticalAlign: "middle", animation: "blink 1s step-end infinite" }} />
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        {/* AI Operational Briefing — structured */}
+        <div style={{ marginBottom: 20 }} data-demo-spotlight="ai-briefing-panel">
+          <AIBriefing
+            briefing={structuredBriefing}
+            isLoading={structuredLoading}
+            onRegenerate={() => data && loadStructuredBriefing(data)}
+            context={isOwnerRole ? "owner" : "manager"}
+          />
         </div>
 
         {/* Issues row */}
         <div className="mgr-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
           {/* Routing friction */}
-          <div style={{ borderRadius: 12, border: "1px solid #1a1e2a", background: "#0d1018", overflow: "hidden" }}>
+          <div data-demo-spotlight="routing-friction" style={{ borderRadius: 12, border: "1px solid #1a1e2a", background: "#0d1018", overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px", borderBottom: "1px solid #131720" }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.7 }}>
                 Routing friction
@@ -441,7 +328,7 @@ export default function ManagerDashboard() {
           </div>
 
           {/* Risk signals */}
-          <div style={{ borderRadius: 12, border: "1px solid #1a1e2a", background: "#0d1018", overflow: "hidden" }}>
+          <div data-demo-spotlight="risk-signals" style={{ borderRadius: 12, border: "1px solid #1a1e2a", background: "#0d1018", overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px", borderBottom: "1px solid #131720" }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.7 }}>
                 Risk signals
@@ -545,5 +432,13 @@ export default function ManagerDashboard() {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function ManagerDashboard() {
+  return (
+    <Suspense fallback={null}>
+      <ManagerDashboardInner />
+    </Suspense>
   );
 }

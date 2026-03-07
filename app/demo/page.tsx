@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { enableDemoMode, DEMO_CONFIG } from "@/lib/demo/demoMode";
 import { setRole } from "@/lib/roleContext";
 import {
   TOUR_SCRIPTS,
   writeTourState,
+  clearTourState,
   type DemoPersona,
 } from "@/lib/demo/tourScripts";
 
@@ -121,6 +122,14 @@ export default function DemoPage() {
   const [loadingPersona, setLoadingPersona] = useState<DemoPersona | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // On mount: clear any lingering tour state/overlays from prior sessions
+  useEffect(() => {
+    clearTourState();
+    try { sessionStorage.removeItem("demoTourActive"); } catch {}
+    // Remove any lingering overlay elements from the DOM
+    document.querySelectorAll("[data-demo-overlay]").forEach(el => el.remove());
+  }, []);
+
   function startTour(persona: DemoPersona) {
     setLoadingPersona(persona);
     setError(null);
@@ -139,6 +148,7 @@ export default function DemoPage() {
 
       try {
         sessionStorage.removeItem("empathai_tour_complete");
+        sessionStorage.setItem("demoTourActive", "1");
       } catch {}
 
       // Short delay for visual feedback

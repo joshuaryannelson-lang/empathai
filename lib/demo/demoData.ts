@@ -446,6 +446,28 @@ export function getDemoTimeline(caseIdVal: string) {
   };
 }
 
+// ── Sprint H: Seeded demo caseload for tour mode ─────────────────────────────
+// When demo=true AND therapistId === 'demo-therapist-01', inject this
+// synthetic caseload. First names only — no last names, no identifiers.
+export const DEMO_TOUR_CASELOAD = {
+  activeCases: 4,
+  checkIns: 3,
+  avgScore: 5.8,
+  atRiskCheckIns: 1,
+  missingCheckIns: 1,
+  cases: [
+    { caseCode: "PSI-0042", firstName: "Morgan", score: 2,
+      trend: "down" as const, lastCheckin: "2026-03-05",
+      flag: "at-risk" as const, note: "Mentioned feeling overwhelmed" },
+    { caseCode: "PSI-0118", firstName: "Jordan", score: 8,
+      trend: "up" as const, lastCheckin: "2026-03-06", flag: null },
+    { caseCode: "PSI-0091", firstName: "Alex", score: 6,
+      trend: "stable" as const, lastCheckin: "2026-03-04", flag: null },
+    { caseCode: "PSI-0077", firstName: "Riley", score: 5,
+      trend: "stable" as const, lastCheckin: "2026-03-03", flag: "missing" as const },
+  ],
+};
+
 /** Care payload matching /api/therapists/[id]/care */
 export function getDemoTherapistCare(therapistIdVal: string) {
   const therapist = getDemoTherapist(therapistIdVal);

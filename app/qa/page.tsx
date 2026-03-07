@@ -278,9 +278,34 @@ const PAGES: PageSection[] = [
       "Shrink the window narrow — banner and service list stack cleanly",
     ],
   },
+  // ── DEMO TOUR ──
+  {
+    id: "demo-tour",
+    name: "Demo Tour (Sprint H)",
+    url: "/demo",
+    who: "Anyone — start from the /demo page and pick a persona",
+    group: "Demo Tour",
+    checks: [
+      "Manager tour: 3 steps reach /dashboard/manager with correct spotlights (KPI row, routing friction, risk signals)",
+      "Therapist tour: 6 steps reach care dashboard → cases list → case detail with correct spotlights",
+      "Patient tour: 5 steps reach welcome → checkin → checkin submit → history → goals — no step lands on /portal/onboarding",
+      "Practice owner tour: 3 steps reach /dashboard/manager?role=owner with correct spotlights",
+      "Spotlight overlay has background rgba(8,12,18,0.82) with a clip-path cutout around the target element",
+      "Tooltip card: background #0d1018, border 1px solid #1a2035, box-shadow includes 2px accent ring, border-radius 12px, max-width 320px, z-index 9999",
+      "Progress dots show filled accent (#6b82d4) for completed steps and outline for remaining; current dot is 10px, others 6px",
+      "Clicking 'Next' advances to the next step; clicking 'Back' returns to the previous step; 'Exit tour' ends the tour",
+      "After exiting tour, /demo page has no overlay, sessionStorage 'demoTourActive' is cleared",
+      "AI Briefing on therapist dashboard shows structured sections: Priority Attention (red), Positive Signals (green), Stable (gray), Recommended Actions (accent)",
+      "AI Briefing on manager dashboard shows structured sections matching therapist layout with context-appropriate labels",
+      "AI Briefing loading state shows shimmer skeletons; regenerate button triggers a new fetch",
+      "Demo data: therapist care dashboard shows 4 seeded cases (Morgan score 2, Jordan score 8, Alex score 6, Riley score 5) when demo=true",
+      "PHI compliance: only first names appear anywhere in tour steps, AI briefing, and demo data — no last names, IDs, or codes visible to patients",
+      "All 10+ pages have data-demo-spotlight attributes on the correct elements for tour targeting",
+    ],
+  },
 ];
 
-const GROUPS = ["For Everyone", "For Patients", "For Therapists", "For Practice Managers", "For Admin"];
+const GROUPS = ["For Everyone", "For Patients", "For Therapists", "For Practice Managers", "For Admin", "Demo Tour"];
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

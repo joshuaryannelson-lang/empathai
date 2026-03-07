@@ -333,7 +333,7 @@ export default function CaseDetailClient({ caseId }: { caseId: string }) {
         </div>{/* end left column */}
 
         {/* ── Right: AI Session Prep ── */}
-        <div className="case-detail-col-main" style={{ display: "grid", gap: 10, position: "relative", zIndex: 1 }}>
+        <div className="case-detail-col-main" data-demo-spotlight="session-prep" style={{ display: "grid", gap: 10, position: "relative", zIndex: 1 }}>
           {/* Header */}
           <div style={{ borderRadius: 12, border: "1px solid #1a2240", background: "linear-gradient(160deg, #0a0e1c, #0d1018)", padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg, #3b4fd4, #6d3fc4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>✦</div>
@@ -361,7 +361,9 @@ export default function CaseDetailClient({ caseId }: { caseId: string }) {
           <AiSection icon="→" label="Suggested session focus" color="#4ade80" items={ai?.session_focus} loading={loadingAi} />
 
           {/* ── Structured Session Prep (new AI output) ── */}
-          <SessionPrepCard caseId={caseId} weekStart={weekStartISO} />
+          <div data-demo-spotlight="clinical-notes">
+            <SessionPrepCard caseId={caseId} weekStart={weekStartISO} />
+          </div>
         </div>
       </div>
     </main>

@@ -110,7 +110,7 @@ export default function WelcomePage() {
       padding: "56px 20px 80px",
     }}>
       {/* Header */}
-      <div className="fade-in" style={{ marginBottom: 40 }}>
+      <div className="fade-in" data-demo-spotlight="portal-welcome" style={{ marginBottom: 40 }}>
         <h1 style={{
           fontSize: 36,
           fontWeight: 900,

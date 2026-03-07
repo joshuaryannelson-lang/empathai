@@ -401,7 +401,7 @@ function CasesPage() {
         {error && <div className="error-box">{error}</div>}
 
         {/* List */}
-        <div className="case-list">
+        <div className="case-list" data-demo-spotlight="case-list">
           {loading && [1,2,3,4,5].map(i => (
             <div key={i} className="skeleton" style={{ height: 72, animationDelay: `${i * 50}ms` }} />
           ))}

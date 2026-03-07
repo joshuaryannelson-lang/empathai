@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import MarkdownContent from "@/app/components/MarkdownContent";
+import AIBriefing, { type AIBriefingData } from "@/app/components/ai/AIBriefing";
 import { BUCKET, type Bucket } from "@/lib/constants";
 import { RISK_THRESHOLDS } from "@/lib/services/risk";
 import { isDemoMode } from "@/lib/demo/demoMode";
@@ -115,6 +116,10 @@ function TherapistCareDashboard() {
   const [aiDone, setAiDone] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
+  // Structured AI briefing state
+  const [structuredBriefing, setStructuredBriefing] = useState<AIBriefingData | null>(null);
+  const [structuredLoading, setStructuredLoading] = useState(false);
+
   // Tasks state
   type TaskRow = {
     id: string;
@@ -158,7 +163,10 @@ function TherapistCareDashboard() {
       );
       const careData = json.data ?? null;
       setCare(careData);
-      if (careData) generateSummary(careData);
+      if (careData) {
+        generateSummary(careData);
+        loadStructuredBriefing(careData);
+      }
       loadTasks();
     } catch {
       setCare(null);
@@ -258,6 +266,32 @@ function TherapistCareDashboard() {
       setAiLoading(false);
       setAiDone(true);
     }
+  }
+
+  async function loadStructuredBriefing(careData: TherapistCareResponse) {
+    setStructuredLoading(true);
+    try {
+      const demoSuffix = demoParam ? "?demo=true" : "";
+      const res = await fetch(`/api/ai/briefing${demoSuffix}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          context: "therapist",
+          dataSnapshot: {
+            cases: careData.cases.map(c => ({
+              firstName: c.patient_first_name,
+              score: c.lowest_score ?? c.avg_score,
+              trend: c.at_risk_checkins > 0 ? "down" : c.missing_checkin ? "stable" : "stable",
+              note: c.at_risk_checkins > 0 ? "At-risk check-in" : null,
+              flag: c.missing_checkin ? "missing" : c.at_risk_checkins > 0 ? "at-risk" : null,
+            })),
+          },
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json?.data) setStructuredBriefing(json.data);
+    } catch { /* ignore — structured briefing is supplementary */ }
+    finally { setStructuredLoading(false); }
   }
 
   async function loadTasks() {
@@ -459,7 +493,7 @@ function TherapistCareDashboard() {
         <div className="page-layout">
 
           {/* ── INFO SIDEBAR ── */}
-          <aside className="info-sidebar">
+          <aside className="info-sidebar" data-demo-spotlight="therapist-stats">
             <div className="profile-card">
               <div className="t-avatar">
                 {loading ? <div className="skeleton" style={{ width: 30, height: 16, borderRadius: 3 }} /> : therapistInitials}
@@ -536,7 +570,7 @@ function TherapistCareDashboard() {
         {activeTab === "attention" && (
           <>
             {/* At-risk patients */}
-            <div className="section" style={{ animationDelay: "100ms" }}>
+            <div className="section" data-demo-spotlight="at-risk-section" style={{ animationDelay: "100ms" }}>
               <div className="section-header">
                 <Link href={casesLowUrl} className="section-title" style={{ textDecoration: "none", color: "inherit" }}>
                   <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, display: "inline-block" }} className="dot--red" />
@@ -713,43 +747,13 @@ function TherapistCareDashboard() {
 
           {/* ── AI SIDEBAR ── */}
           <aside className="ai-sidebar" style={{ position: "sticky", top: 24, display: "grid", gap: 10 }}>
-            <div className="ai-section">
-              <div className="ai-header">
-                <div className="ai-header-left">
-                  <div className="ai-icon">✦</div>
-                  <div className="ai-title">AI Briefing</div>
-                </div>
-                {aiDone && (
-                  <button className="ai-regen" onClick={() => care && generateSummary(care)}>↻</button>
-                )}
-              </div>
-              <div className="ai-body">
-                {aiLoading && !aiSummary && (
-                  <>
-                    <div className="skeleton ai-skeleton-line" style={{ width: "92%" }} />
-                    <div className="skeleton ai-skeleton-line" style={{ width: "78%" }} />
-                    <div className="skeleton ai-skeleton-line" style={{ width: "85%" }} />
-                    <div className="skeleton ai-skeleton-line" style={{ width: "60%" }} />
-                  </>
-                )}
-                {aiError && (
-                  <div style={{ fontSize: 12, color: "#f87171", fontFamily: "DM Mono, monospace", background: "#1a0808", border: "1px solid #3d1a1a", borderRadius: 8, padding: "10px 12px" }}>
-                    {aiError}
-                  </div>
-                )}
-                {aiSummary && (
-                  <div className="ai-text">
-                    <MarkdownContent>{aiSummary}</MarkdownContent>
-                    {aiLoading && <span className="ai-cursor" />}
-                  </div>
-                )}
-              </div>
-              {aiDone && !aiError && (
-                <div className="ai-footer">
-                  <div className="ai-footer-dot" />
-                  {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                </div>
-              )}
+            <div data-demo-spotlight="ai-briefing-panel">
+              <AIBriefing
+                briefing={structuredBriefing}
+                isLoading={structuredLoading}
+                onRegenerate={() => care && loadStructuredBriefing(care)}
+                context="therapist"
+              />
             </div>
 
             {/* ── TASKS ── */}

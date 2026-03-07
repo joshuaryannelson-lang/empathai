@@ -103,7 +103,7 @@ function CheckinPageInner() {
         )}
       </div>
 
-      <div className="card fade-in-1" data-tour="checkin-form" style={{ border: `1px solid rgba(${ACCENT_RGB},0.18)`, background: `linear-gradient(160deg, rgba(${ACCENT_RGB},0.05) 0%, #0d1018 60%)` }}>
+      <div className="card fade-in-1" data-tour="checkin-form" data-demo-spotlight="checkin-form" style={{ border: `1px solid rgba(${ACCENT_RGB},0.18)`, background: `linear-gradient(160deg, rgba(${ACCENT_RGB},0.05) 0%, #0d1018 60%)` }}>
         {done ? (
           <div style={{ textAlign: "center", padding: "12px 0" }}>
             {isDemo ? (
@@ -197,7 +197,7 @@ function CheckinPageInner() {
 
             {error && <div style={{ fontSize: 12, color: "#f87171", marginTop: 8 }}>{error}</div>}
 
-            <div style={{ marginTop: 16 }}>
+            <div data-demo-spotlight="checkin-submit" style={{ marginTop: 16 }}>
               <button
                 className="btn-primary"
                 onClick={handleSubmit}
