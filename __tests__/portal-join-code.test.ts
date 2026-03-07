@@ -141,12 +141,22 @@ describe("Suite 1: Join Code Redemption", () => {
     attemptsChain.insert.mockResolvedValue({ error: null });
 
     const joinCodesChain = chainMock();
-    joinCodesChain.select.mockReturnValue({
+    // First call: primary lookup (select → eq → is → or → maybeSingle) → not found
+    joinCodesChain.select.mockReturnValueOnce({
       eq: jest.fn().mockReturnValue({
         is: jest.fn().mockReturnValue({
           or: jest.fn().mockReturnValue({
             maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
           }),
+        }),
+      }),
+    });
+    // Second call: diagnostic lookup (select → eq → maybeSingle) → found expired
+    joinCodesChain.select.mockReturnValueOnce({
+      eq: jest.fn().mockReturnValue({
+        maybeSingle: jest.fn().mockResolvedValue({
+          data: { id: "jc-exp", expires_at: "2020-01-01T00:00:00Z", redeemed_at: null },
+          error: null,
         }),
       }),
     });
@@ -164,7 +174,7 @@ describe("Suite 1: Join Code Redemption", () => {
     const json = await res.json();
 
     expect(res.status).toBe(404);
-    expect(json.error.message).toMatch(/invalid|expired/i);
+    expect(json.error.message).toMatch(/expired/i);
     expect(json.data).toBeNull();
   });
 
@@ -180,12 +190,22 @@ describe("Suite 1: Join Code Redemption", () => {
 
     // Already redeemed — `.is("redeemed_at", null)` means it won't match
     const joinCodesChain = chainMock();
-    joinCodesChain.select.mockReturnValue({
+    // First call: primary lookup → not found (redeemed_at is not null)
+    joinCodesChain.select.mockReturnValueOnce({
       eq: jest.fn().mockReturnValue({
         is: jest.fn().mockReturnValue({
           or: jest.fn().mockReturnValue({
             maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
           }),
+        }),
+      }),
+    });
+    // Second call: diagnostic lookup → found with redeemed_at set
+    joinCodesChain.select.mockReturnValueOnce({
+      eq: jest.fn().mockReturnValue({
+        maybeSingle: jest.fn().mockResolvedValue({
+          data: { id: "jc-red", expires_at: "2099-01-01T00:00:00Z", redeemed_at: "2026-01-01T00:00:00Z" },
+          error: null,
         }),
       }),
     });

@@ -3,6 +3,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { setRole } from "@/lib/roleContext";
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -153,13 +154,17 @@ function PersonaCard({ persona, index, selected, onSelect }: {
           ? `radial-gradient(circle at var(--mx) var(--my), rgba(var(--accent-rgb),0.12) 0%, rgba(0,0,0,0) 70%), rgba(255,255,255,0.04)`
           : `radial-gradient(circle at var(--mx) var(--my), rgba(var(--accent-rgb),0.06) 0%, rgba(0,0,0,0) 60%), rgba(255,255,255,0.02)`,
         boxShadow: isSelected
-          ? `0 0 0 1px rgba(var(--accent-rgb),0.2), 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(var(--accent-rgb),0.08)`
+          ? undefined
           : "0 4px 24px rgba(0,0,0,0.3)",
-        animationDelay: `${index * 120}ms`,
-        animationName: "fadeSlideUp",
-        animationDuration: "0.6s",
-        animationFillMode: "both",
-        animationTimingFunction: "cubic-bezier(0.16,1,0.3,1)",
+        ...(isSelected
+          ? {}
+          : {
+              animationDelay: `${index * 120}ms`,
+              animationName: "fadeSlideUp",
+              animationDuration: "0.6s",
+              animationFillMode: "both",
+              animationTimingFunction: "cubic-bezier(0.16,1,0.3,1)",
+            }),
         display: "flex",
         flexDirection: "column",
       } as React.CSSProperties}
@@ -465,6 +470,31 @@ export default function DemoLanding() {
             <p style={{ marginTop: 12, fontSize: 14, color: "rgba(255,255,255,0.42)", maxWidth: 460, margin: "12px auto 0", lineHeight: 1.5 }}>
               Surface at-risk cases early, automate session prep, and keep every practice running at its best.
             </p>
+
+            {/* Sign In link */}
+            <div style={{ marginTop: 20 }}>
+              <Link
+                href="/login"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "12px 28px",
+                  borderRadius: 12,
+                  background: "linear-gradient(135deg, rgba(107,130,212,0.22), rgba(107,130,212,0.08))",
+                  border: "1px solid rgba(107,130,212,0.35)",
+                  color: "#f1f5f9",
+                  fontSize: 15,
+                  fontWeight: 700,
+                  fontFamily: "'DM Sans', system-ui",
+                  textDecoration: "none",
+                  transition: "all 200ms ease",
+                  cursor: "pointer",
+                }}
+              >
+                Sign In
+              </Link>
+            </div>
 
             {/* Section label into role picker */}
             <div className="hero-section-gap" style={{ marginTop: 28, marginBottom: 4 }}>

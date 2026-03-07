@@ -60,7 +60,7 @@ export async function POST(req: Request) {
   if ((attemptCount ?? 0) >= MAX_ATTEMPTS_PER_HOUR) {
     await logAudit("join_code_rate_limited", null, ip, { code_prefix: code.slice(0, 4) });
     return NextResponse.json(
-      { data: null, error: { message: "Too many attempts. Please try again later." } },
+      { data: null, error: { message: "Too many attempts, contact your therapist." } },
       { status: 429 }
     );
   }
@@ -86,9 +86,25 @@ export async function POST(req: Request) {
     console.log("[join] entering post-lookup block");
 
     if (lookupError || !joinCode) {
-      await logAudit("join_code_failed", null, ip, { code_prefix: code.slice(0, 4) });
+      // Distinguish expired vs not-found for better UX
+      const { data: anyMatch } = await supabaseAdmin
+        .from("join_codes")
+        .select("id, expires_at, redeemed_at")
+        .eq("code", code)
+        .maybeSingle();
+
+      let message = "Code not found.";
+      if (anyMatch) {
+        if (anyMatch.redeemed_at) {
+          message = "This code has already been used.";
+        } else if (anyMatch.expires_at && new Date(anyMatch.expires_at) <= new Date()) {
+          message = "This code has expired.";
+        }
+      }
+
+      await logAudit("join_code_failed", null, ip, { code_prefix: code.slice(0, 4), reason: message });
       return NextResponse.json(
-        { data: null, error: { message: "Invalid or expired join code." } },
+        { data: null, error: { message } },
         { status: 404 }
       );
     }

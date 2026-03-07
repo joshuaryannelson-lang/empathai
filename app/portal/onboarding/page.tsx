@@ -24,6 +24,14 @@ export default function OnboardingPage() {
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState<string | null>(null);
 
+  // Pre-fill join code from ?code= query param
+  useEffect(() => {
+    const codeParam = searchParams.get("code");
+    if (codeParam && !joinCode) {
+      setJoinCode(codeParam.trim().toUpperCase());
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // If ?fresh=1 is in the URL, clear session immediately
   useEffect(() => {
     if (searchParams.get("fresh") === "1" && session) {

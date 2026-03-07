@@ -3,6 +3,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import DemoCredentialsPanel from "./components/DemoCredentialsPanel";
 
 // ── Design tokens (match EmpathAI dark theme) ────────────────────────────────
 
@@ -698,6 +699,9 @@ export default function QABoard() {
 
       {/* ── Main ── */}
       <main className="qa-main" style={{ flex: 1, minWidth: 0, padding: "32px 48px 80px", maxWidth: 820 }}>
+
+        {/* Demo Credentials Panel */}
+        <DemoCredentialsPanel />
 
         {/* Header */}
         <div className="qa-fade" style={{ marginBottom: 32 }}>
