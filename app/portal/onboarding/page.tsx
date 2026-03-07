@@ -98,7 +98,7 @@ export default function OnboardingPage() {
   // ── RETURNING USER — existing session detected ──
   if (mode === "returning" && session) {
     return (
-      <div style={{ minHeight: "calc(100vh - 61px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 16px" }}>
+      <div style={{ minHeight: "calc(100vh - 61px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 16px", width: "100%" }}>
         <div style={{ width: "100%", maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
           <div className="fade-in" style={{ marginBottom: 32 }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: ACCENT, opacity: 0.85, fontFamily: "'DM Mono',monospace", marginBottom: 12 }}>
@@ -140,7 +140,7 @@ export default function OnboardingPage() {
   // ── JOIN CODE VIEW (primary) ──
   if (mode === "join") {
     return (
-      <div style={{ minHeight: "calc(100vh - 61px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 16px" }}>
+      <div style={{ minHeight: "calc(100vh - 61px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 16px", width: "100%" }}>
         <div style={{ width: "100%", maxWidth: 480, margin: "0 auto" }}>
           <div className="fade-in" style={{ marginBottom: 32, textAlign: "center" }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: ACCENT, opacity: 0.85, fontFamily: "'DM Mono',monospace", marginBottom: 12 }}>
@@ -200,8 +200,8 @@ export default function OnboardingPage() {
   // ── WELCOME ──
   if (mode === "welcome" && session) {
     return (
-      <div style={{ minHeight: "calc(100vh - 61px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
-        <div style={{ width: "100%", maxWidth: 480, textAlign: "center" }}>
+      <div style={{ minHeight: "calc(100vh - 61px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px", width: "100%" }}>
+        <div style={{ width: "100%", maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
           <div className="fade-in">
             <div style={{ width: 64, height: 64, borderRadius: 20, background: `rgba(${ACCENT_RGB},0.12)`, border: `1px solid rgba(${ACCENT_RGB},0.25)`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px", fontSize: 26 }}>
               &#9678;
