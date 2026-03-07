@@ -97,8 +97,8 @@ export default function OnboardingPage() {
   // ── JOIN CODE VIEW (primary) ──
   if (mode === "join") {
     return (
-      <div style={{ minHeight: "calc(100vh - 61px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
-        <div style={{ width: "100%", maxWidth: 420 }}>
+      <div style={{ minHeight: "calc(100vh - 61px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 16px" }}>
+        <div style={{ width: "100%", maxWidth: 480, margin: "0 auto" }}>
           <div className="fade-in" style={{ marginBottom: 32, textAlign: "center" }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: ACCENT, opacity: 0.85, fontFamily: "'DM Mono',monospace", marginBottom: 12 }}>
               Patient Portal

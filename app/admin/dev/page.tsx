@@ -469,6 +469,7 @@ function DiagnosticsTab() {
   const [results, setResults] = useState<Record<string, CheckResult>>({});
   const [running, setRunning] = useState(false);
   const [infoExpanded, setInfoExpanded] = useState(false);
+  const [checksExpanded, setChecksExpanded] = useState(false);
 
   async function runCheck(check: CheckDef) {
     setResults((prev) => ({ ...prev, [check.id]: { state: "running" } }));
@@ -549,18 +550,36 @@ function DiagnosticsTab() {
 
       {/* All healthy banner */}
       {allHealthy && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 12,
-          padding: "16px 20px", borderRadius: 12, marginBottom: 20,
-          background: "#061a0b", border: "1px solid #0e2e1a",
-        }}>
-          <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#4ade80", flexShrink: 0 }} />
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "#4ade80" }}>All systems healthy</div>
-            <div style={{ fontSize: 12, color: "rgba(74,222,128,0.6)", marginTop: 2 }}>
-              {CHECKS.length} checks passed &middot; no items need attention
+        <div style={{ marginBottom: 20 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 12,
+            padding: "16px 20px", borderRadius: checksExpanded ? "12px 12px 0 0" : 12,
+            background: "#061a0b", border: "1px solid #0e2e1a",
+          }}>
+            <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#4ade80", flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#4ade80" }}>All systems healthy</div>
+              <div style={{ fontSize: 12, color: "rgba(74,222,128,0.6)", marginTop: 2 }}>
+                {CHECKS.length} checks passed &middot; no items need attention
+              </div>
             </div>
+            <button
+              onClick={() => setChecksExpanded(!checksExpanded)}
+              style={{
+                padding: "6px 14px", borderRadius: 8,
+                border: "1px solid #0e2e1a", background: "transparent",
+                color: "rgba(74,222,128,0.7)", fontSize: 12, fontWeight: 600,
+                cursor: "pointer", whiteSpace: "nowrap",
+              }}
+            >
+              {checksExpanded ? "Hide checks ▴" : `Show ${CHECKS.length} checks ▾`}
+            </button>
           </div>
+          {checksExpanded && (
+            <div style={{ display: "grid", gap: 6, padding: "12px 16px", background: "#0a0e14", border: "1px solid #0e2e1a", borderTop: "none", borderRadius: "0 0 12px 12px" }}>
+              {sortedChecks.map((check) => <CheckCard key={check.id} check={check} result={results[check.id]} />)}
+            </div>
+          )}
         </div>
       )}
 

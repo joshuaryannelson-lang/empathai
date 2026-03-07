@@ -209,12 +209,20 @@ export default function CaseDetailClient({ caseId }: { caseId: string }) {
   }, [ctx, loadingCtx]);
 
   return (
-    <main style={{ padding: "40px 48px 80px", maxWidth: 1200, background: "#080c12", minHeight: "100vh", color: "#e2e8f0", fontFamily: "'DM Sans', system-ui" }}>
+    <main className="case-detail-main" style={{ padding: "40px 48px 80px", maxWidth: 1200, background: "#080c12", minHeight: "100vh", color: "#e2e8f0", fontFamily: "'DM Sans', system-ui" }}>
       <style>{`
         @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
         @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
         input[type="date"] { color-scheme: dark; }
+        @media (max-width: 1023px) {
+          .case-detail-grid { grid-template-columns: 1fr 1fr !important; }
+        }
+        @media (max-width: 767px) {
+          .case-detail-grid { grid-template-columns: 1fr !important; }
+          .case-detail-main { padding: 24px 16px 60px !important; }
+          .case-detail-ai-grid { grid-template-columns: 1fr !important; }
+        }
       `}</style>
 
       {/* Header row */}
@@ -243,7 +251,7 @@ export default function CaseDetailClient({ caseId }: { caseId: string }) {
       {ctxError && <InlineAlert title="Context issue" message={ctxError} tone="warn" />}
       {aiError && <InlineAlert title="AI issue" message={aiError} tone="bad" />}
 
-      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 14, alignItems: "start" }}>
+      <div className="case-detail-grid" style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 14, alignItems: "start" }}>
 
         {/* ── Left column: Case context + THS ── */}
         <div style={{ display: "grid", gap: 14 }}>
@@ -319,7 +327,7 @@ export default function CaseDetailClient({ caseId }: { caseId: string }) {
           </div>
 
           {/* 5-section grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div className="case-detail-ai-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <AiSection icon="◈" label="Changes since last session" color="#6b82d4" items={ai?.changes_since_last} loading={loadingAi} />
             <AiSection icon="◎" label="Goal progress"              color="#00c8a0" items={ai?.goal_progress}      loading={loadingAi} />
             <AiSection icon="⊘" label="Potential barriers"         color="#fb923c" items={ai?.barriers}           loading={loadingAi} />

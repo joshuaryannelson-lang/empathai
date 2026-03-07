@@ -75,10 +75,19 @@ const STATUS_DOT: Record<string, string> = {
 const SERVICE_LABELS: Record<string, string> = {
   briefing: "Briefing Service",
   "session-prep": "Session Prep",
-  "ths-scoring": "THS Scoring",
+  "ths-scoring": "Health Score Narrative",
   "task-generation": "Task Generation",
-  redaction: "Redaction Engine",
-  "risk-classification": "Risk Classification",
+  redaction: "PHI Redaction",
+  "risk-classification": "Risk Signals",
+};
+
+const SERVICE_DESCRIPTIONS: Record<string, string> = {
+  briefing: "Generates practice-level AI briefings for managers",
+  "session-prep": "Generates pre-session briefings for therapists",
+  "ths-scoring": "Produces narrative summaries of health score components",
+  "task-generation": "Creates suggested tasks from session context",
+  redaction: "Scrubs personally identifiable information from prompts and outputs",
+  "risk-classification": "Classifies patient risk levels from check-in patterns",
 };
 
 // ── Pilot Launch Gate ─────────────────────────────────────────────────────────
@@ -147,7 +156,10 @@ export default function StatusPage() {
       <header style={{ borderBottom: "1px solid #111827", padding: "16px 28px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ color: "#22c55e", fontSize: 11, animation: "blink 2s infinite" }}>&#9679;</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", letterSpacing: 0.5 }}>empathAI // Agent Status</span>
+          <div>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", letterSpacing: 0.5 }}>AI Services</span>
+            <div style={{ fontSize: 11, color: "#4b5563", marginTop: 2 }}>How AI features are performing this month</div>
+          </div>
         </div>
         <div style={{ fontSize: 11, color: "#4b5563" }}>
           {data ? `Updated ${timeAgo(data.summary.lastUpdated)}` : "Loading..."}
@@ -238,6 +250,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function ServiceCard({ svc }: { svc: ServiceStatus }) {
   const dotColor = STATUS_DOT[svc.status] ?? "#374151";
+  const neverUsed = svc.callsToday === 0 && !svc.lastCallAt;
 
   return (
     <div style={{
@@ -248,18 +261,29 @@ function ServiceCard({ svc }: { svc: ServiceStatus }) {
       fontSize: 12,
       lineHeight: 1.8,
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
         <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, display: "inline-block", flexShrink: 0 }} />
         <span style={{ fontWeight: 700, color: "#e2e8f0", fontSize: 13 }}>
           {SERVICE_LABELS[svc.service] ?? svc.service}
         </span>
       </div>
-      <Row label="Status" value={svc.status.charAt(0).toUpperCase() + svc.status.slice(1)} color={dotColor} />
-      <Row label="Last call" value={svc.lastCallAt ? timeAgo(svc.lastCallAt) : "Never"} />
-      <Row label="Calls today" value={String(svc.callsToday)} />
-      <Row label="Avg tokens" value={svc.avgTokensToday ? String(svc.avgTokensToday) : "n/a"} />
-      <Row label="Blocked (PII)" value={String(svc.blockedToday)} color={svc.blockedToday > 0 ? "#f59e0b" : undefined} />
-      <Row label="Last error" value={svc.lastError ?? "None"} color={svc.lastError ? "#ef4444" : "#22c55e"} />
+      {SERVICE_DESCRIPTIONS[svc.service] && (
+        <div style={{ fontSize: 11, color: "#4b5563", marginBottom: 8, lineHeight: 1.4 }}>
+          {SERVICE_DESCRIPTIONS[svc.service]}
+        </div>
+      )}
+      {neverUsed ? (
+        <div style={{ fontSize: 12, color: "#4b5563", fontStyle: "italic", marginTop: 4 }}>Not yet used</div>
+      ) : (
+        <>
+          <Row label="Status" value={svc.status.charAt(0).toUpperCase() + svc.status.slice(1)} color={dotColor} />
+          <Row label="Last call" value={svc.lastCallAt ? timeAgo(svc.lastCallAt) : "Never"} />
+          <Row label="Calls today" value={svc.callsToday > 0 ? String(svc.callsToday) : "Not yet used"} color={svc.callsToday === 0 ? "#4b5563" : undefined} />
+          <Row label="Avg tokens" value={svc.avgTokensToday ? String(svc.avgTokensToday) : "n/a"} />
+          <Row label="Blocked (PII)" value={String(svc.blockedToday)} color={svc.blockedToday > 0 ? "#f59e0b" : undefined} />
+          <Row label="Last error" value={svc.lastError ?? "None"} color={svc.lastError ? "#ef4444" : "#22c55e"} />
+        </>
+      )}
     </div>
   );
 }

@@ -149,7 +149,7 @@ const PAGES: PageSection[] = [
     checks: [
       "Open a case from the All Cases list — it opens with the case title, patient first name, and therapist name",
       "You can see a timeline of past check-ins with scores and dates",
-      "There's a 'Generate Session Prep' button — it's visible and clickable",
+      "There's a 'Regenerate' button at the top of the Session Prep card — it's visible and clickable",
       "Goals section shows active goals with target dates",
       "No patient last names visible anywhere in the main view",
       "Shrink the window narrow — all sections are reachable by scrolling",

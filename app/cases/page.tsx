@@ -297,8 +297,12 @@ function CasesPage() {
           .search-input { width: 100% !important; }
           .bucket-pills { flex-wrap: wrap; gap: 6px; }
           .bucket-row { flex-direction: column; align-items: flex-start; }
-          .case-row { flex-wrap: wrap; gap: 10px; }
+          .case-list { gap: 12px !important; }
+          .case-row { flex-direction: column; align-items: stretch !important; gap: 12px; width: 100%; }
+          .case-avatar { align-self: flex-start; }
+          .score-badge { align-self: flex-start; }
           .status-tag { display: none; }
+          .page-header { flex-direction: column; align-items: flex-start; }
         }
       `}</style>
 

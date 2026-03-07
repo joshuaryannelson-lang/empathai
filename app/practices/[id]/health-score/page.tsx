@@ -180,11 +180,19 @@ function PracticeThsPageInner() {
   const hasData = components !== null;
 
   return (
-    <main style={{ padding: "40px 48px 80px", maxWidth: 900, background: "#080c12", minHeight: "100vh", color: "#e2e8f0", fontFamily: "'DM Sans', system-ui" }}>
+    <main className="ths-main" style={{ padding: "40px 48px 80px", maxWidth: 900, background: "#080c12", minHeight: "100vh", color: "#e2e8f0", fontFamily: "'DM Sans', system-ui" }}>
       <style>{`
         @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
         @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
         input[type="date"] { color-scheme: dark; }
+        @media (max-width: 767px) {
+          .ths-main { padding: 24px 16px 60px !important; }
+          .ths-hero-inner { flex-direction: column !important; }
+          .ths-formula { border-left: none !important; padding-left: 0 !important; border-top: 1px solid #1a1e2a; padding-top: 16px; margin-top: 16px; }
+        }
+        @media (max-width: 479px) {
+          .ths-driver-grid { grid-template-columns: 1fr !important; }
+        }
       `}</style>
 
       {/* Header */}
@@ -214,7 +222,7 @@ function PracticeThsPageInner() {
 
       {/* ── THS Hero ── */}
       <div style={{ animation: "fadeUp 0.25s ease", marginBottom: 16, borderRadius: 16, border: `1px solid ${bandStyle.border}`, background: `linear-gradient(160deg, ${bandStyle.bg}, #080c12)`, overflow: "hidden" }}>
-        <div style={{ padding: "28px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
+        <div className="ths-hero-inner" style={{ padding: "28px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
           {loading && !ths ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
               <Shimmer height={52} width={120} />
@@ -251,7 +259,7 @@ function PracticeThsPageInner() {
           )}
 
           {/* Formula */}
-          <div style={{ fontSize: 11, color: "#374151", fontFamily: "monospace", lineHeight: 2, borderLeft: "1px solid #1a1e2a", paddingLeft: 24 }}>
+          <div className="ths-formula" style={{ fontSize: 11, color: "#374151", fontFamily: "monospace", lineHeight: 2, borderLeft: "1px solid #1a1e2a", paddingLeft: 24 }}>
             <div style={{ fontWeight: 700, color: "#4b5563", marginBottom: 4, fontFamily: "inherit" }}>Formula</div>
             <div>THS = 0.25 · Workload</div>
             <div style={{ paddingLeft: 36 }}>+ 0.25 · Satisfaction</div>
@@ -262,7 +270,7 @@ function PracticeThsPageInner() {
       </div>
 
       {/* ── Driver Components ── */}
-      <div style={{ animation: "fadeUp 0.3s ease 0.06s both", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+      <div className="ths-driver-grid" style={{ animation: "fadeUp 0.3s ease 0.06s both", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
         {loading && !components ? (
           [1, 2, 3, 4].map(i => (
             <div key={i} style={{ padding: 20, borderRadius: 12, border: "1px solid #1a1e2a", background: "#0d1018", display: "grid", gap: 10 }}>
@@ -326,7 +334,7 @@ function PracticeThsPageInner() {
                 {movements.map((m, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: `1px solid ${m.direction === "up" ? "#0e2e1a" : "#3d1a1a"}`, background: m.direction === "up" ? "#061a0b" : "#1a0808" }}>
                     <span style={{ fontSize: 16, color: m.direction === "up" ? "#4ade80" : "#f87171", flexShrink: 0 }}>
-                      {m.direction === "up" ? "+" : "−"}
+                      {m.direction === "up" ? "↑" : "↓"}
                     </span>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: m.direction === "up" ? "#4ade80" : "#f87171" }}>{m.label}</div>
