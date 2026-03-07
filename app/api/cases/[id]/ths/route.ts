@@ -4,7 +4,7 @@
 import { supabaseAdmin } from "@/lib/supabase";
 import { bad, getIdFromContext, ok, RouteContextWithId } from "@/lib/route-helpers";
 import { isDemoMode } from "@/lib/demo/demoMode";
-import { checkRateLimit } from "@/lib/rateLimit";
+import { checkRateLimitAsync } from "@/lib/rateLimit";
 import { calculateTHS, type THSInput } from "@/lib/ai/thsScoring";
 import { buildTHSNarrativePrompt, validateNarrative } from "@/lib/ai/thsNarrativePrompt";
 import { hashPrompt, logAiCall } from "@/lib/services/audit";
@@ -65,7 +65,7 @@ export async function GET(_req: Request, ctx: RouteContextWithId) {
   const wantNarrative = url.searchParams.get("narrative") !== "false";
 
   if (apiKey && wantNarrative && result.confidence !== "low") {
-    const rl = checkRateLimit(`ai:ths:${caseId}`, 20, 86400_000);
+    const rl = await checkRateLimitAsync(`ai:ths:${caseId}`, 20, 86400_000);
     if (rl.allowed) {
       try {
         const prompt = buildTHSNarrativePrompt(result);

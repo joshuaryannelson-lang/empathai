@@ -82,7 +82,7 @@ export async function GET(request: Request) {
       therapistsQuery = therapistsQuery.in("practice_id", managerPracticeIds);
     }
 
-    const [casesRes, checkinsRes, therapistsRes, auditRes, practicesRes, aiAuditRes] = await Promise.all([
+    const [casesRes, checkinsRes, therapistsRes, auditRes, practicesRes, aiAuditRes, ratingsRes] = await Promise.all([
       casesQuery,
       supabase.from("checkins").select("case_id, score, created_at").gte("created_at", fourWeeksAgoISO),
       therapistsQuery,
@@ -91,6 +91,8 @@ export async function GET(request: Request) {
       supabase.from("practice").select("id, name"),
       // Fetch session-prep activity from ai_audit_logs for the activity feed
       supabaseAdmin.from("ai_audit_logs").select("service, case_code, created_at").in("service", ["session-prep"]).gte("created_at", thisWeekISO).order("created_at", { ascending: false }).limit(20),
+      // Fetch therapist ratings created this week
+      supabaseAdmin.from("therapist_ratings").select("therapist_id, s_rating, o_rating, t_rating, created_at").gte("created_at", thisWeekISO),
     ]);
 
     if (casesRes.error) return bad(casesRes.error.message);
@@ -99,6 +101,7 @@ export async function GET(request: Request) {
     // audit log is optional — don't fail if table missing
     const auditLogs = auditRes.data ?? [];
     const aiAuditLogs = aiAuditRes.data ?? [];
+    const ratings = ratingsRes.data ?? [];
 
     const cases = casesRes.data ?? [];
     const therapists = therapistsRes.data ?? [];
@@ -220,7 +223,12 @@ export async function GET(request: Request) {
         practiceName: practiceNameById[t.practice_id] ?? null,
         casesAssigned: therapistCases.length,
         checkinsThisWeek: therapistCheckins.length,
-        sessionRatings: null as number | null, // GA Prep — not available yet
+        sessionRatings: (() => {
+          const tr = ratings.filter((r: any) => r.therapist_id === t.id);
+          if (tr.length === 0) return null;
+          const avg = tr.reduce((s: number, r: any) => s + (r.s_rating + r.o_rating + r.t_rating) / 3, 0) / tr.length;
+          return Math.round(avg * 10) / 10;
+        })(),
         lastActivity,
       };
     }).sort((a: any, b: any) => b.checkinsThisWeek - a.checkinsThisWeek);

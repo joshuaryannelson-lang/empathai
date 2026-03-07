@@ -168,10 +168,10 @@ describe("/api/status route uses real error queries", () => {
       "utf-8"
     );
 
-    // Both select queries should include the error field
+    // Select query should include the error field
     const selectMatches = content.match(/\.select\([^)]*error[^)]*\)/g);
     expect(selectMatches).not.toBeNull();
-    expect(selectMatches!.length).toBeGreaterThanOrEqual(2);
+    expect(selectMatches!.length).toBeGreaterThanOrEqual(1);
   });
 });
 

@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { bad, getIdFromContext, ok, RouteContextWithId } from "@/lib/route-helpers";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoSessionPrepStructured } from "@/lib/demo/demoAI";
-import { checkRateLimit } from "@/lib/rateLimit";
+import { checkRateLimitAsync } from "@/lib/rateLimit";
 import {
   buildSessionPrepPrompt,
   validateSessionPrepOutput,
@@ -48,6 +48,7 @@ export async function GET(req: Request, ctx: RouteContextWithId) {
       checkins,
       latest_checkin: checkins[0] ?? null,
       active_goals: goals,
+      snapshot: null,
     });
   }
 
@@ -70,6 +71,13 @@ export async function GET(req: Request, ctx: RouteContextWithId) {
     .eq("status", "active")
     .order("created_at", { ascending: false });
 
+  // Load existing AI snapshot (if any)
+  const snapshotRes = await supabaseAdmin
+    .from("case_ai_snapshots")
+    .select("id, content, generated_at, reviewed, reviewed_at, reviewed_by")
+    .eq("case_id", caseId)
+    .single();
+
   if (checkinsRes.error) return bad(checkinsRes.error.message, 400, checkinsRes.error);
   if (goalsRes.error) return bad(goalsRes.error.message, 400, goalsRes.error);
 
@@ -78,6 +86,7 @@ export async function GET(req: Request, ctx: RouteContextWithId) {
     checkins: checkinsRes.data ?? [],
     latest_checkin: (checkinsRes.data ?? [])[0] ?? null,
     active_goals: goalsRes.data ?? [],
+    snapshot: snapshotRes.data ?? null,
   });
 }
 
@@ -95,7 +104,7 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   if (!apiKey) return bad("Anthropic API key not configured", 500);
 
   // ── Rate limiting: 20 AI calls per case per day ──
-  const rl = checkRateLimit(`ai:${caseId}`, 20, 86400_000);
+  const rl = await checkRateLimitAsync(`ai:${caseId}`, 20, 86400_000);
   if (!rl.allowed) {
     return bad("AI rate limit reached for today. Try again tomorrow.", 429);
   }
@@ -306,5 +315,49 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
     output_summary: "prompt-scrub",
   });
 
+  // ── Persist snapshot (upsert — one per case) ──
+  const therapistId = caseRes.data?.therapist_id ?? null;
+  await supabaseAdmin
+    .from("case_ai_snapshots")
+    .upsert(
+      {
+        case_id: caseId,
+        therapist_id: therapistId,
+        content: parsed,
+        generated_at: new Date().toISOString(),
+        reviewed: false,
+        reviewed_at: null,
+        reviewed_by: null,
+      },
+      { onConflict: "case_id" }
+    );
+
   return ok(parsed);
+}
+
+export async function PATCH(req: Request, ctx: RouteContextWithId) {
+  const caseId = await getIdFromContext(ctx);
+  if (!caseId) return bad("Missing case id");
+
+  const body = await req.json().catch(() => ({}));
+  const reviewed = body?.reviewed;
+  const reviewedBy = typeof body?.reviewed_by === "string" ? body.reviewed_by : null;
+
+  if (typeof reviewed !== "boolean") return bad("reviewed (boolean) required");
+
+  const update: Record<string, unknown> = {
+    reviewed,
+    reviewed_at: reviewed ? new Date().toISOString() : null,
+    reviewed_by: reviewed ? reviewedBy : null,
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from("case_ai_snapshots")
+    .update(update)
+    .eq("case_id", caseId)
+    .select("id, reviewed, reviewed_at, reviewed_by")
+    .single();
+
+  if (error) return bad(error.message, 400);
+  return ok(data);
 }

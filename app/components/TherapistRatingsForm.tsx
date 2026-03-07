@@ -8,6 +8,7 @@ import React, { useEffect, useState } from "react";
 interface TherapistRatingsFormProps {
   caseId: string;
   weekIndex: number;
+  therapistId?: string | null;
   onClose: () => void;
 }
 
@@ -78,7 +79,7 @@ function RatingSlider({ label, sublabel, value, onChange }: { label: string; sub
 
 // ── Main form ────────────────────────────────────────────────────────────────
 
-export default function TherapistRatingsForm({ caseId, weekIndex, onClose }: TherapistRatingsFormProps) {
+export default function TherapistRatingsForm({ caseId, weekIndex, therapistId, onClose }: TherapistRatingsFormProps) {
   const storageKey = `therapist_ratings_${caseId}_${weekIndex}`;
 
   const [S, setS] = useState<number | null>(null);
@@ -89,20 +90,42 @@ export default function TherapistRatingsForm({ caseId, weekIndex, onClose }: The
   const [error, setError] = useState<string | null>(null);
   const [isEdit, setIsEdit] = useState(false);
 
-  // Pre-fill from localStorage
+  // Pre-fill from server, then fall back to localStorage
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (typeof parsed.S === "number") setS(parsed.S);
-        if (typeof parsed.O === "number") setO(parsed.O);
-        if (typeof parsed.T === "number") setT(parsed.T);
-        setSubmitted(true);
-        setIsEdit(false);
-      }
-    } catch { /* noop */ }
-  }, [storageKey]);
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}/ratings?week_index=${weekIndex}`);
+        const json = await res.json();
+        const rows = json?.data;
+        if (!cancelled && Array.isArray(rows) && rows.length > 0) {
+          const r = rows[0];
+          if (typeof r.s_rating === "number") setS(r.s_rating);
+          if (typeof r.o_rating === "number") setO(r.o_rating);
+          if (typeof r.t_rating === "number") setT(r.t_rating);
+          setSubmitted(true);
+          setIsEdit(false);
+          return;
+        }
+      } catch { /* fall through to localStorage */ }
+
+      // Fallback: localStorage
+      if (cancelled) return;
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (typeof parsed.S === "number") setS(parsed.S);
+          if (typeof parsed.O === "number") setO(parsed.O);
+          if (typeof parsed.T === "number") setT(parsed.T);
+          setSubmitted(true);
+          setIsEdit(false);
+        }
+      } catch { /* noop */ }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [caseId, weekIndex, storageKey]);
 
   const allRated = S !== null && O !== null && T !== null;
 
@@ -111,9 +134,21 @@ export default function TherapistRatingsForm({ caseId, weekIndex, onClose }: The
     setSubmitting(true);
     setError(null);
     try {
-      // Store locally for pilot
-      const data = { S, O, T, savedAt: new Date().toISOString() };
-      localStorage.setItem(storageKey, JSON.stringify(data));
+      // Persist to server
+      const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}/ratings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          therapist_id: therapistId ?? null,
+          week_index: weekIndex,
+          S, O, T,
+        }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error.message ?? "Save failed");
+
+      // Also store in localStorage as cache
+      localStorage.setItem(storageKey, JSON.stringify({ S, O, T, savedAt: new Date().toISOString() }));
 
       // Trigger THS recalculation — fire and forget
       const params = new URLSearchParams({ S: String(S), O: String(O), T: String(T) });

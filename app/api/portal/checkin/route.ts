@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { authenticatePatient } from "@/lib/patientAuth";
 import { supabaseAdmin } from "@/lib/supabase";
-import { checkRateLimit } from "@/lib/rateLimit";
+import { checkRateLimitAsync } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   const { case_code } = claims;
 
   // ── Rate limiting: 10 check-ins per case_code per hour ──
-  const rl = checkRateLimit(`checkin:${case_code}`, 10, 3600_000);
+  const rl = await checkRateLimitAsync(`checkin:${case_code}`, 10, 3600_000);
   if (!rl.allowed) {
     return NextResponse.json(
       { data: null, error: { message: "Too many check-ins. Please try again later." } },
