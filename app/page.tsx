@@ -3,7 +3,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { setRole, clearRole } from "@/lib/roleContext";
+import { setRole } from "@/lib/roleContext";
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 type Practice = { id: string; name: string | null };
@@ -253,11 +253,14 @@ export default function DemoLanding() {
       setLaunched(true);
       setTimeout(() => router.push("/portal/onboarding"), 300);
     } else if (id === "admin") {
-      clearRole();
-      setLaunched(true);
-      try { localStorage.setItem("selected_persona", "admin"); } catch {}
+      // Set admin role in cookie + storage BEFORE navigating.
+      // We cannot use setRole() because it rejects "admin" (JWT-only by design),
+      // so we write the cookie and storage directly for demo mode.
       try { document.cookie = "empathAI_role=admin; path=/; SameSite=Lax; max-age=2592000"; } catch {}
-      setTimeout(() => router.push("/admin"), 300);
+      try { sessionStorage.setItem("empathAI_selected_role", "admin"); } catch {}
+      try { localStorage.setItem("selected_persona", "admin"); } catch {}
+      setLaunched(true);
+      router.push("/admin");
     } else if (id === "therapist") {
       storeRole("therapist");
       setLaunched(true);

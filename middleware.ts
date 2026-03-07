@@ -61,6 +61,10 @@ export async function middleware(req: NextRequest) {
 
   console.log('[middleware] role=', role, 'path=', pathname);
 
+  if (pathname.startsWith("/admin/dev") && role === "admin") {
+    console.log('[middleware] admin accessing /admin/dev — allowing through');
+  }
+
   const result = checkMfaGate({
     role,
     aal,
