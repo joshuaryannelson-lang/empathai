@@ -168,7 +168,8 @@ describe("Suite 13: Demo page links", () => {
   test("63d. demo page has mobile responsive styles for persona cards", () => {
     const content = fs.readFileSync(demoPath, "utf-8");
     expect(content).toContain("@media (max-width:");
-    expect(content).toContain("grid-template-columns: 1fr");
+    // Cascading layout uses indent-scale for responsive behavior
+    expect(content).toContain("--indent-scale");
   });
 
   test("63e. demo page has three persona cards: manager, therapist, patient", () => {

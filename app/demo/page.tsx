@@ -15,27 +15,20 @@ import {
 const PERSONAS: {
   id: DemoPersona;
   label: string;
+  eyebrowColor: string;
   icon: string;
   tagline: string;
   description: string;
   cta: string;
   accent: string;
   accentRgb: string;
+  minHeight: number;
+  indent: number;
 }[] = [
   {
-    id: "manager",
-    label: "Practice Manager",
-    icon: "\u2B21",
-    tagline: "Your whole practice, one view",
-    description:
-      "See every therapist, every case, every risk signal \u2014 and act before small problems become big ones.",
-    cta: "Start practice manager tour",
-    accent: "#00c8a0",
-    accentRgb: "0,200,160",
-  },
-  {
     id: "practice_owner",
-    label: "Practice Owner",
+    label: "PRACTICE OWNER",
+    eyebrowColor: "#d97706",
     icon: "\u25C7",
     tagline: "Your organization, fully visible",
     description:
@@ -43,10 +36,27 @@ const PERSONAS: {
     cta: "Start organization tour",
     accent: "#f5a623",
     accentRgb: "245,166,35",
+    minHeight: 180,
+    indent: 0,
+  },
+  {
+    id: "manager",
+    label: "PRACTICE MANAGER",
+    eyebrowColor: "#4ade80",
+    icon: "\u2B21",
+    tagline: "Your whole practice, one view",
+    description:
+      "See every therapist, every case, every risk signal \u2014 and act before small problems become big ones.",
+    cta: "Start practice manager tour",
+    accent: "#00c8a0",
+    accentRgb: "0,200,160",
+    minHeight: 160,
+    indent: 48,
   },
   {
     id: "therapist",
-    label: "Therapist",
+    label: "THERAPIST",
+    eyebrowColor: "#6b82d4",
     icon: "\u25CE",
     tagline: "Know your patients. Really know them.",
     description:
@@ -54,10 +64,13 @@ const PERSONAS: {
     cta: "Start therapist tour",
     accent: "#7c5cfc",
     accentRgb: "124,92,252",
+    minHeight: 160,
+    indent: 96,
   },
   {
     id: "patient",
-    label: "Patient",
+    label: "PATIENT",
+    eyebrowColor: "#38bdf8",
     icon: "\u2661",
     tagline: "Your care, your way.",
     description:
@@ -65,6 +78,8 @@ const PERSONAS: {
     cta: "Start patient tour",
     accent: "#38bdf8",
     accentRgb: "56,189,248",
+    minHeight: 140,
+    indent: 144,
   },
 ];
 
@@ -246,15 +261,27 @@ export default function DemoPage() {
         @keyframes fadeUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
         @keyframes headerReveal { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:translateY(0); } }
         @keyframes cardPulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
-        .demo-card { transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s ease; }
-        .demo-card:hover:not(.demo-card-loading) { transform: translateY(-4px) scale(1.01); box-shadow: 0 16px 48px rgba(0,0,0,0.5); }
-        .demo-card:active:not(.demo-card-loading) { transform: scale(0.98); }
+        .demo-card {
+          transition: transform 0.2s ease, box-shadow 0.2s ease, border-left-color 0.2s ease;
+          border-left: 2px solid transparent;
+        }
+        .demo-card:hover:not(.demo-card-loading) {
+          transform: translateX(4px);
+          border-left-color: var(--card-accent) !important;
+        }
+        .demo-card:active:not(.demo-card-loading) { transform: translateX(2px); }
         .demo-card-loading { pointer-events: none; animation: cardPulse 1s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) {
           .demo-card-loading { animation: none; opacity: 0.6; }
         }
-        @media (max-width: 700px) {
-          .persona-grid { grid-template-columns: 1fr !important; }
+        /* Tablet: halve indentation */
+        @media (max-width: 1023px) and (min-width: 640px) {
+          .cascade-card { --indent-scale: 0.5; }
+        }
+        /* Mobile: no indentation */
+        @media (max-width: 639px) {
+          .cascade-card { --indent-scale: 0; }
+          .cascade-connector { display: none !important; }
         }
       `}</style>
 
@@ -282,7 +309,7 @@ export default function DemoPage() {
         {/* Persona cards */}
         <section style={{ width: "100%", maxWidth: 960, padding: "40px 24px 0" }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: "rgba(255,255,255,0.3)", fontFamily: "'DM Mono', monospace", marginBottom: 16, textAlign: "center" }}>
-            Choose a perspective
+            EXPLORE BY ROLE
           </div>
 
           {error && (
@@ -291,56 +318,101 @@ export default function DemoPage() {
             </div>
           )}
 
-          <div className="persona-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
-            {PERSONAS.map((p, i) => {
-              const isLoading = loadingPersona === p.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  className={`demo-card${isLoading ? " demo-card-loading" : ""}`}
-                  onClick={() => startTour(p.id)}
-                  disabled={loadingPersona !== null}
-                  style={{
-                    textAlign: "left",
-                    border: `1.5px solid rgba(${p.accentRgb}, 0.15)`,
-                    background: `radial-gradient(ellipse at 30% 0%, rgba(${p.accentRgb}, 0.08) 0%, transparent 70%), rgba(255,255,255,0.02)`,
-                    borderRadius: 18,
-                    padding: "24px 22px",
-                    cursor: loadingPersona ? "not-allowed" : "pointer",
-                    color: "inherit",
-                    fontFamily: "inherit",
-                    animation: `fadeUp 0.5s ${i * 100}ms cubic-bezier(0.16,1,0.3,1) both`,
-                    display: "flex",
-                    flexDirection: "column",
-                    opacity: loadingPersona && !isLoading ? 0.4 : 1,
-                  }}
-                >
-                  <div style={{ width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, background: `rgba(${p.accentRgb}, 0.12)`, border: `1px solid rgba(${p.accentRgb}, 0.2)`, color: p.accent, marginBottom: 16 }}>
-                    {p.icon}
-                  </div>
-                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: p.accent, fontFamily: "'DM Mono', monospace", marginBottom: 6 }}>
-                    {p.label}
-                  </div>
-                  <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: -0.4, color: "rgba(255,255,255,0.95)", fontFamily: "'Sora', system-ui", lineHeight: 1.2, marginBottom: 8 }}>
-                    {p.tagline}
-                  </div>
-                  <div style={{ fontSize: 13, lineHeight: 1.55, color: "rgba(255,255,255,0.5)", marginBottom: 20, flex: 1 }}>
-                    {p.description}
-                  </div>
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 800, color: p.accent, fontFamily: "'Sora', system-ui" }}>
-                    {isLoading ? (
-                      <>
-                        <span style={{ width: 14, height: 14, borderRadius: "50%", border: `2px solid ${p.accent}`, borderTopColor: "transparent", animation: "spin 0.6s linear infinite", flexShrink: 0 }} />
-                        Loading...
-                      </>
-                    ) : (
-                      <>{p.cta} {"\u2192"}</>
+          <div style={{ position: "relative" }}>
+            {/* Vertical connector line */}
+            <div
+              className="cascade-connector"
+              style={{
+                position: "absolute",
+                left: 24,
+                top: 0,
+                bottom: 0,
+                width: 1,
+                background: "#1a2035",
+                pointerEvents: "none",
+              }}
+            />
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {PERSONAS.map((p, i) => {
+                const isLoading = loadingPersona === p.id;
+                return (
+                  <div
+                    key={p.id}
+                    className="cascade-card"
+                    style={{
+                      // Use CSS custom property for responsive indent scaling
+                      ["--indent-scale" as string]: 1,
+                      marginLeft: `calc(${p.indent}px * var(--indent-scale))`,
+                      maxWidth: `calc(100% - ${p.indent}px * var(--indent-scale))`,
+                      position: "relative",
+                    }}
+                  >
+                    {/* Horizontal tick connector */}
+                    {p.indent > 0 && (
+                      <div
+                        className="cascade-connector"
+                        style={{
+                          position: "absolute",
+                          left: `calc(-${p.indent}px * var(--indent-scale) + 24px)`,
+                          top: 24,
+                          width: `calc(${p.indent}px * var(--indent-scale) - 24px)`,
+                          height: 1,
+                          background: "#1a2035",
+                          pointerEvents: "none",
+                        }}
+                      />
                     )}
+                    <button
+                      type="button"
+                      className={`demo-card${isLoading ? " demo-card-loading" : ""}`}
+                      onClick={() => startTour(p.id)}
+                      disabled={loadingPersona !== null}
+                      style={{
+                        ["--card-accent" as string]: p.accent,
+                        textAlign: "left",
+                        width: "100%",
+                        border: `1px solid #1a2035`,
+                        background: `radial-gradient(ellipse at 30% 0%, rgba(${p.accentRgb}, 0.06) 0%, transparent 70%), #0d1018`,
+                        borderRadius: 18,
+                        padding: "24px 22px",
+                        minHeight: p.minHeight,
+                        cursor: loadingPersona ? "not-allowed" : "pointer",
+                        color: "inherit",
+                        fontFamily: "inherit",
+                        animation: `fadeUp 0.5s ${i * 100}ms cubic-bezier(0.16,1,0.3,1) both`,
+                        display: "flex",
+                        flexDirection: "column",
+                        opacity: loadingPersona && !isLoading ? 0.4 : 1,
+                      }}
+                    >
+                      <div style={{ width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, background: `rgba(${p.accentRgb}, 0.12)`, border: `1px solid rgba(${p.accentRgb}, 0.2)`, color: p.accent, marginBottom: 16 }}>
+                        {p.icon}
+                      </div>
+                      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: p.eyebrowColor, fontFamily: "'DM Mono', monospace", marginBottom: 6 }}>
+                        {p.label}
+                      </div>
+                      <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: -0.4, color: "rgba(255,255,255,0.95)", fontFamily: "'Sora', system-ui", lineHeight: 1.2, marginBottom: 8 }}>
+                        {p.tagline}
+                      </div>
+                      <div style={{ fontSize: 13, lineHeight: 1.55, color: "rgba(255,255,255,0.5)", marginBottom: 20, flex: 1 }}>
+                        {p.description}
+                      </div>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 800, color: p.accent, fontFamily: "'Sora', system-ui" }}>
+                        {isLoading ? (
+                          <>
+                            <span style={{ width: 14, height: 14, borderRadius: "50%", border: `2px solid ${p.accent}`, borderTopColor: "transparent", animation: "spin 0.6s linear infinite", flexShrink: 0 }} />
+                            Loading...
+                          </>
+                        ) : (
+                          <>{p.cta} {"\u2192"}</>
+                        )}
+                      </div>
+                    </button>
                   </div>
-                </button>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </section>
 
