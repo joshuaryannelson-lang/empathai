@@ -41,7 +41,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (session && searchParams.get("fresh") !== "1") {
-      router.replace("/portal/welcome");
+      router.replace("/portal/profile-setup");
     }
   }, [session, searchParams]);
 

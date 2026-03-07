@@ -4,6 +4,7 @@
 import React, { Suspense, useContext, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PortalIdentityContext } from "../layout";
+import { useProfileGate } from "../hooks/useProfileGate";
 import CrisisBanner, { useCrisisDetection } from "../components/CrisisBanner";
 import { detectPHI, phiWarningMessage } from "../components/PHIGuard";
 
@@ -26,6 +27,7 @@ function CheckinPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, authHeader } = useContext(PortalIdentityContext);
+  useProfileGate();
   // Demo mode: URL param OR session with empty token (legacy demo patient flow)
   const isDemo = searchParams?.get("demo") === "true" || (session != null && !session.token);
 

@@ -4,6 +4,7 @@
 import React, { useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PortalIdentityContext } from "../layout";
+import { useProfileGate } from "../hooks/useProfileGate";
 
 const ACCENT = "#38bdf8";
 const ACCENT_RGB = "56,189,248";
@@ -23,6 +24,8 @@ export default function WelcomePage() {
     hasSessionThisWeek: null,
   });
   const [loaded, setLoaded] = useState(false);
+
+  useProfileGate();
 
   useEffect(() => {
     if (!session) {

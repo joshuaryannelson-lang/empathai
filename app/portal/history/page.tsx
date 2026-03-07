@@ -4,6 +4,7 @@
 import React, { useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PortalIdentityContext } from "../layout";
+import { useProfileGate } from "../hooks/useProfileGate";
 
 type Checkin = {
   id: string;
@@ -35,6 +36,7 @@ const noteText = (c: Checkin) => c.note || c.notes || null;
 export default function HistoryPage() {
   const router = useRouter();
   const { session } = useContext(PortalIdentityContext);
+  useProfileGate();
 
   const [checkins, setCheckins] = useState<Checkin[]>([]);
   const [sessionNotes, setSessionNotes] = useState<SessionNote[]>([]);
