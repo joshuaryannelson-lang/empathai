@@ -378,20 +378,27 @@ function PracticeStatusContent() {
               const rate = data.checkinRate?.rate;
               const ratePercent = rate !== null && rate !== undefined ? Math.round(rate * 100) : null;
               const avgVal = data.avgRating?.value;
-              const delta = data.avgRating?.delta;
               const attn = data.needsAttention?.count ?? 0;
-              const isHealthy = (ratePercent === null || ratePercent >= 70) && attn <= 1;
-              const trendWord = delta && delta > 0.3 ? "improving" : delta && delta < -0.3 ? "declining" : "stable";
 
-              const line1 = ratePercent !== null
-                ? `${ratePercent}% of patients checked in this week`
-                : "Check-in data is still coming in";
-              const line2 = avgVal !== null && avgVal !== undefined
-                ? ` with an average rating of ${avgVal.toFixed(1)}/10${delta ? ` (${trendWord} vs last week)` : ""}.`
-                : ".";
-              const line3 = attn > 0
-                ? ` ${attn} case${attn > 1 ? "s" : ""} flagged for attention.`
-                : "";
+              const lowAvg = avgVal !== null && avgVal < 4.0;
+              const lowCheckin = ratePercent !== null && ratePercent < 70;
+              const hasLowScores = attn > 0;
+              const isHealthy = !hasLowScores && !lowCheckin && !lowAvg;
+
+              let narrative: string;
+              if (isHealthy) {
+                const rateStr = ratePercent !== null ? `${ratePercent}%` : "—";
+                const avgStr = avgVal !== null ? avgVal.toFixed(1) : "—";
+                narrative = `${rateStr} check-in completion this week with an average rating of ${avgStr}/10.`;
+              } else {
+                // First failing condition
+                const reason = lowAvg
+                  ? `average rating is ${avgVal!.toFixed(1)}/10, below the 4.0 threshold`
+                  : hasLowScores
+                    ? `${attn} case${attn > 1 ? "s" : ""} flagged with score 3 or below this week`
+                    : `check-in completion at ${ratePercent}%, below 70% target`;
+                narrative = `${reason}.`;
+              }
 
               return (
                 <div style={{
@@ -408,7 +415,7 @@ function PracticeStatusContent() {
                     {isHealthy ? "Practice is healthy" : "Attention needed"}
                   </span>
                   {" \u2014 "}
-                  {line1}{line2}{line3}
+                  {narrative}
                 </div>
               );
             })()}
@@ -617,11 +624,15 @@ function PracticeStatusContent() {
                 <div style={{ padding: "24px 0" }}>
                   <Ghost>No therapists assigned to cases yet</Ghost>
                 </div>
-              ) : (
-                <div className="therapist-table" style={{ borderRadius: 12, border: `1px solid ${T.border.DEFAULT}`, overflow: "hidden" }}>
+              ) : (() => {
+                const allRatingsEmpty = data.therapistActivity.every((t) => t.sessionRatings === null);
+                const cols = allRatingsEmpty ? "1.5fr 0.8fr 1fr 1fr" : "1.5fr 0.8fr 1fr 1fr 1fr";
+                return (
+                  <>
+                  <div className="therapist-table" style={{ borderRadius: 12, border: `1px solid ${T.border.DEFAULT}`, overflow: "hidden" }}>
                   {/* Header */}
                   <div style={{
-                    display: "grid", gridTemplateColumns: "1.5fr 0.8fr 1fr 1fr 1fr",
+                    display: "grid", gridTemplateColumns: cols,
                     padding: "10px 18px", background: T.bg.surface,
                     fontSize: 11, fontWeight: 700, letterSpacing: "0.5px",
                     color: T.text.muted, textTransform: "uppercase",
@@ -630,7 +641,7 @@ function PracticeStatusContent() {
                     <span>Therapist</span>
                     <span>Cases</span>
                     <span>Check-ins</span>
-                    <span>Ratings</span>
+                    {!allRatingsEmpty && <span>Ratings</span>}
                     <span>Last activity</span>
                   </div>
                   {/* Rows */}
@@ -638,7 +649,7 @@ function PracticeStatusContent() {
                     const isInactive = t.checkinsThisWeek === 0;
                     return (
                       <div key={t.id} style={{
-                        display: "grid", gridTemplateColumns: "1.5fr 0.8fr 1fr 1fr 1fr",
+                        display: "grid", gridTemplateColumns: cols,
                         padding: "12px 18px",
                         borderBottom: i < data.therapistActivity.length - 1 ? `1px solid ${T.border.DEFAULT}` : "none",
                         background: T.bg.card,
@@ -656,15 +667,22 @@ function PracticeStatusContent() {
                         </span>
                         <span>{t.casesAssigned}</span>
                         <span>{t.checkinsThisWeek}</span>
-                        <span style={{ color: T.text.disabled }}>{t.sessionRatings !== null ? t.sessionRatings : "\u2014"}</span>
+                        {!allRatingsEmpty && <span style={{ color: T.text.disabled }}>{t.sessionRatings !== null ? t.sessionRatings : "\u2014"}</span>}
                         <span style={{ fontFamily: FONT.mono, fontSize: 11 }}>
                           {t.lastActivity ? timeAgo(t.lastActivity) : "\u2014"}
                         </span>
                       </div>
                     );
                   })}
-                </div>
-              )}
+                  </div>
+                  {allRatingsEmpty && (
+                    <div style={{ fontSize: 12, color: T.text.disabled, fontStyle: "italic", marginTop: 8 }}>
+                      Therapist ratings not yet submitted this week
+                    </div>
+                  )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* ── Section 4: Trend Sparklines ── */}
