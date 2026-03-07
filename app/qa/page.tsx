@@ -20,6 +20,7 @@ const T = {
   pass: { fg: "#4ade80", bg: "#061a0b", border: "#0e2e1a" },
   fail: { fg: "#f87171", bg: "#1a0808", border: "#3d1a1a" },
   skip: { fg: "#a5b4fc", bg: "#0d0f1a", border: "#1f2240" },
+  amber: { fg: "#fbbf24", bg: "#1a1508", border: "#3d3010" },
   accent: "#38bdf8",
 };
 const FONT = {
@@ -271,6 +272,10 @@ type CheckResult = {
   status: "pass" | "fail" | "skip";
   note: string | null;
   checked_at: string;
+  page_path?: string;
+  last_verified_at?: string | null;
+  last_verified_by?: string | null;
+  stale?: boolean;
 };
 
 // ── Main component ───────────────────────────────────────────────────────────
@@ -288,13 +293,18 @@ export default function QABoard() {
   const [namePromptKey, setNamePromptKey] = useState<string | null>(null);
   const [badgeExpanded, setBadgeExpanded] = useState<Set<string>>(new Set());
   const [noteVisible, setNoteVisible] = useState<Set<string>>(new Set());
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [markingStale, setMarkingStale] = useState<Set<string>>(new Set());
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const nameInputRef = useRef<HTMLInputElement>(null);
   const deletedIds = useRef<Set<string>>(new Set());
 
-  // Load tester name from localStorage
+  // Load tester name and admin mode from localStorage
   useEffect(() => {
-    try { setTesterName(localStorage.getItem("qa_tester_name") ?? ""); } catch {}
+    try {
+      setTesterName(localStorage.getItem("qa_tester_name") ?? "");
+      setIsAdmin(localStorage.getItem("selected_persona") === "admin");
+    } catch {}
   }, []);
 
   const fetchResults = useCallback(async () => {
@@ -364,7 +374,27 @@ export default function QABoard() {
       });
       const json = await res.json();
       if (json?.data?.id) {
-        setResults(prev => prev.map(r => r.id === optimistic.id ? json.data : r));
+        // Check if any result for this check was stale
+        const wasStale = results.some(r => r.page_id === pageId && r.check_index === checkIndex && r.stale);
+        let finalData = json.data;
+        if (wasStale) {
+          try {
+            await fetch("/api/qa/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ check_id: json.data.id, verified_by: testerName.trim() }),
+            });
+            finalData = { ...json.data, stale: false, last_verified_at: new Date().toISOString(), last_verified_by: testerName.trim() };
+          } catch {}
+        }
+        setResults(prev => prev.map(r => {
+          if (r.id === optimistic.id) return finalData;
+          // Also clear stale on other results for the same check
+          if (wasStale && r.page_id === pageId && r.check_index === checkIndex) {
+            return { ...r, stale: false, last_verified_at: new Date().toISOString(), last_verified_by: testerName.trim() };
+          }
+          return r;
+        }));
       }
     } catch {
       setResults(prev => prev.filter(r => r.id !== optimistic.id));
@@ -449,6 +479,54 @@ export default function QABoard() {
     const allPassed = page.checks.every((_, i) => pageResults.some(r => r.check_index === i && r.status === "pass"));
     return allPassed ? "green" : "grey";
   }
+
+  // Check if any result for a (page, check) pair is stale
+  function isCheckStale(pageId: string, checkIndex: number): boolean {
+    return getCheckResults(pageId, checkIndex).some(r => r.stale === true);
+  }
+
+  // Get verified info for a check (when not stale)
+  function getVerifiedInfo(pageId: string, checkIndex: number): { by: string; at: string } | null {
+    const rs = getCheckResults(pageId, checkIndex);
+    const verified = rs.find(r => r.stale === false && r.last_verified_at);
+    if (!verified || !verified.last_verified_at || !verified.last_verified_by) return null;
+    return { by: verified.last_verified_by, at: verified.last_verified_at };
+  }
+
+  // Count stale checks per page
+  function getPageStaleCount(page: PageSection): number {
+    return page.checks.filter((_, i) => isCheckStale(page.id, i)).length;
+  }
+
+  // Mark all checks for a page as stale (admin)
+  async function markPageStale(page: PageSection) {
+    setMarkingStale(prev => new Set(prev).add(page.id));
+    try {
+      const res = await fetch("/api/qa/mark-stale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page_path: page.url }),
+      });
+      if (res.ok) {
+        setResults(prev => prev.map(r =>
+          r.page_id === page.id ? { ...r, stale: true } : r
+        ));
+      }
+    } catch {} finally {
+      setMarkingStale(prev => { const n = new Set(prev); n.delete(page.id); return n; });
+    }
+  }
+
+  // Stale check count for stats bar
+  const staleCheckCount = useMemo(() => {
+    const staleKeys = new Set<string>();
+    for (const r of results) {
+      if (r.stale === true && !deletedIds.current.has(r.id)) {
+        staleKeys.add(`${r.page_id}-${r.check_index}`);
+      }
+    }
+    return staleKeys.size;
+  }, [results]);
 
   // Collect all notes across all pages for the summary
   const allNotes = useMemo(() => {
@@ -620,6 +698,7 @@ export default function QABoard() {
           <span><strong style={{ color: T.text.primary }}>{totalChecks}</strong> total checks</span>
           <span><strong style={{ color: T.pass.fg }}>{greenPages}</strong> pages all green</span>
           <span><strong style={{ color: failedChecks > 0 ? T.fail.fg : T.text.muted }}>{failedChecks}</strong> issues found</span>
+          <span><strong style={{ color: staleCheckCount > 0 ? T.amber.fg : T.text.muted }}>{staleCheckCount}</strong> needs re-verification</span>
           <span><strong style={{ color: allNotes.length > 0 ? T.accent : T.text.muted }}>{allNotes.length}</strong> notes</span>
           {lastResult && <span style={{ color: T.text.muted }}>Last updated: {timeAgo(lastResult)}</span>}
           {loading && <span style={{ color: T.text.disabled, fontStyle: "italic" }}>Loading...</span>}
@@ -719,6 +798,38 @@ export default function QABoard() {
                     <h2 style={{ fontSize: 16, fontWeight: 800, color: T.text.heading, fontFamily: FONT.display, margin: 0 }}>
                       {page.name}
                     </h2>
+                    {getPageStaleCount(page) > 0 && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: T.amber.fg }}>
+                        {getPageStaleCount(page)} check{getPageStaleCount(page) !== 1 ? "s" : ""} need{getPageStaleCount(page) === 1 ? "s" : ""} re-verification
+                      </span>
+                    )}
+                    {isAdmin && (
+                      <button
+                        onClick={() => markPageStale(page)}
+                        disabled={markingStale.has(page.id)}
+                        style={{
+                          ...BTN_BASE,
+                          background: "transparent",
+                          border: `1px solid transparent`,
+                          color: T.text.disabled,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: "2px 8px",
+                          marginLeft: "auto",
+                          opacity: markingStale.has(page.id) ? 0.5 : 1,
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.borderColor = T.amber.border;
+                          e.currentTarget.style.color = T.amber.fg;
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.borderColor = "transparent";
+                          e.currentTarget.style.color = T.text.disabled;
+                        }}
+                      >
+                        {markingStale.has(page.id) ? "Marking..." : "Mark page stale"}
+                      </button>
+                    )}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
                     <a
@@ -757,12 +868,34 @@ export default function QABoard() {
                           borderBottom: i < page.checks.length - 1 ? `1px solid ${T.border.DEFAULT}` : "none",
                         }}>
                           {/* Check text */}
-                          <div style={{ fontSize: 13, color: T.text.secondary, lineHeight: 1.55, marginBottom: 8 }}>
+                          <div style={{ fontSize: 13, color: T.text.secondary, lineHeight: 1.55, marginBottom: isCheckStale(page.id, i) || getVerifiedInfo(page.id, i) ? 2 : 8 }}>
                             <span style={{ color: T.text.disabled, fontFamily: FONT.mono, fontSize: 11, marginRight: 8 }}>
                               {i + 1}.
                             </span>
                             {check}
+                            {isCheckStale(page.id, i) && (
+                              <span style={{
+                                display: "inline-block", marginLeft: 8,
+                                padding: "1px 7px", borderRadius: 999,
+                                fontSize: 10, fontWeight: 700,
+                                background: T.amber.bg, border: `1px solid ${T.amber.border}`,
+                                color: T.amber.fg, verticalAlign: "middle",
+                              }}>
+                                Needs re-check
+                              </span>
+                            )}
                           </div>
+                          {/* Staleness sub-line */}
+                          {isCheckStale(page.id, i) && (
+                            <div style={{ fontSize: 11, color: T.text.muted, marginBottom: 8, paddingLeft: 28 }}>
+                              Page updated since last verified
+                            </div>
+                          )}
+                          {!isCheckStale(page.id, i) && getVerifiedInfo(page.id, i) && (
+                            <div style={{ fontSize: 11, color: T.text.muted, marginBottom: 8, paddingLeft: 28 }}>
+                              Verified by {getVerifiedInfo(page.id, i)!.by} {timeAgo(getVerifiedInfo(page.id, i)!.at)}
+                            </div>
+                          )}
 
                           {/* Buttons — never disabled, intercept when no name */}
                           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>

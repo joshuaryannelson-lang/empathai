@@ -11,7 +11,7 @@ function bad(msg: string, status = 400) { return NextResponse.json({ data: null,
 export async function GET() {
   const { data, error } = await supabase
     .from("qa_checks")
-    .select("id, page_id, check_index, tester_name, status, note, checked_at")
+    .select("id, page_id, check_index, tester_name, status, note, checked_at, page_path, last_verified_at, last_verified_by, stale")
     .order("checked_at", { ascending: false });
 
   if (error) return bad(error.message, 500);
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       { page_id: pageId, check_index: checkIndex, tester_name: testerName, status, note },
       { onConflict: "page_id,check_index,tester_name" }
     )
-    .select("id, page_id, check_index, tester_name, status, note, checked_at")
+    .select("id, page_id, check_index, tester_name, status, note, checked_at, page_path, last_verified_at, last_verified_by, stale")
     .single();
 
   if (error) return bad(error.message, 500);
