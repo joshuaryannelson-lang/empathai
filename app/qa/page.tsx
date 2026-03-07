@@ -295,6 +295,8 @@ export default function QABoard() {
   const [noteVisible, setNoteVisible] = useState<Set<string>>(new Set());
   const [isAdmin, setIsAdmin] = useState(false);
   const [markingStale, setMarkingStale] = useState<Set<string>>(new Set());
+  const [collapsedPages, setCollapsedPages] = useState<Record<string, boolean>>({});
+  const [collapseInitialized, setCollapseInitialized] = useState(false);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const nameInputRef = useRef<HTMLInputElement>(null);
   const deletedIds = useRef<Set<string>>(new Set());
@@ -505,6 +507,32 @@ export default function QABoard() {
     return page.checks.filter((_, i) => isCheckStale(page.id, i)).length;
   }
 
+  // Determine if a page is fully verified (all checks have a pass, zero fails)
+  function isPageFullyVerified(page: PageSection): boolean {
+    const pageResults = resultsByPage[page.id] ?? [];
+    if (pageResults.length === 0) return false;
+    if (pageResults.some(r => r.status === "fail")) return false;
+    return page.checks.every((_, i) =>
+      pageResults.some(r => r.check_index === i && r.status === "pass")
+    );
+  }
+
+  // Initialize collapsed state once results load
+  useEffect(() => {
+    if (collapseInitialized || loading) return;
+    const initial: Record<string, boolean> = {};
+    for (const page of PAGES) {
+      initial[page.id] = isPageFullyVerified(page);
+    }
+    setCollapsedPages(initial);
+    setCollapseInitialized(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, collapseInitialized, resultsByPage]);
+
+  function togglePageCollapsed(pageId: string) {
+    setCollapsedPages(prev => ({ ...prev, [pageId]: !prev[pageId] }));
+  }
+
   // Mark all checks for a page as stale (admin)
   async function markPageStale(page: PageSection) {
     setMarkingStale(prev => new Set(prev).add(page.id));
@@ -703,9 +731,9 @@ export default function QABoard() {
           fontSize: 13, color: T.text.secondary,
         }}>
           <span><strong style={{ color: T.text.primary }}>{totalChecks}</strong> total checks</span>
-          <span><strong style={{ color: T.pass.fg }}>{greenPages}</strong> pages all green</span>
+          <span><strong style={{ color: T.pass.fg }}>{greenPages}</strong> of {PAGES.length} pages all green</span>
           <span><strong style={{ color: failedChecks > 0 ? T.fail.fg : T.text.muted }}>{failedChecks}</strong> issues found</span>
-          <span><strong style={{ color: staleCheckCount > 0 ? T.amber.fg : T.text.muted }}>{staleCheckCount}</strong> needs re-verification</span>
+          <span><strong style={{ color: staleCheckCount > 0 ? T.amber.fg : T.text.muted }}>{staleCheckCount}</strong> checks need re-verification</span>
           <span><strong style={{ color: allNotes.length > 0 ? T.accent : T.text.muted }}>{allNotes.length}</strong> notes</span>
           {lastResult && <span style={{ color: T.text.muted }}>Last updated: {timeAgo(lastResult)}</span>}
           {loading && <span style={{ color: T.text.disabled, fontStyle: "italic" }}>Loading...</span>}
@@ -784,6 +812,8 @@ export default function QABoard() {
 
             {PAGES.filter(p => p.group === group).map(page => {
               const pageStatus = getPageStatus(page);
+              const isCollapsed = !!collapsedPages[page.id];
+              const staleCount = getPageStaleCount(page);
               return (
                 <div
                   key={page.id}
@@ -797,7 +827,7 @@ export default function QABoard() {
                   }}
                 >
                   {/* Card header */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: isCollapsed ? 0 : 6 }}>
                     <span style={{
                       width: 9, height: 9, borderRadius: "50%",
                       background: pageStatus === "green" ? T.pass.fg : pageStatus === "red" ? T.fail.fg : T.text.disabled,
@@ -805,12 +835,17 @@ export default function QABoard() {
                     <h2 style={{ fontSize: 16, fontWeight: 800, color: T.text.heading, fontFamily: FONT.display, margin: 0 }}>
                       {page.name}
                     </h2>
-                    {getPageStaleCount(page) > 0 && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: T.amber.fg }}>
-                        {getPageStaleCount(page)} check{getPageStaleCount(page) !== 1 ? "s" : ""} need{getPageStaleCount(page) === 1 ? "s" : ""} re-verification
+                    {isCollapsed && (
+                      <span style={{ fontSize: 12, fontWeight: 600, color: T.pass.fg, opacity: 0.7 }}>
+                        {page.checks.length}/{page.checks.length} checks passed
                       </span>
                     )}
-                    {isAdmin && (
+                    {staleCount > 0 && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: T.amber.fg }}>
+                        {staleCount} check{staleCount !== 1 ? "s" : ""} need{staleCount === 1 ? "s" : ""} re-verification
+                      </span>
+                    )}
+                    {isAdmin && !isCollapsed && (
                       <button
                         onClick={() => markPageStale(page)}
                         disabled={markingStale.has(page.id)}
@@ -837,7 +872,22 @@ export default function QABoard() {
                         {markingStale.has(page.id) ? "Marking..." : "Mark page stale"}
                       </button>
                     )}
+                    <button
+                      onClick={() => togglePageCollapsed(page.id)}
+                      style={{
+                        background: "none", border: "none", cursor: "pointer",
+                        fontSize: 11, color: T.text.muted, fontFamily: FONT.body,
+                        marginLeft: isAdmin && !isCollapsed ? 0 : "auto",
+                        padding: "2px 8px",
+                      }}
+                    >
+                      {isCollapsed ? "\u25BE expand" : "\u25B4 collapse"}
+                    </button>
                   </div>
+
+                  {/* Collapsed: hide everything below header */}
+                  {!isCollapsed && (
+                    <>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
                     <a
                       href={page.url}
@@ -1063,6 +1113,8 @@ export default function QABoard() {
                       );
                     })}
                   </div>
+                    </>
+                  )}
                 </div>
               );
             })}
