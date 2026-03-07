@@ -256,11 +256,23 @@ export default function DemoLanding() {
       // Set admin role in cookie + storage BEFORE navigating.
       // We cannot use setRole() because it rejects "admin" (JWT-only by design),
       // so we write the cookie and storage directly for demo mode.
-      try { document.cookie = "empathAI_role=admin; path=/; SameSite=Lax; max-age=2592000"; } catch {}
+      document.cookie = "empathAI_role=admin; path=/; max-age=3600";
       try { sessionStorage.setItem("empathAI_selected_role", "admin"); } catch {}
       try { localStorage.setItem("selected_persona", "admin"); } catch {}
+
+      // Verify the cookie was actually written before navigating
+      const verify = document.cookie
+        .split("; ")
+        .find(r => r.startsWith("empathAI_role="));
+      console.log("[admin] cookie verified:", verify);
+
       setLaunched(true);
-      router.push("/admin");
+      if (verify) {
+        router.push("/admin");
+      } else {
+        // cookie failed to write — retry once
+        setTimeout(() => router.push("/admin"), 100);
+      }
     } else if (id === "therapist") {
       storeRole("therapist");
       setLaunched(true);
