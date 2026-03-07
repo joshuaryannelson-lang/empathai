@@ -243,7 +243,7 @@ export default function DemoTourOverlay() {
               style={{
                 fontSize: 13,
                 fontWeight: 700,
-                color: isLast ? "#080810" : "#e2e8f0",
+                color: isLast ? "#080c12" : "#e2e8f0",
                 background: isLast
                   ? "#4ade80"
                   : `rgba(${current.colorRgb}, 0.15)`,

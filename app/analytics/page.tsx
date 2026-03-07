@@ -142,7 +142,7 @@ export default function AnalyticsComingSoon() {
         }
       `}</style>
 
-      <div style={{ minHeight: "100vh", background: "#080810", color: "white", fontFamily: "'DM Sans', system-ui", position: "relative", overflow: "hidden" }}>
+      <div style={{ minHeight: "100vh", background: "#080c12", color: "white", fontFamily: "'DM Sans', system-ui", position: "relative", overflow: "hidden" }}>
 
         {/* Ambient orbs */}
         <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0 }}>

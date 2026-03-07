@@ -185,6 +185,7 @@ function PracticeStatusContent() {
   const weekStart = useMemo(() => toMondayYYYYMMDD(toYYYYMMDD(new Date())), []);
   const [sidebarPracticeId, setSidebarPracticeId] = useState<string | null>(null);
   const [sidebarTherapistId, setSidebarTherapistId] = useState<string | null>(null);
+  const [activityFilter, setActivityFilter] = useState<"all" | "crisis" | "clinical" | "system">("all");
 
   const demoParam = searchParams?.get("demo") === "true" ? "&demo=true" : "";
 
@@ -372,6 +373,46 @@ function PracticeStatusContent() {
         {data && (
           <div className="status-fade" style={{ display: "grid", gap: 36 }}>
 
+            {/* ── Narrative Summary ── */}
+            {(() => {
+              const rate = data.checkinRate?.rate;
+              const ratePercent = rate !== null && rate !== undefined ? Math.round(rate * 100) : null;
+              const avgVal = data.avgRating?.value;
+              const delta = data.avgRating?.delta;
+              const attn = data.needsAttention?.count ?? 0;
+              const isHealthy = (ratePercent === null || ratePercent >= 70) && attn <= 1;
+              const trendWord = delta && delta > 0.3 ? "improving" : delta && delta < -0.3 ? "declining" : "stable";
+
+              const line1 = ratePercent !== null
+                ? `${ratePercent}% of patients checked in this week`
+                : "Check-in data is still coming in";
+              const line2 = avgVal !== null && avgVal !== undefined
+                ? ` with an average rating of ${avgVal.toFixed(1)}/10${delta ? ` (${trendWord} vs last week)` : ""}.`
+                : ".";
+              const line3 = attn > 0
+                ? ` ${attn} case${attn > 1 ? "s" : ""} flagged for attention.`
+                : "";
+
+              return (
+                <div style={{
+                  padding: "16px 20px",
+                  borderRadius: 12,
+                  border: `1px solid ${isHealthy ? "rgba(74,222,128,0.15)" : "rgba(251,146,60,0.2)"}`,
+                  background: isHealthy ? "rgba(74,222,128,0.04)" : "rgba(251,146,60,0.04)",
+                  marginBottom: 20,
+                  fontSize: 14,
+                  color: "rgba(255,255,255,0.7)",
+                  lineHeight: 1.6,
+                }}>
+                  <span style={{ fontWeight: 700, color: isHealthy ? "#4ade80" : "#fb923c" }}>
+                    {isHealthy ? "Practice is healthy" : "Attention needed"}
+                  </span>
+                  {" \u2014 "}
+                  {line1}{line2}{line3}
+                </div>
+              );
+            })()}
+
             {/* ── Section 1: At a Glance ── */}
             <div>
               <SectionHeader>Practice health at a glance</SectionHeader>
@@ -479,13 +520,44 @@ function PracticeStatusContent() {
             {/* ── Section 2: Activity Feed ── */}
             <div>
               <SectionHeader>This week&apos;s activity</SectionHeader>
-              {data.activityFeed.length === 0 ? (
+              {/* Filter pills */}
+              <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+                {(["all", "crisis", "clinical", "system"] as const).map((f) => {
+                  const labels: Record<typeof f, string> = { all: "All", crisis: "Crisis", clinical: "Clinical", system: "System" };
+                  const isActive = activityFilter === f;
+                  return (
+                    <button
+                      key={f}
+                      onClick={() => setActivityFilter(f)}
+                      style={{
+                        fontSize: 11, fontWeight: 700, letterSpacing: "0.3px",
+                        padding: "4px 12px", borderRadius: 999, cursor: "pointer",
+                        border: `1px solid ${isActive ? T.accent.border : T.border.DEFAULT}`,
+                        background: isActive ? T.accent.bg : "transparent",
+                        color: isActive ? T.accent.DEFAULT : T.text.muted,
+                        fontFamily: FONT.mono, textTransform: "uppercase",
+                        transition: "all .15s",
+                      }}
+                    >
+                      {labels[f]}
+                    </button>
+                  );
+                })}
+              </div>
+              {(() => {
+                const filteredFeed = data.activityFeed.filter((event) => {
+                  if (activityFilter === "all") return true;
+                  if (activityFilter === "crisis") return event.type === "crisis";
+                  if (activityFilter === "system") return event.type === "join";
+                  /* clinical */ return event.type !== "crisis" && event.type !== "join";
+                });
+                return filteredFeed.length === 0 ? (
                 <div style={{ padding: "24px 0" }}>
-                  <Ghost>No activity yet this week — patients may not have been prompted yet</Ghost>
+                  <Ghost>{activityFilter === "all" ? "No activity yet this week — patients may not have been prompted yet" : `No ${activityFilter} activity this week`}</Ghost>
                 </div>
               ) : (
                 <div style={{ display: "grid", gap: 0 }}>
-                  {data.activityFeed.map((event, i) => (
+                  {filteredFeed.map((event, i) => (
                     <div key={i}>
                       {event.type === "crisis" ? (
                         /* Crisis notice — calm blue, not red */
@@ -505,7 +577,7 @@ function PracticeStatusContent() {
                         <div style={{
                           display: "flex", alignItems: "center", gap: 12,
                           padding: "10px 0",
-                          borderBottom: i < data.activityFeed.length - 1 ? `1px solid ${T.border.DEFAULT}` : "none",
+                          borderBottom: i < filteredFeed.length - 1 ? `1px solid ${T.border.DEFAULT}` : "none",
                         }}>
                           <div style={{
                             width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
@@ -534,7 +606,8 @@ function PracticeStatusContent() {
                     </div>
                   )}
                 </div>
-              )}
+              );
+              })()}
             </div>
 
             {/* ── Section 3: Therapist Activity ── */}

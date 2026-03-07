@@ -378,7 +378,7 @@ function handleLaunch() {
       `}</style>
 
       <div style={{
-        minHeight: "100vh", background: "#080810", color: "white",
+        minHeight: "100vh", background: "#080c12", color: "white",
         fontFamily: "'DM Sans', system-ui", position: "relative", overflow: "auto",
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         padding: "32px 24px",

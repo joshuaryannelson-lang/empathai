@@ -166,9 +166,9 @@ export default function OnboardingPage() {
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: ACCENT, opacity: 0.85, fontFamily: "'DM Mono',monospace", marginBottom: 10 }}>
               Welcome
             </div>
-            <h1 style={{ fontSize: 36, fontWeight: 900, letterSpacing: -1, color: "rgba(255,255,255,0.97)", lineHeight: 1.1, fontFamily: "'Sora',system-ui" }}>
+            <h2 style={{ fontSize: 36, fontWeight: 900, letterSpacing: -1, color: "rgba(255,255,255,0.97)", lineHeight: 1.1, fontFamily: "'Sora',system-ui" }}>
               Hi, {session.display_label.trim().split(" ")[0]}.
-            </h1>
+            </h2>
             <p style={{ marginTop: 14, fontSize: 15, color: "rgba(255,255,255,0.5)", lineHeight: 1.7, maxWidth: 380, margin: "14px auto 0" }}>
               Your care portal is ready. Check in with how you&apos;re feeling, view session notes, and track your goals.
             </p>

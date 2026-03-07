@@ -127,10 +127,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600;700&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #080810; }
+        body { background: #080c12; }
         @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
         @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-        .patient-shell { min-height:100vh; background:#080810; color:#e2e8f0; font-family:'DM Sans',system-ui; position:relative; }
+        .patient-shell { min-height:100vh; background:#080c12; color:#e2e8f0; font-family:'DM Sans',system-ui; position:relative; }
         .fade-in { animation:fadeUp 0.45s cubic-bezier(0.16,1,0.3,1) both; }
         .fade-in-1 { animation:fadeUp 0.45s 0.08s cubic-bezier(0.16,1,0.3,1) both; }
         .fade-in-2 { animation:fadeUp 0.45s 0.16s cubic-bezier(0.16,1,0.3,1) both; }
@@ -155,11 +155,18 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         .btn-primary:hover:not(:disabled) { background:linear-gradient(135deg, rgba(56,189,248,0.28), rgba(56,189,248,0.12)); box-shadow:0 0 24px rgba(56,189,248,0.18); }
         .btn-primary:disabled { opacity:0.4; cursor:not-allowed; }
         .skeleton { background:linear-gradient(90deg,#111420 0%,#1a1e2a 50%,#111420 100%); background-size:200% 100%; animation:shimmer 1.5s infinite; border-radius:5px; }
+        @media (max-width: 480px) {
+          .portal-header { padding: 10px 14px !important; }
+          .portal-brand-text { display: none !important; }
+          .portal-badge { display: none !important; }
+          .portal-patient-name { display: none !important; }
+          .portal-signout { font-size: 11px !important; padding: 4px 8px !important; }
+        }
       `}</style>
 
       <div className="patient-shell">
 
-        <header style={{
+        <header className="portal-header" style={{
           position: "relative",
           zIndex: 10,
           borderBottom: "1px solid rgba(255,255,255,0.06)",
@@ -177,17 +184,18 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 14, flexShrink: 0,
             }}>&#9678;</div>
-            <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: -0.3, color: "#e2e8f0" }}>empathAI</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: ACCENT, opacity: 0.8, marginLeft: 4, fontFamily: "'DM Mono',monospace" }}>Patient Portal</span>
+            <span className="portal-brand-text" style={{ fontSize: 14, fontWeight: 800, letterSpacing: -0.3, color: "#e2e8f0" }}>empathAI</span>
+            <span className="portal-badge" style={{ fontSize: 11, fontWeight: 600, color: ACCENT, opacity: 0.8, marginLeft: 4, fontFamily: "'DM Mono',monospace" }}>Patient Portal</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             {identity && (
               <>
                 <PatientNav />
-                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>
+                <span className="portal-patient-name" style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>
                   {identity.patient_name}
                 </span>
                 <button
+                  className="portal-signout"
                   onClick={signOut}
                   style={{
                     fontSize: 12, fontWeight: 600,

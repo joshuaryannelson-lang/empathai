@@ -72,13 +72,13 @@ export default function DemoPage() {
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600;700&display=swap');
           *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-          body { background: #080810; }
+          body { background: #080c12; }
           @keyframes fadeUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
           @keyframes scaleIn { from { opacity:0; transform:scale(0.9); } to { opacity:1; transform:scale(1); } }
         `}</style>
         <div style={{
           minHeight: "100vh",
-          background: "#080810",
+          background: "#080c12",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -183,7 +183,7 @@ export default function DemoPage() {
                     borderRadius: 12,
                     background: "#4ade80",
                     border: "1px solid #4ade80",
-                    color: "#080810",
+                    color: "#080c12",
                     fontSize: 14,
                     fontWeight: 800,
                     textDecoration: "none",
@@ -236,7 +236,7 @@ export default function DemoPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600;700&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #080810; }
+        body { background: #080c12; }
         @keyframes fadeUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
         @keyframes headerReveal { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:translateY(0); } }
         .demo-card:hover { transform: translateY(-4px) scale(1.01); box-shadow: 0 16px 48px rgba(0,0,0,0.5); }
@@ -250,7 +250,7 @@ export default function DemoPage() {
       <div
         style={{
           minHeight: "100vh",
-          background: "#080810",
+          background: "#080c12",
           color: "#e2e8f0",
           fontFamily: "'DM Sans', system-ui",
           display: "flex",
@@ -562,7 +562,7 @@ export default function DemoPage() {
               style={{
                 fontSize: 15,
                 fontWeight: 800,
-                color: "#080810",
+                color: "#080c12",
                 background: "#4ade80",
                 border: "1px solid #4ade80",
                 borderRadius: 12,
@@ -630,7 +630,7 @@ export default function DemoPage() {
                         fontFamily: "'DM Mono', monospace",
                       }}
                     >
-                      Step {s.step}
+                      Step {s.step} of {TOUR_STEPS.length}
                     </span>
                     <span
                       style={{

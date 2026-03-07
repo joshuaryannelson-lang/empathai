@@ -71,6 +71,7 @@ export default function CasePage() {
 
   const [d, setD]               = useState<TimelineResponse | null>(null);
   const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState<string | null>(null);
   const [goals, setGoals]       = useState<Goal[]>([]);
 
   const [sidebarTab, setSidebarTab] = useState<"care" | "notes">("care");
@@ -94,6 +95,7 @@ export default function CasePage() {
   const [dsmCodes, setDsmCodes] = useState<string[]>([]);
   const [dsmInput, setDsmInput] = useState("");
   const [dsmContextChanged, setDsmContextChanged] = useState(false);
+  const [dsmExpanded, setDsmExpanded] = useState(false);
 
   // Goals add state
   const [showAddGoal, setShowAddGoal] = useState(false);
@@ -115,16 +117,20 @@ export default function CasePage() {
       return;
     }
 
+    setError(null);
     Promise.all([
       fetch(`/api/cases/${id}/timeline`, { cache: "no-store" }).then(r => r.json()).catch(() => null),
       fetch(`/api/cases/${id}/goals`,    { cache: "no-store" }).then(r => r.json()).catch(() => null),
       fetch(`/api/cases/${id}`,          { cache: "no-store" }).then(r => r.json()).catch(() => null),
     ]).then(([timelineJson, goalsJson, caseJson]) => {
       if (timelineJson) setD(timelineJson?.data ?? timelineJson);
+      else setError("Failed to load case data");
       setGoals(goalsJson?.data ?? []);
       const caseData = caseJson?.data;
       if (caseData?.clinical_notes) setClinicalNotes(caseData.clinical_notes);
       if (Array.isArray(caseData?.dsm_codes)) setDsmCodes(caseData.dsm_codes);
+    }).catch((e: any) => {
+      setError(e?.message ?? "Failed to load case data");
     }).finally(() => setLoading(false));
   }, [id, isDemo]);
 
@@ -470,6 +476,13 @@ export default function CasePage() {
         {loading ? (
           <div style={{ opacity: 0.4, fontSize: 13 }}>Loading case…</div>
         ) : (
+          <>
+          {error && (
+            <div className="error-box" style={{ margin: "20px 0" }}>
+              {error}
+              <button onClick={() => { setError(null); setLoading(true); window.location.reload(); }} style={{ marginLeft: 12, background: "none", border: "1px solid #3d1a1a", borderRadius: 6, color: "#fca5a5", padding: "4px 10px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>Retry</button>
+            </div>
+          )}
           <div className="layout">
 
             {/* ── SIDEBAR ── */}
@@ -528,35 +541,56 @@ export default function CasePage() {
                 </div>
               )}
 
-              {/* Diagnostic codes — below therapist card */}
+              {/* Diagnostic codes — collapsible */}
               <div className="info-card">
-                <div className="info-card-title">Diagnostic codes</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: dsmCodes.length > 0 ? 8 : 0 }}>
-                  {dsmCodes.map(code => (
-                    <span key={code} className="diag-chip" style={{ gap: 4 }}>
-                      {code}
-                      <button
-                        onClick={() => removeDsmCode(code)}
-                        style={{ background: "none", border: "none", color: "#6b82d4", cursor: "pointer", padding: 0, fontSize: 12, fontWeight: 700, fontFamily: "inherit", lineHeight: 1 }}
-                        aria-label={`Remove ${code}`}
-                      >&times;</button>
-                    </span>
-                  ))}
+                <div
+                  className="info-card-title"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
+                  onClick={() => setDsmExpanded(v => !v)}
+                >
+                  <span>DSM Codes {dsmCodes.length > 0 ? `(${dsmCodes.length})` : ""}</span>
+                  <span style={{ fontSize: 10, color: "#4b5563", transition: "transform 0.15s", transform: dsmExpanded ? "rotate(180deg)" : "none" }}>▾</span>
                 </div>
-                {dsmCodes.length < 5 && (
-                  <div style={{ display: "flex", gap: 4 }}>
-                    <input
-                      value={dsmInput}
-                      onChange={e => setDsmInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addDsmCode(); } }}
-                      placeholder="e.g. F41.1"
-                      style={{ flex: 1, padding: "5px 8px", borderRadius: 6, border: "1px solid #1f2533", background: "#080c12", color: "#c8d0e0", fontSize: 11, fontFamily: "inherit" }}
-                    />
-                    <button
-                      onClick={addDsmCode}
-                      style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #1f2533", background: "#0d1018", color: "#6b82d4", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-                    >Add</button>
+                {!dsmExpanded && dsmCodes.length === 0 && (
+                  <div style={{ fontSize: 11, color: "#4b5563", fontStyle: "italic" }}>No codes added</div>
+                )}
+                {!dsmExpanded && dsmCodes.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {dsmCodes.map(code => (
+                      <span key={code} className="diag-chip">{code}</span>
+                    ))}
                   </div>
+                )}
+                {dsmExpanded && (
+                  <>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: dsmCodes.length > 0 ? 8 : 0 }}>
+                      {dsmCodes.map(code => (
+                        <span key={code} className="diag-chip" style={{ gap: 4 }}>
+                          {code}
+                          <button
+                            onClick={() => removeDsmCode(code)}
+                            style={{ background: "none", border: "none", color: "#6b82d4", cursor: "pointer", padding: 0, fontSize: 12, fontWeight: 700, fontFamily: "inherit", lineHeight: 1 }}
+                            aria-label={`Remove ${code}`}
+                          >&times;</button>
+                        </span>
+                      ))}
+                    </div>
+                    {dsmCodes.length < 5 && (
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <input
+                          value={dsmInput}
+                          onChange={e => setDsmInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addDsmCode(); } }}
+                          placeholder="e.g. F41.1"
+                          style={{ flex: 1, padding: "5px 8px", borderRadius: 6, border: "1px solid #1f2533", background: "#080c12", color: "#c8d0e0", fontSize: 11, fontFamily: "inherit" }}
+                        />
+                        <button
+                          onClick={addDsmCode}
+                          style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #1f2533", background: "#0d1018", color: "#6b82d4", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                        >Add</button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -669,7 +703,7 @@ export default function CasePage() {
                             </p>
                           )}
 
-                          {sessionNotes.length > 0 && (
+                          {sessionNotes.length > 0 ? (
                             <>
                               <button className="sn-toggle" onClick={() => setNotesOpen(o => !o)}>
                                 <span className={`chevron ${notesOpen ? "chevron--open" : ""}`}>▾</span>
@@ -682,6 +716,8 @@ export default function CasePage() {
                                 </div>
                               ))}
                             </>
+                          ) : (
+                            <div style={{ fontSize: 12, color: "#4b5563", fontStyle: "italic", padding: "8px 0" }}>No session notes recorded yet</div>
                           )}
                         </div>
                       )}
@@ -861,6 +897,7 @@ export default function CasePage() {
             </div>
 
           </div>
+          </>
         )}
       </div>
     </>
