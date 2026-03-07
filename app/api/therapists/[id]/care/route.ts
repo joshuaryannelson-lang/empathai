@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { isScoreCritical } from "@/lib/services/risk";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoTherapistCare } from "@/lib/demo/demoData";
+import { resolveDemoTherapistId } from "@/lib/demo/demoIds";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,8 @@ export async function GET(
   ctx: { params: { id: string } } | { params: Promise<{ id: string }> }
 ) {
   const resolvedParams = await Promise.resolve((ctx as any).params);
-  const therapistId = resolvedParams?.id as string | undefined;
+  const rawId = resolvedParams?.id as string | undefined;
+  const therapistId = rawId ? resolveDemoTherapistId(rawId) : undefined;
 
   const { searchParams } = new URL(request.url);
 

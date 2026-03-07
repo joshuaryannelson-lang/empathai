@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { BUCKET } from "@/lib/constants";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoNormalizedCases } from "@/lib/demo/demoData";
+import { resolveDemoTherapistId } from "@/lib/demo/demoIds";
 
 
 export const dynamic = "force-dynamic";
@@ -35,7 +36,8 @@ export async function GET(req: Request) {
   }
 
   const practiceId = searchParams.get("practice_id");
-  const therapistId = searchParams.get("therapist_id");
+  const rawTherapistId = searchParams.get("therapist_id");
+  const therapistId = rawTherapistId ? resolveDemoTherapistId(rawTherapistId) : null;
   const bucket = searchParams.get("bucket"); // "low_scores" | "missing_checkins" | ""
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
   const limit = Math.min(200, Math.max(1, parseInt(searchParams.get("limit") ?? "50", 10) || 50));

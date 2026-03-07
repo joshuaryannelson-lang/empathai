@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { resolveDemoTherapistId } from "@/lib/demo/demoIds";
 
 export async function GET(
   _req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params;
+  const { id: rawId } = await context.params;
+  const id = resolveDemoTherapistId(rawId);
   const { data, error } = await supabase
     .from("therapists")
     .select("id, name, practice_id, extended_profile")
@@ -23,7 +25,8 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params;
+  const { id: rawId } = await context.params;
+  const id = resolveDemoTherapistId(rawId);
   if (!id) return NextResponse.json({ error: "Missing therapist id" }, { status: 400 });
 
   const body = await request.json().catch(() => ({}));

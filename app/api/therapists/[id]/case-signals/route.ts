@@ -5,6 +5,7 @@ import { SIGNAL, Signal } from "@/lib/constants";
 import { hasAtRiskScore, RISK_THRESHOLDS } from "@/lib/services/risk";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoCaseSignals } from "@/lib/demo/demoData";
+import { resolveDemoTherapistId } from "@/lib/demo/demoIds";
 import { hashPrompt, logAiCall } from "@/lib/services/audit";
 
 function startOfDayISO(dateStr: string) {
@@ -34,7 +35,8 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const { id: therapistId } = await context.params;
+  const { id: rawId } = await context.params;
+  const therapistId = resolveDemoTherapistId(rawId);
 
   if (isDemoMode(request.url)) {
     return NextResponse.json({ data: getDemoCaseSignals(therapistId), error: null });
