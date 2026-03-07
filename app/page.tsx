@@ -74,12 +74,11 @@ const PERSONAS = [
     label: "Analytics",
     icon: "◈",
     tagline: "Signal, not noise",
-    description: "Practice health scores, at-risk patterns, and engagement trends — the insights you wish you had, finally surfaced.",
+    description: "Real-time signal intelligence across your practice — health scores, risk patterns, utilization, and benchmarks.",
     accent: "#f5a623",
     accentRgb: "245,166,35",
     highlights: ["Practice health scores", "At-risk trend patterns", "Engagement benchmarks"],
-    cta: "Coming soon",
-    badge: "Coming soon",
+    cta: "Open analytics",
   },
 ];
 type Persona = typeof PERSONAS[number];
@@ -152,21 +151,6 @@ function PersonaCard({ persona, index, selected, onSelect }: {
         flexDirection: "column",
       } as React.CSSProperties}
     >
-      {/* Coming soon badge */}
-      {"badge" in persona && persona.badge && (
-        <div style={{
-          position: "absolute", top: 14, right: 14,
-          padding: "3px 9px", borderRadius: 999,
-          fontSize: 10, fontWeight: 700, letterSpacing: 1,
-          textTransform: "uppercase" as const,
-          background: `rgba(var(--accent-rgb), 0.12)`,
-          border: `1px solid rgba(var(--accent-rgb), 0.35)`,
-          color: persona.accent,
-        }}>
-          {persona.badge}
-        </div>
-      )}
-
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
         <div style={{
           width: 44, height: 44, borderRadius: 14,
@@ -309,8 +293,12 @@ export default function DemoLanding() {
 
   function handlePersonaSelect(id: string) {
     if (id === "analytics") {
-      // Coming soon — just toggle select, don't route
-      setSelected((prev) => (prev === id ? null : id));
+      if (selected === id) {
+        setLaunched(true);
+        setTimeout(() => router.push("/analytics"), 300);
+      } else {
+        setSelected(id);
+      }
       return;
     }
     // If already selected, treat second click as launch
@@ -323,13 +311,18 @@ export default function DemoLanding() {
   }
 
   function handleLaunch() {
-    if (!selected || selected === "analytics") return;
+    if (!selected) return;
+    if (selected === "analytics") {
+      setLaunched(true);
+      setTimeout(() => router.push("/analytics"), 300);
+      return;
+    }
     launchRole(selected);
   }
 
   const selectedPersona = PERSONAS.find((p) => p.id === selected);
   const showActionBar = !!selected;
-  const canLaunch = showActionBar && selected !== "analytics" && (
+  const canLaunch = showActionBar && (
     selected !== "manager" || managerMode === "multi" || (managerMode === "single" && !!harperPractice)
   );
 
