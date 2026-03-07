@@ -60,6 +60,9 @@ export async function GET(request: Request) {
     const allLogs = recentLogs ?? [];
     const today = todayLogs ?? [];
 
+    const distinctServices = [...new Set(allLogs.map((l: any) => l.service))];
+    console.log(`[status] distinct services in ai_audit_logs: ${JSON.stringify(distinctServices)} (${allLogs.length} total logs)`);
+
     const services = SERVICE_NAMES.map(name => {
       const svcToday = today.filter((l: any) => l.service === name);
       const svcAll = allLogs.filter((l: any) => l.service === name);

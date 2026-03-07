@@ -5,7 +5,7 @@
 // identifiable data — aggregates only.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/demo/demoMode";
 
 export const dynamic = "force-dynamic";
@@ -82,12 +82,15 @@ export async function GET(request: Request) {
       therapistsQuery = therapistsQuery.in("practice_id", managerPracticeIds);
     }
 
-    const [casesRes, checkinsRes, therapistsRes, auditRes, practicesRes] = await Promise.all([
+    const [casesRes, checkinsRes, therapistsRes, auditRes, practicesRes, aiAuditRes] = await Promise.all([
       casesQuery,
       supabase.from("checkins").select("case_id, score, created_at").gte("created_at", fourWeeksAgoISO),
       therapistsQuery,
-      supabase.from("portal_audit_log").select("event, case_code, created_at").gte("created_at", thisWeekISO).order("created_at", { ascending: false }).limit(50),
+      // SERVICE ROLE: portal_audit_log has RLS admin-only — anon client returns 0 rows
+      supabaseAdmin.from("portal_audit_log").select("event, case_code, created_at").gte("created_at", thisWeekISO).order("created_at", { ascending: false }).limit(50),
       supabase.from("practice").select("id, name"),
+      // Fetch session-prep activity from ai_audit_logs for the activity feed
+      supabaseAdmin.from("ai_audit_logs").select("service, case_code, created_at").in("service", ["session-prep"]).gte("created_at", thisWeekISO).order("created_at", { ascending: false }).limit(20),
     ]);
 
     if (casesRes.error) return bad(casesRes.error.message);
@@ -95,6 +98,7 @@ export async function GET(request: Request) {
     if (therapistsRes.error) return bad(therapistsRes.error.message);
     // audit log is optional — don't fail if table missing
     const auditLogs = auditRes.data ?? [];
+    const aiAuditLogs = aiAuditRes.data ?? [];
 
     const cases = casesRes.data ?? [];
     const therapists = therapistsRes.data ?? [];
@@ -262,12 +266,20 @@ export async function GET(request: Request) {
     for (const e of checkinEvents.slice(0, 5)) {
       activityFeed.push({ type: "checkin", message: "A patient completed their weekly check-in", time: e.created_at, practiceName: practiceNameForAudit(e) });
     }
+    // Session-prep events from ai_audit_logs
+    const scopedAiLogs = (practiceId || managerPracticeIds)
+      ? aiAuditLogs.filter((a: any) => !a.case_code || scopedCaseIds.has(a.case_code))
+      : aiAuditLogs;
+    for (const e of scopedAiLogs.slice(0, 5)) {
+      activityFeed.push({ type: "checkin", message: "Session prep generated for an upcoming appointment", time: e.created_at, practiceName: null });
+    }
     if (showJoinFailure) {
       activityFeed.push({ type: "unusual", message: "Unusual join attempt activity detected", time: failedJoinEvents[0].created_at, practiceName: practiceNameForAudit(failedJoinEvents[0]) });
     }
 
     // Sort by time, limit to 10
     activityFeed.sort((a, b) => b.time.localeCompare(a.time));
+    console.log(`[practice-status] activity feed: ${activityFeed.length} items (portal_audit=${auditLogs.length}, ai_audit=${aiAuditLogs.length})`);
     const feedItems = activityFeed.slice(0, 10);
     const hasMoreActivity = activityFeed.length > 10;
 

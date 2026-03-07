@@ -5,6 +5,7 @@ import { SIGNAL, Signal } from "@/lib/constants";
 import { hasAtRiskScore, RISK_THRESHOLDS } from "@/lib/services/risk";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoCaseSignals } from "@/lib/demo/demoData";
+import { hashPrompt, logAiCall } from "@/lib/services/audit";
 
 function startOfDayISO(dateStr: string) {
   // dateStr expected: YYYY-MM-DD
@@ -162,6 +163,17 @@ export async function GET(
     [SIGNAL.OK]: 3,
   };
   caseSignals.sort((a, b) => severity[a.signal] - severity[b.signal]);
+
+  // Log risk-classification activity
+  if (caseSignals.length > 0) {
+    await logAiCall({
+      service: "risk-classification",
+      case_code: therapistId,
+      triggered_by: "system:pipeline",
+      input_hash: hashPrompt(`risk-classify:${therapistId}:${weekStartRaw}`),
+      output_summary: `classified ${caseSignals.length} cases`,
+    });
+  }
 
   return NextResponse.json({
     data: {

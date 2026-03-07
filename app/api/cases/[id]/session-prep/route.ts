@@ -292,5 +292,14 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
     estimated_cost_usd: estimatedCost,
   });
 
+  // Log redaction service activity (scrubbing always runs inside buildSessionPrepPrompt)
+  await logAiCall({
+    service: "redaction",
+    case_code: caseId,
+    triggered_by: "system:pipeline",
+    input_hash: hashPrompt(prompt),
+    output_summary: "prompt-scrub",
+  });
+
   return ok(parsed);
 }
