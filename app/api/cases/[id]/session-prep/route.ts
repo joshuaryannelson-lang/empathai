@@ -220,15 +220,20 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
     clearTimeout(timeout);
     if (err?.name === "AbortError") {
       console.error(`[session-prep] case=${caseId} TIMEOUT after 10000ms`);
+      await logAiCall({ service: "session-prep", case_code: caseId, triggered_by: "therapist", input_hash: hashPrompt(prompt), error: true });
       return bad("Session prep timed out — try again", 504);
     }
+    await logAiCall({ service: "session-prep", case_code: caseId, triggered_by: "therapist", input_hash: hashPrompt(prompt), error: true });
     throw err;
   } finally {
     clearTimeout(timeout);
   }
 
   const json = await res.json();
-  if (!res.ok) return bad(json?.error?.message ?? "Anthropic API error", res.status);
+  if (!res.ok) {
+    await logAiCall({ service: "session-prep", case_code: caseId, triggered_by: "therapist", input_hash: hashPrompt(prompt), error: true });
+    return bad(json?.error?.message ?? "Anthropic API error", res.status);
+  }
 
   const rawText: string = json?.content?.[0]?.text ?? "";
   const durationMs = Date.now() - startTime;

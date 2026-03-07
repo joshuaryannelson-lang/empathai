@@ -111,9 +111,12 @@ export async function GET(_req: Request, ctx: RouteContextWithId) {
             completion_tokens: completionTokens,
             estimated_cost_usd: cost,
           });
-        }
+        } else {
+            await logAiCall({ service: "ths-scoring", case_code: caseId, triggered_by: "therapist", input_hash: hashPrompt(prompt), error: true });
+          }
       } catch (e) {
         console.error("[ths] Narrative generation failed:", e);
+        await logAiCall({ service: "ths-scoring", case_code: caseId, triggered_by: "therapist", input_hash: hashPrompt(buildTHSNarrativePrompt(result)), error: true });
       }
     }
   }

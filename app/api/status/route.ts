@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     // Fetch today's logs (aggregates) — never select input_hash or output_summary
     const { data: todayLogs, error: tErr } = await supabaseAdmin
       .from("ai_audit_logs")
-      .select("id, service, case_code, tokens_used, prompt_tokens, completion_tokens, estimated_cost_usd, redaction_flags, blocked, created_at")
+      .select("id, service, case_code, tokens_used, prompt_tokens, completion_tokens, estimated_cost_usd, redaction_flags, blocked, error, created_at")
       .gte("created_at", todayISO)
       .order("created_at", { ascending: false });
 
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     // Fetch last log per service (for "last call" and status)
     const { data: recentLogs, error: rErr } = await supabaseAdmin
       .from("ai_audit_logs")
-      .select("id, service, case_code, tokens_used, prompt_tokens, completion_tokens, estimated_cost_usd, redaction_flags, blocked, created_at")
+      .select("id, service, case_code, tokens_used, prompt_tokens, completion_tokens, estimated_cost_usd, redaction_flags, blocked, error, created_at")
       .gte("created_at", sevenDaysAgo)
       .order("created_at", { ascending: false })
       .limit(500);
@@ -90,7 +90,7 @@ export async function GET(request: Request) {
         callsToday: svcToday.length,
         avgTokensToday: avgTokens,
         blockedToday: blocked,
-        errorsToday: 0,
+        errorsToday: svcToday.filter((l: any) => l.error === true).length,
         lastError: null,
       };
     });
@@ -146,7 +146,7 @@ export async function GET(request: Request) {
       summary: {
         totalCallsToday: today.length,
         totalBlockedToday: today.filter((l: any) => l.blocked).length,
-        totalErrorsToday: 0,
+        totalErrorsToday: today.filter((l: any) => l.error === true).length,
         lastUpdated: new Date().toISOString(),
       },
       costTracking: {

@@ -2,7 +2,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { NavSidebar } from "@/app/components/NavSidebar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -54,12 +53,6 @@ function dotColor(errorRate: number): string {
   return "#22c55e";
 }
 
-function toMondayYYYYMMDD() {
-  const d = new Date();
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-  return d.toISOString().slice(0, 10);
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function StatusPage() {
@@ -94,18 +87,6 @@ export default function StatusPage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Sidebar state
-  const [sidebarPracticeId, setSidebarPracticeId] = useState<string | null>(null);
-  const [sidebarTherapistId, setSidebarTherapistId] = useState<string | null>(null);
-  const weekStart = useMemo(() => toMondayYYYYMMDD(), []);
-
-  useEffect(() => {
-    try {
-      setSidebarPracticeId(localStorage.getItem("selected_practice_id"));
-      setSidebarTherapistId(localStorage.getItem("selected_therapist_id"));
-    } catch {}
-  }, []);
-
   // Build service rows
   const serviceRows = useMemo(() => {
     if (!data) return [];
@@ -124,7 +105,7 @@ export default function StatusPage() {
   const cfg = OVERALL_CONFIG[overall];
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#080c12", color: "#e2e8f0" }}>
+    <div style={{ minHeight: "100vh", background: "#080c12", color: "#e2e8f0" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,900&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -134,14 +115,21 @@ export default function StatusPage() {
         }
       `}</style>
 
-      <NavSidebar
-        practiceId={sidebarPracticeId}
-        practiceName={null}
-        therapistId={sidebarTherapistId}
-        weekStart={weekStart}
-      />
+      {/* Minimal public header */}
+      <header style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "16px 24px", borderBottom: "1px solid #1a1e2a",
+        maxWidth: 720, margin: "0 auto",
+      }}>
+        <div style={{ fontSize: 16, fontWeight: 900, color: "#f1f3f8", letterSpacing: -0.5, fontFamily: "'DM Sans', sans-serif" }}>
+          EmpathAI
+        </div>
+        <a href="/" style={{ fontSize: 13, color: "#6b7280", textDecoration: "none" }}>
+          &larr; Back to app
+        </a>
+      </header>
 
-      <main className="status-main" style={{ flex: 1, minWidth: 0, padding: "48px 48px 80px", maxWidth: 720 }}>
+      <main className="status-main" style={{ padding: "48px 24px 80px", maxWidth: 720, margin: "0 auto" }}>
         {/* Page heading */}
         <div style={{ marginBottom: 32 }}>
           <h1 style={{ fontSize: 24, fontWeight: 900, letterSpacing: -0.5, color: "#f1f3f8", lineHeight: 1, fontFamily: "'DM Sans', sans-serif" }}>

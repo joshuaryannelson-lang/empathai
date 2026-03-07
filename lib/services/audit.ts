@@ -17,6 +17,7 @@ export interface AuditEntry {
   estimated_cost_usd?: number;
   redaction_flags?: string[];
   blocked?: boolean;
+  error?: boolean;
 }
 
 export function hashPrompt(prompt: string): string {
@@ -40,6 +41,7 @@ export async function logAiCall(entry: AuditEntry): Promise<void> {
       estimated_cost_usd: entry.estimated_cost_usd ?? null,
       redaction_flags: entry.redaction_flags ?? [],
       blocked: entry.blocked ?? false,
+      error: entry.error ?? false,
     };
 
     const { error } = await supabaseAdmin

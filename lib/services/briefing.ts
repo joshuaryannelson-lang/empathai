@@ -248,6 +248,7 @@ export async function generateBriefing(request: BriefingRequest): Promise<Briefi
       model,
       redaction_flags: redactedPrompt.redactions,
       blocked: true,
+      error: true,
     });
     throw err;
   }
