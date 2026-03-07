@@ -11,6 +11,7 @@ import { createServerClient } from "@supabase/ssr";
 import { checkMfaGate } from "@/lib/mfaGuard";
 
 export async function middleware(req: NextRequest) {
+  const pathname = req.nextUrl.pathname;
   const res = NextResponse.next();
 
   // Create a Supabase client that reads/writes cookies on the request/response
@@ -48,10 +49,22 @@ export async function middleware(req: NextRequest) {
     aal = mfaData?.currentLevel ?? null;
   }
 
+  // Fallback: read role from cookie (set client-side by roleContext.ts).
+  // This covers demo mode and non-Supabase-authenticated users where the
+  // role is selected via the persona picker and stored in sessionStorage + cookie.
+  if (!role) {
+    const cookieRole = req.cookies.get("empathAI_role")?.value ?? null;
+    if (cookieRole && ["therapist", "manager", "patient", "admin"].includes(cookieRole)) {
+      role = cookieRole;
+    }
+  }
+
+  console.log('[middleware] role=', role, 'path=', pathname);
+
   const result = checkMfaGate({
     role,
     aal,
-    path: req.nextUrl.pathname,
+    path: pathname,
   });
 
   if (result.action === "redirect") {

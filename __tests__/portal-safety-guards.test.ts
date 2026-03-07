@@ -2,11 +2,14 @@
 // Suite 6 (partial): Crisis detection + PHI detection pure function tests
 // Suite 5: Legacy endpoint deprecation (static analysis)
 // Suite 7: MFA gate for manager accounts
+// Suite 8: Role guard — direct URL bypass
+// Suite 9: Demo session prep structure
 
 import { CRISIS_PHRASES, SAFE_PHRASES } from "@/lib/fixtures/portalTestData";
 import { detectCrisisLanguage } from "@/app/portal/components/CrisisBanner";
 import { detectPHI, phiWarningMessage } from "@/app/portal/components/PHIGuard";
 import { checkMfaGate } from "@/lib/mfaGuard";
+import { getDemoSessionPrepStructured } from "@/lib/demo/demoAI";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -264,15 +267,23 @@ describe("Suite 7: MFA Gate", () => {
     expect(result2.action).toBe("pass");
   });
 
-  test("32c. non-manager/non-therapist roles are not affected by MFA gate on general /admin routes", () => {
-    // Patient at aal1 should pass
-    expect(checkMfaGate({ role: "patient", aal: "aal1", path: "/admin" }).action).toBe("pass");
-    // Admin at aal1 should pass everywhere
+  test("32c. admin has full access, patient and unauthenticated are blocked from /admin", () => {
+    // Admin at aal1 should pass everywhere (no MFA requirement for admin)
     expect(checkMfaGate({ role: "admin", aal: "aal1", path: "/admin" }).action).toBe("pass");
     expect(checkMfaGate({ role: "admin", aal: "aal1", path: "/admin/dev" }).action).toBe("pass");
     expect(checkMfaGate({ role: "admin", aal: "aal1", path: "/admin/status" }).action).toBe("pass");
-    // No role should pass (unauthenticated — page handles its own auth)
-    expect(checkMfaGate({ role: null, aal: null, path: "/admin" }).action).toBe("pass");
+    // Patient is blocked — redirect to /
+    const patientResult = checkMfaGate({ role: "patient", aal: "aal1", path: "/admin" });
+    expect(patientResult.action).toBe("redirect");
+    if (patientResult.action === "redirect") {
+      expect(patientResult.destination).toBe("/");
+    }
+    // No role (unauthenticated) is blocked — redirect to /
+    const nullResult = checkMfaGate({ role: null, aal: null, path: "/admin" });
+    expect(nullResult.action).toBe("redirect");
+    if (nullResult.action === "redirect") {
+      expect(nullResult.destination).toBe("/");
+    }
   });
 
   test("32d. MFA gate only applies to /admin routes", () => {
@@ -316,6 +327,48 @@ describe("Suite 7: MFA Gate", () => {
     }
   });
 
+  test("32h-2. patient has zero access to any /admin route", () => {
+    const routes = ["/admin", "/admin/status", "/admin/dev", "/admin/therapists", "/admin/patients"];
+    for (const route of routes) {
+      const result = checkMfaGate({ role: "patient", aal: "aal1", path: route });
+      expect(result.action).toBe("redirect");
+      if (result.action === "redirect") {
+        expect(result.destination).toBe("/");
+      }
+    }
+  });
+
+  test("32h-3. unauthenticated (null role) has zero access to any /admin route", () => {
+    const routes = ["/admin", "/admin/status", "/admin/dev", "/admin/therapists"];
+    for (const route of routes) {
+      const result = checkMfaGate({ role: null, aal: null, path: route });
+      expect(result.action).toBe("redirect");
+      if (result.action === "redirect") {
+        expect(result.destination).toBe("/");
+      }
+    }
+  });
+
+  test("32h-4. manager is redirected from /admin/dev to /admin/status", () => {
+    const result = checkMfaGate({ role: "manager", aal: "aal2", path: "/admin/dev" });
+    expect(result.action).toBe("redirect");
+    if (result.action === "redirect") {
+      expect(result.destination).toBe("/admin/status");
+    }
+  });
+
+  test("32h-5. admin can access /admin/dev", () => {
+    const result = checkMfaGate({ role: "admin", aal: "aal1", path: "/admin/dev" });
+    expect(result.action).toBe("pass");
+  });
+
+  test("32h-6. middleware reads role cookie (empathAI_role)", () => {
+    const middlewarePath = path.resolve(__dirname, "../middleware.ts");
+    const content = fs.readFileSync(middlewarePath, "utf-8");
+    expect(content).toContain("empathAI_role");
+    expect(content).toContain("[middleware] role=");
+  });
+
   test("32h. MFA enrollment page exists and cannot be skipped", () => {
     const enrollPath = path.resolve(__dirname, "../app/auth/mfa-enroll/page.tsx");
     expect(fs.existsSync(enrollPath)).toBe(true);
@@ -330,5 +383,103 @@ describe("Suite 7: MFA Gate", () => {
     expect(content).not.toMatch(/onClick.*(?:Skip|Dismiss)/);
     expect(content).not.toMatch(/>Skip</);
     expect(content).not.toMatch(/>Dismiss</);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// SUITE 8: Role Guard — Direct URL Bypass
+// Verifies that checkMfaGate blocks direct URL navigation for
+// unauthorized roles, independent of UI navigation controls.
+// ═══════════════════════════════════════════════════════════════════
+describe("Suite 8: Role guard — direct URL bypass", () => {
+  test("40a. therapist + /admin → redirect to /", () => {
+    const result = checkMfaGate({ role: "therapist", aal: "aal1", path: "/admin" });
+    expect(result.action).toBe("redirect");
+    if (result.action === "redirect") {
+      expect(result.destination).toBe("/");
+    }
+  });
+
+  test("40b. therapist + /admin/dev → redirect to /", () => {
+    const result = checkMfaGate({ role: "therapist", aal: "aal1", path: "/admin/dev" });
+    expect(result.action).toBe("redirect");
+    if (result.action === "redirect") {
+      expect(result.destination).toBe("/");
+    }
+  });
+
+  test("40c. manager + /admin/dev → redirect to /admin/status", () => {
+    const result = checkMfaGate({ role: "manager", aal: "aal2", path: "/admin/dev" });
+    expect(result.action).toBe("redirect");
+    if (result.action === "redirect") {
+      expect(result.destination).toBe("/admin/status");
+    }
+  });
+
+  test("40d. patient + /admin → redirect to /", () => {
+    const result = checkMfaGate({ role: "patient", aal: "aal1", path: "/admin" });
+    expect(result.action).toBe("redirect");
+    if (result.action === "redirect") {
+      expect(result.destination).toBe("/");
+    }
+  });
+
+  test("40e. admin + /admin/dev → no redirect (full access)", () => {
+    const result = checkMfaGate({ role: "admin", aal: "aal1", path: "/admin/dev" });
+    expect(result.action).toBe("pass");
+  });
+
+  test("40f. null role + /admin → redirect to /", () => {
+    const result = checkMfaGate({ role: null, aal: null, path: "/admin" });
+    expect(result.action).toBe("redirect");
+    if (result.action === "redirect") {
+      expect(result.destination).toBe("/");
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// SUITE 9: Demo Session Prep Structure
+// Verifies that demo session prep returns a structured object with
+// all required card properties, not a plain string.
+// ═══════════════════════════════════════════════════════════════════
+describe("Suite 9: Demo session prep structure", () => {
+  test("41a. returns an object, not a string", () => {
+    const result = getDemoSessionPrepStructured("demo-case-03");
+    expect(typeof result).toBe("object");
+    expect(typeof result).not.toBe("string");
+  });
+
+  test("41b. has all four card properties: watch_for, open_with, try_this, send_this", () => {
+    const result = getDemoSessionPrepStructured("demo-case-03");
+    expect(result).toHaveProperty("watch_for");
+    expect(result).toHaveProperty("open_with");
+    expect(result).toHaveProperty("try_this");
+    expect(result).toHaveProperty("send_this");
+  });
+
+  test("41c. all card properties are non-null strings for known demo case", () => {
+    const result = getDemoSessionPrepStructured("demo-case-03");
+    expect(typeof result.watch_for).toBe("string");
+    expect(typeof result.open_with).toBe("string");
+    expect(typeof result.try_this).toBe("string");
+    expect(typeof result.send_this).toBe("string");
+    expect(result.watch_for).toBeTruthy();
+    expect(result.open_with).toBeTruthy();
+    expect(result.try_this).toBeTruthy();
+    expect(result.send_this).toBeTruthy();
+  });
+
+  test("41d. default fallback also returns structured object with all properties", () => {
+    const result = getDemoSessionPrepStructured("unknown-case-id");
+    expect(typeof result).toBe("object");
+    expect(result).toHaveProperty("watch_for");
+    expect(result).toHaveProperty("open_with");
+    expect(result).toHaveProperty("try_this");
+    expect(result).toHaveProperty("send_this");
+    expect(result.watch_for).toBeTruthy();
+    expect(result.open_with).toBeTruthy();
+    expect(result.try_this).toBeTruthy();
+    expect(result.send_this).toBeTruthy();
   });
 });

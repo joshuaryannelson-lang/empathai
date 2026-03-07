@@ -12,6 +12,19 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 export type Role = "therapist" | "manager" | "admin" | "patient" | null;
 
 const SESSION_KEY = "empathAI_selected_role";
+const ROLE_COOKIE = "empathAI_role";
+
+/** Set a cookie readable by Next.js middleware (path=/, SameSite=Lax). */
+function setRoleCookie(role: string): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${ROLE_COOKIE}=${encodeURIComponent(role)}; path=/; SameSite=Lax; max-age=${60 * 60 * 24 * 30}`;
+}
+
+/** Delete the role cookie. */
+function clearRoleCookie(): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${ROLE_COOKIE}=; path=/; SameSite=Lax; max-age=0`;
+}
 
 /**
  * Read the active role. Priority:
@@ -90,6 +103,7 @@ export function setRole(role: "therapist" | "manager" | "patient"): void {
   } catch {
     // no-op
   }
+  setRoleCookie(role);
 }
 
 /** Clear the stored role (e.g. on logout or "Switch role"). */
@@ -99,6 +113,7 @@ export function clearRole(): void {
   // Also clear backward-compat localStorage keys
   try { localStorage.removeItem("user_role"); } catch {}
   try { localStorage.removeItem("selected_persona"); } catch {}
+  clearRoleCookie();
 }
 
 /** True only if the JWT contains role = "admin". */

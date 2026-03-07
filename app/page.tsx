@@ -263,30 +263,20 @@ export default function DemoLanding() {
     try { localStorage.setItem("selected_persona", role); } catch {}
   }
 
-  function handlePersonaSelect(id: string) {
+  function launchRole(id: string) {
     if (id === "patient") {
       storeRole("patient");
-      setSelected(id); setLaunched(true);
+      setLaunched(true);
       setTimeout(() => router.push("/portal/onboarding"), 300);
-      return;
-    }
-    if (id === "admin") {
-      // Admin role comes from JWT only — do not call setRole()
-      // Clear any stale sessionStorage role so getRole() falls through to JWT
+    } else if (id === "admin") {
       clearRole();
-      setSelected(id); setLaunched(true);
+      setLaunched(true);
       try { localStorage.setItem("selected_persona", "admin"); } catch {}
+      try { document.cookie = "empathAI_role=admin; path=/; SameSite=Lax; max-age=2592000"; } catch {}
       setTimeout(() => router.push("/admin"), 300);
-      return;
-    }
-    if (id === "analytics") {
-      // Coming soon — just select, don't route
-      setSelected((prev) => (prev === id ? null : id));
-      return;
-    }
-    if (id === "therapist") {
+    } else if (id === "therapist") {
       storeRole("therapist");
-      setSelected(id); setLaunched(true);
+      setLaunched(true);
       fetch("/api/therapists", { cache: "no-store" })
         .then((res) => res.json())
         .then((json) => {
@@ -301,45 +291,46 @@ export default function DemoLanding() {
           }
         })
         .catch(() => { setLaunched(false); setSelected(null); });
-      return;
-    }
-    if (id === "manager") {
-      // First click selects and shows manager sub-mode action bar.
-      // The action bar Launch button calls handleLaunch() which routes.
-      // But if already selected, treat as a direct launch to /admin/status.
-      if (selected === "manager") {
+    } else if (id === "manager") {
+      if (managerMode === "single" && harperPractice) {
         storeRole("manager");
+        try { localStorage.setItem("selected_manager_mode", "single"); } catch {}
+        try { localStorage.setItem("selected_practice_id", harperPractice.id); } catch {}
+        setLaunched(true);
+        setTimeout(() => router.push(`/admin/status?practice_id=${encodeURIComponent(harperPractice.id)}`), 300);
+      } else {
+        storeRole("manager");
+        try { localStorage.setItem("selected_manager_mode", "multi"); } catch {}
         setLaunched(true);
         setTimeout(() => router.push("/admin/status"), 300);
-        return;
       }
-      setSelected("manager");
-      return;
     }
-    setSelected((prev) => (prev === id ? null : id));
   }
 
-function handleLaunch() {
-    if (!selected) return;
-    if (selected === "manager" && managerMode === "multi") {
-      storeRole("manager");
-      try { localStorage.setItem("selected_manager_mode", "multi"); } catch {}
-      setLaunched(true);
-      setTimeout(() => router.push("/admin/status"), 300);
-    } else if (selected === "manager" && managerMode === "single" && harperPractice) {
-      storeRole("manager");
-      try { localStorage.setItem("selected_manager_mode", "single"); } catch {}
-      try { localStorage.setItem("selected_practice_id", harperPractice.id); } catch {}
-      setLaunched(true);
-      setTimeout(() => router.push(`/admin/status?practice_id=${encodeURIComponent(harperPractice.id)}`), 300);
+  function handlePersonaSelect(id: string) {
+    if (id === "analytics") {
+      // Coming soon — just toggle select, don't route
+      setSelected((prev) => (prev === id ? null : id));
+      return;
     }
+    // If already selected, treat second click as launch
+    if (selected === id) {
+      launchRole(id);
+      return;
+    }
+    // First click: just select (show description + action bar)
+    setSelected(id);
+  }
+
+  function handleLaunch() {
+    if (!selected || selected === "analytics") return;
+    launchRole(selected);
   }
 
   const selectedPersona = PERSONAS.find((p) => p.id === selected);
-  const showActionBar = selected === "manager";
-  const canLaunch = showActionBar && (
-    managerMode === "multi" ||
-    (managerMode === "single" && !!harperPractice)
+  const showActionBar = !!selected;
+  const canLaunch = showActionBar && selected !== "analytics" && (
+    selected !== "manager" || managerMode === "multi" || (managerMode === "single" && !!harperPractice)
   );
 
   return (
@@ -521,6 +512,22 @@ function handleLaunch() {
                     </span>
                   </button>
                 </>
+            </div>
+          )}
+
+          {/* Selected persona description */}
+          {selectedPersona && !launched && (
+            <div style={{
+              marginTop: 12,
+              padding: "16px 24px",
+              borderRadius: 16,
+              border: `1px solid rgba(${selectedPersona.accentRgb}, 0.15)`,
+              background: `rgba(${selectedPersona.accentRgb}, 0.03)`,
+              animation: "fadeSlideUp 0.3s cubic-bezier(0.16,1,0.3,1) both",
+            }}>
+              <div style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", lineHeight: 1.6 }}>
+                {selectedPersona.description}
+              </div>
             </div>
           )}
 

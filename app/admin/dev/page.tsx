@@ -615,7 +615,7 @@ function DiagnosticsTab() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 function AdminDevPage() {
   const searchParams = useSearchParams();
-  const initialTab = (searchParams?.get("tab") as Tab) ?? "api";
+  const initialTab = (searchParams?.get("tab") as Tab) ?? "debug";
   const [tab, setTab] = useState<Tab>(initialTab);
 
   const weekStart = useMemo(() => toMondayYYYYMMDD(toYYYYMMDD(new Date())), []);

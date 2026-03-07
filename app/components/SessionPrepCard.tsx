@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { safeDisplayText, containsBannedClinicalTerm } from "@/lib/phiDisplayGuard";
+import { isDemoMode } from "@/lib/demo/demoMode";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -118,7 +119,7 @@ function contentHash(d: SessionPrepOutput): string {
 
 export default function SessionPrepCard({ caseId, weekStart, onReviewedChange, onDataChange }: SessionPrepCardProps) {
   const searchParams = useSearchParams();
-  const isDemo = searchParams?.get("demo") === "true";
+  const isDemo = searchParams?.get("demo") === "true" || isDemoMode();
   const [data, setData] = useState<SessionPrepOutput | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
