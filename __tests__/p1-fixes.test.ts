@@ -147,25 +147,28 @@ describe("Suite 12: Goal status badges", () => {
 describe("Suite 13: Demo page links", () => {
   const demoPath = path.resolve(__dirname, "../app/demo/page.tsx");
 
-  test("63a. patient persona links to /portal/welcome?demo=true", () => {
+  test("63a. demo page uses silent auth via enableDemoMode for patient", () => {
     const content = fs.readFileSync(demoPath, "utf-8");
-    expect(content).toContain("/portal/welcome?demo=true");
+    expect(content).toContain("enableDemoMode");
+    expect(content).toContain('"patient"');
   });
 
-  test("63b. manager persona links to /admin/status with demo=true", () => {
+  test("63b. demo page uses silent auth for manager persona", () => {
     const content = fs.readFileSync(demoPath, "utf-8");
-    expect(content).toContain("/admin/status?demo=true");
+    expect(content).toContain('"manager"');
+    expect(content).toContain("authAsManager");
   });
 
-  test("63c. therapist persona links to care dashboard with demo=true", () => {
+  test("63c. demo page uses silent auth for therapist persona", () => {
     const content = fs.readFileSync(demoPath, "utf-8");
-    expect(content).toContain("/care?demo=true");
+    expect(content).toContain('"therapist"');
+    expect(content).toContain("authAsTherapist");
   });
 
   test("63d. demo page has mobile responsive styles for persona cards", () => {
     const content = fs.readFileSync(demoPath, "utf-8");
     expect(content).toContain("@media (max-width:");
-    expect(content).toContain("flex-direction: column");
+    expect(content).toContain("grid-template-columns: 1fr");
   });
 
   test("63e. demo page has three persona cards: manager, therapist, patient", () => {

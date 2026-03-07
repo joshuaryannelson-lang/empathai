@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import SessionPrepCard from "@/app/components/SessionPrepCard";
+import { isDemoMode } from "@/lib/demo/demoMode";
 
 function toMondayISO(d: Date) {
   const copy = new Date(d);
@@ -16,7 +17,7 @@ function SessionPrepPageInner() {
   const params = useParams();
   const searchParams = useSearchParams();
   const caseId = params?.id as string;
-  const isDemo = searchParams?.get("demo") === "true";
+  const isDemo = isDemoMode();
   const weekStart = toMondayISO(new Date());
 
   // Case context (patient name, therapist, title)
@@ -68,7 +69,7 @@ function SessionPrepPageInner() {
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 24px 80px" }}>
         {/* Back link */}
         <Link
-          href={`/cases/${encodeURIComponent(caseId)}${isDemo ? "?demo=true" : ""}`}
+          href={`/cases/${encodeURIComponent(caseId)}`}
           style={{ fontSize: 12, fontWeight: 500, color: "#4b5563", textDecoration: "none", letterSpacing: 0.5, textTransform: "uppercase", display: "inline-block", marginBottom: 20 }}
         >
           &larr; Back to case

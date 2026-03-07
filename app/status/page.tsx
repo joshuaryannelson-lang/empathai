@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { isDemoMode } from "@/lib/demo/demoMode";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -107,11 +108,7 @@ export default function StatusPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [, setTick] = useState(0); // force re-render for "time ago"
 
-  const demoParam =
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("demo") === "true"
-      ? "&demo=true"
-      : "";
+  const demoParam = isDemoMode() ? "&demo=true" : "";
 
   const fetchData = useCallback(async () => {
     try {

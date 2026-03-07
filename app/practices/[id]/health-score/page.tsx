@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import { isDemoMode } from "@/lib/demo/demoMode";
 
 type THSComponents = {
   total: number;
@@ -107,7 +108,7 @@ function PracticeThsPageInner() {
   const params = useParams();
   const searchParams = useSearchParams();
   const practiceId = params?.id as string;
-  const isDemo = searchParams?.get("demo") === "true";
+  const isDemo = isDemoMode();
 
   const defaultWeekStartISO = useMemo(() => toMondayYYYYMMDD(toYYYYMMDD(new Date())), []);
   const [pickedDateISO, setPickedDateISO] = useState(defaultWeekStartISO);

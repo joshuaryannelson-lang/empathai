@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { RISK_THRESHOLDS } from "@/lib/services/risk";
+import { isDemoMode } from "@/lib/demo/demoMode";
 import SessionPrepCard, { type SessionPrepOutput } from "@/app/components/SessionPrepCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -101,8 +102,8 @@ export default function CasePage() {
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [newGoalTitle, setNewGoalTitle] = useState("");
 
-  // Demo mode detection (client side — synchronous from URL)
-  const isDemo = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "true";
+  // Demo mode detection (client side — localStorage flag)
+  const isDemo = isDemoMode();
 
   useEffect(() => {
     if (!id) { setLoading(false); return; }

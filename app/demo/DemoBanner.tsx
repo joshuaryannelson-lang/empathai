@@ -14,11 +14,10 @@ export default function DemoBanner() {
 
   function handleExit() {
     disableDemoMode();
-    // Strip ?demo=true from URL before redirecting
+    // Clear tour state if active
+    try { sessionStorage.removeItem("empathai_demo_tour"); } catch {}
+    // Redirect to landing page
     if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("demo");
-      // Redirect to landing page
       window.location.href = "/";
     }
   }

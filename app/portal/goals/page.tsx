@@ -55,7 +55,7 @@ export default function GoalsPage() {
           <div className="skeleton" style={{ height: 12, width: "65%" }} />
         </div>
       ) : (
-        <div className="card fade-in-1">
+        <div className="card fade-in-1" data-tour="goals-list">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <div className="section-title" style={{ marginBottom: 0 }}>Treatment goals</div>
             {goals.length > 0 && (

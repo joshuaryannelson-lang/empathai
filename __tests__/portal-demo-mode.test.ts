@@ -29,9 +29,9 @@ describe("Suite 10a: Demo mode check-in — empty token detection", () => {
     expect(checkinContent).toMatch(/!session\.token/);
   });
 
-  test("42c. checkin still detects demo mode via ?demo=true URL param", () => {
-    // Must also support the URL param approach
-    expect(checkinContent).toMatch(/demo.*===.*"true"/);
+  test("42c. checkin detects demo mode via isDemoMode() (localStorage-based)", () => {
+    // Demo mode now uses isDemoMode() from demoMode.ts (localStorage flag)
+    expect(checkinContent).toMatch(/isDemoMode/);
   });
 
   test("42d. checkin uses isDemo to gate API calls (no real fetch in demo mode)", () => {

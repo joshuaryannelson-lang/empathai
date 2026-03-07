@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { NavSidebar } from "@/app/components/NavSidebar";
+import { isDemoMode } from "@/lib/demo/demoMode";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Tab = "debug" | "ai" | "api" | "readiness" | "cost";
@@ -669,8 +670,7 @@ function AIServicesTab() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const demoParam = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "true"
-    ? "&demo=true" : "";
+  const demoParam = isDemoMode() ? "&demo=true" : "";
 
   const fetchData = useCallback(async () => {
     try {

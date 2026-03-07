@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { PortalIdentityContext } from "../layout";
 import CrisisBanner, { useCrisisDetection } from "../components/CrisisBanner";
 import { detectPHI, phiWarningMessage } from "../components/PHIGuard";
+import { isDemoMode } from "@/lib/demo/demoMode";
 
 const ACCENT_RGB = "56,189,248";
 
@@ -27,7 +28,7 @@ function CheckinPageInner() {
   const searchParams = useSearchParams();
   const { session, authHeader } = useContext(PortalIdentityContext);
   // Demo mode: URL param OR session with empty token (legacy demo patient flow)
-  const isDemo = searchParams?.get("demo") === "true" || (session != null && !session.token);
+  const isDemo = isDemoMode() || (session != null && !session.token);
 
   const [score, setScore] = useState<number | null>(null);
   const [note, setNote] = useState("");
@@ -102,7 +103,7 @@ function CheckinPageInner() {
         )}
       </div>
 
-      <div className="card fade-in-1" style={{ border: `1px solid rgba(${ACCENT_RGB},0.18)`, background: `linear-gradient(160deg, rgba(${ACCENT_RGB},0.05) 0%, #0d1018 60%)` }}>
+      <div className="card fade-in-1" data-tour="checkin-form" style={{ border: `1px solid rgba(${ACCENT_RGB},0.18)`, background: `linear-gradient(160deg, rgba(${ACCENT_RGB},0.05) 0%, #0d1018 60%)` }}>
         {done ? (
           <div style={{ textAlign: "center", padding: "12px 0" }}>
             {isDemo ? (
@@ -142,7 +143,7 @@ function CheckinPageInner() {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+            <div data-tour="score-input" style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
               {Array.from({ length: 10 }, (_, i) => i + 1).map(n => {
                 const c = scoreColor(n);
                 const isActive = score === n;

@@ -119,7 +119,7 @@ function contentHash(d: SessionPrepOutput): string {
 
 export default function SessionPrepCard({ caseId, weekStart, onReviewedChange, onDataChange }: SessionPrepCardProps) {
   const searchParams = useSearchParams();
-  const isDemo = searchParams?.get("demo") === "true" || isDemoMode();
+  const isDemo = isDemoMode();
   const [data, setData] = useState<SessionPrepOutput | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

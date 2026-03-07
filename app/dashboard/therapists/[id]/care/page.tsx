@@ -7,6 +7,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import MarkdownContent from "@/app/components/MarkdownContent";
 import { BUCKET, type Bucket } from "@/lib/constants";
 import { RISK_THRESHOLDS } from "@/lib/services/risk";
+import { isDemoMode } from "@/lib/demo/demoMode";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type CaseRow = {
@@ -134,12 +135,12 @@ function TherapistCareDashboard() {
   const [unassignedLoading, setUnassignedLoading] = useState(false);
   const [assigningIds, setAssigningIds] = useState<Set<string>>(new Set());
 
-  const demoParam = searchParams?.get("demo") || "";
+  const demoParam = isDemoMode() ? "true" : "";
 
   const apiUrl = useMemo(() => {
     const qs = new URLSearchParams();
     if (weekStartFromUrl) qs.set("week_start", weekStartFromUrl);
-    if (demoParam === "true") qs.set("demo", "true");
+    if (demoParam) qs.set("demo", "true");
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     return `/api/therapists/${encodeURIComponent(therapistId)}/care${suffix}`;
   }, [therapistId, weekStartFromUrl, demoParam]);
@@ -210,7 +211,7 @@ function TherapistCareDashboard() {
       const lowList = careData.cases.filter(c => c.at_risk_checkins > 0);
       const missList = careData.cases.filter(c => c.missing_checkin);
 
-      const response = await fetch(demoParam === "true" ? "/api/briefing?demo=true" : "/api/briefing", {
+      const response = await fetch(demoParam ? "/api/briefing?demo=true" : "/api/briefing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -262,7 +263,7 @@ function TherapistCareDashboard() {
   async function loadTasks() {
     setTasksLoading(true);
     try {
-      const qs = demoParam === "true" ? "?demo=true" : "";
+      const qs = demoParam ? "?demo=true" : "";
       const res = await fetch(`/api/tasks${qs}`, { cache: "no-store" });
       const json = await res.json().catch(() => ({}));
       setTasks(json?.data ?? []);
@@ -548,7 +549,7 @@ function TherapistCareDashboard() {
               ) : (
                 <div className="section-body">
                   {lowList.map((c) => (
-                    <Link key={c.case_id} className="patient-row" href={`/cases/${c.case_id}${demoParam === "true" ? "?demo=true" : ""}`}>
+                    <Link key={c.case_id} className="patient-row" href={`/cases/${c.case_id}`}>
                       <div className="avatar avatar--red">{initials(c)}</div>
                       <div className="patient-info">
                         <div className="patient-name">{displayName(c)}</div>
@@ -578,7 +579,7 @@ function TherapistCareDashboard() {
               ) : (
                 <div className="section-body">
                   {missList.map((c) => (
-                    <Link key={c.case_id} className="patient-row" href={`/cases/${c.case_id}${demoParam === "true" ? "?demo=true" : ""}`}>
+                    <Link key={c.case_id} className="patient-row" href={`/cases/${c.case_id}`}>
                       <div className="avatar avatar--amber">{initials(c)}</div>
                       <div className="patient-info">
                         <div className="patient-name">{displayName(c)}</div>
@@ -615,7 +616,7 @@ function TherapistCareDashboard() {
                     const hasMissing = c.missing_checkin;
                     const rowClass = hasRisk ? "caseload-row caseload-row--risk" : hasMissing ? "caseload-row caseload-row--missing" : "caseload-row";
                     return (
-                      <Link key={c.case_id} className={rowClass} href={`/cases/${c.case_id}${demoParam === "true" ? "?demo=true" : ""}`}>
+                      <Link key={c.case_id} className={rowClass} href={`/cases/${c.case_id}`}>
                         <div className="avatar" style={
                           hasRisk ? { background: "#2d0f0f", color: "#f87171", border: "1px solid #3d1a1a" } :
                           hasMissing ? { background: "#1f1607", color: "#fb923c", border: "1px solid #3d2a0a" } :

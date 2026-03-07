@@ -11,6 +11,7 @@ import { NavSidebar } from "@/app/components/NavSidebar";
 import { PracticeSelector } from "./components/PracticeSelector";
 import { getRole, type Role } from "@/lib/roleContext";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { isDemoMode } from "@/lib/demo/demoMode";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -187,7 +188,7 @@ function PracticeStatusContent() {
   const [sidebarTherapistId, setSidebarTherapistId] = useState<string | null>(null);
   const [activityFilter, setActivityFilter] = useState<"all" | "crisis" | "clinical" | "system">("all");
 
-  const demoParam = searchParams?.get("demo") === "true" ? "&demo=true" : "";
+  const demoParam = isDemoMode() ? "&demo=true" : "";
 
   // Read practice_id from URL, validate UUID format
   const rawPracticeId = searchParams?.get("practice_id") ?? null;

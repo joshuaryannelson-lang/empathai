@@ -217,7 +217,7 @@ export default function ManagerDashboard() {
       <main className="mgr-main" style={{ flex: 1, padding: "36px 40px 80px", maxWidth: 1100, overflowX: "hidden" }}>
 
         {/* Header */}
-        <div className="mgr-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 28 }}>
+        <div className="mgr-header" data-tour="dashboard-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 28 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: "#4b5563", marginBottom: 6 }}>
               {managerMode === "single" ? "Practice Owner" : "Network Manager"}
@@ -237,7 +237,7 @@ export default function ManagerDashboard() {
                   : "Network-wide view · Last 7 days"}
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+          <div data-tour="quick-actions" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
             <select
               value={filterPracticeId}
               onChange={e => setFilterPracticeId(e.target.value)}
@@ -277,7 +277,7 @@ export default function ManagerDashboard() {
         )}
 
         {/* Stat tiles */}
-        <div className="mgr-stats" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginBottom: 20 }}>
+        <div className="mgr-stats" data-tour="caseload-metrics" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginBottom: 20 }}>
           {[
             { label: "Practices", value: totals?.practices ?? "—", accent: "#6b82d4" },
             { label: "Therapists", value: totals?.therapists ?? "—", accent: "#6b82d4" },

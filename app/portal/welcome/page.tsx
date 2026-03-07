@@ -173,7 +173,7 @@ export default function WelcomePage() {
       </div>
 
       {/* Primary CTA */}
-      <div className="fade-in-2" style={{ marginBottom: 24 }}>
+      <div className="fade-in-2" data-tour="welcome-cta" style={{ marginBottom: 24 }}>
         <button
           className="btn-primary"
           onClick={() => router.push("/portal/checkin")}
