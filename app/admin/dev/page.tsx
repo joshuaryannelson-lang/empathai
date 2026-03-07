@@ -31,52 +31,25 @@ type CheckResult = {
 
 // ── Status API types ──────────────────────────────────────────────────────────
 
-type ServiceStatus = {
-  service: string;
-  status: "healthy" | "degraded" | "inactive" | "unknown";
-  lastCallAt: string | null;
-  callsToday: number;
-  avgTokensToday: number;
-  blockedToday: number;
-  errorsToday: number;
-  lastError: string | null;
+type StatusItem = {
+  name: string;
+  status: "operational" | "degraded" | "down" | "unknown";
 };
 
-type ActivityEntry = {
-  time: string;
-  service: string;
-  tokens: number | null;
-  blocked: boolean;
-};
-
-type RedactionStats = {
-  totalPromptsScrubbed: number;
-  totalOutputsScrubbed: number;
-  mostCommonFlag: string;
-  byDay: Array<{ date: string; count: number }>;
-};
-
-type CostTracking = {
-  costToday: number;
-  projectedMonthly: number;
-  dailyAvg: number;
-  costByService: Record<string, number>;
-  budgetCeiling: number;
-  alertThreshold: number;
-  overBudget: boolean;
+type StatusComponent = {
+  id: string;
+  name: string;
+  description: string;
+  status: "operational" | "degraded" | "down" | "unknown";
+  uptime: number | null;
+  items: StatusItem[];
 };
 
 type StatusData = {
-  services: ServiceStatus[];
-  summary: {
-    totalCallsToday: number;
-    totalBlockedToday: number;
-    totalErrorsToday: number;
-    lastUpdated: string;
-  };
-  costTracking?: CostTracking;
-  recentActivity: ActivityEntry[];
-  redactionStats: RedactionStats;
+  overall: "operational" | "degraded" | "outage" | "unknown";
+  last_checked: string;
+  components: StatusComponent[];
+  error?: string;
 };
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -100,15 +73,6 @@ function timeAgo(iso: string): string {
   if (ms < 86400000) return `${Math.floor(ms / 3600000)}h ago`;
   return `${Math.floor(ms / 86400000)}d ago`;
 }
-
-const SERVICE_LABELS: Record<string, string> = {
-  briefing: "Briefing Service",
-  "session-prep": "Session Prep",
-  "ths-scoring": "Health Score Narrative",
-  "task-generation": "Task Generation",
-  redaction: "PHI Redaction",
-  "risk-classification": "Risk Signals",
-};
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const SEVERITY_STYLE: Record<Severity, {
@@ -451,14 +415,14 @@ const CHECKS: CheckDef[] = [
     },
   },
   {
-    id: "ai-latency", label: "AI service latency", desc: "Checks last response time per AI service", url: "/api/status",
+    id: "ai-latency", label: "AI service health", desc: "Checks component-based status from /api/status", url: "/api/status",
     validate: (json, status) => {
-      if (status >= 400) return { severity: "warning", summary: "Could not fetch AI status", rca: "Check /api/status route handler." };
-      const services = json?.data?.services ?? [];
-      const active = services.filter((s: any) => s.lastCallAt);
-      if (active.length === 0) return { severity: "info", summary: "No AI service calls recorded yet" };
-      const lines = active.map((s: any) => `${SERVICE_LABELS[s.service] ?? s.service}: last call ${timeAgo(s.lastCallAt)}`);
-      return { severity: "info", summary: lines.join(" \u00b7 ") };
+      if (status >= 400) return { severity: "warning", summary: "Could not fetch status", rca: "Check /api/status route handler." };
+      const overall = json?.overall ?? "unknown";
+      if (overall === "outage") return { severity: "critical", summary: "Major outage detected" };
+      if (overall === "degraded") return { severity: "warning", summary: "Partial disruption detected" };
+      if (overall === "unknown") return { severity: "warning", summary: "Status unknown" };
+      return { severity: "info", summary: "All systems operational" };
     },
   },
 ];
@@ -712,8 +676,8 @@ function AIServicesTab() {
     try {
       const res = await fetch(`/api/status?_t=${Date.now()}${demoParam}`, { cache: "no-store" });
       const json = await res.json();
-      if (json.error) throw new Error(typeof json.error === "string" ? json.error : json.error?.message ?? "API error");
-      setData(json.data);
+      if (!json.overall) throw new Error("Invalid status response");
+      setData(json as StatusData);
       setError(null);
     } catch (e: unknown) {
       setError((e as Error).message ?? "Failed to fetch");
@@ -725,117 +689,59 @@ function AIServicesTab() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const STATUS_DOT: Record<string, string> = {
-    healthy: "#22c55e",
+    operational: "#22c55e",
     degraded: "#f59e0b",
-    inactive: "#6b7280",
+    down: "#ef4444",
     unknown: "#374151",
   };
 
-  if (loading) return <div style={{ padding: "40px 0", textAlign: "center", fontSize: 13, color: "#4b5563" }}>Loading AI service data...</div>;
+  if (loading) return <div style={{ padding: "40px 0", textAlign: "center", fontSize: 13, color: "#4b5563" }}>Loading status data...</div>;
   if (error) return <div style={{ padding: "20px 0", fontSize: 13, color: "#f87171" }}>{error}</div>;
   if (!data) return null;
 
-  const maxCount = Math.max(1, ...data.redactionStats.byDay.map(d => d.count));
+  const overallDot = data.overall === "outage" ? "#ef4444" : data.overall === "degraded" ? "#f59e0b" : data.overall === "operational" ? "#22c55e" : "#374151";
 
   return (
     <div style={{ paddingTop: 28 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 20 }}>
-        <div style={{ fontWeight: 900, fontSize: 16 }}>AI Services</div>
-        <div style={{ fontSize: 13, opacity: 0.4 }}>Per-service usage and health</div>
+        <div style={{ fontWeight: 900, fontSize: 16 }}>System Status</div>
+        <div style={{ fontSize: 13, opacity: 0.4 }}>Component-based health overview</div>
       </div>
 
-      {/* Summary bar */}
-      <div style={{ display: "flex", gap: 24, marginBottom: 28, flexWrap: "wrap" }}>
-        {[
-          { label: "Calls today", value: data.summary.totalCallsToday, color: "#60a5fa" },
-          { label: "Blocked (PII)", value: data.summary.totalBlockedToday, color: data.summary.totalBlockedToday > 0 ? "#f59e0b" : "#22c55e" },
-          { label: "Errors", value: data.summary.totalErrorsToday, color: data.summary.totalErrorsToday > 0 ? "#ef4444" : "#22c55e" },
-          { label: "Services healthy", value: data.services.filter(s => s.status === "healthy").length + "/" + data.services.length, color: "#22c55e" },
-        ].map(({ label, value, color }) => (
-          <div key={label} style={{ minWidth: 120 }}>
-            <div style={{ fontSize: 10, color: "#4b5563", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
-          </div>
-        ))}
+      {/* Overall status */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24 }}>
+        <span style={{ width: 10, height: 10, borderRadius: "50%", background: overallDot, display: "inline-block" }} />
+        <span style={{ fontSize: 15, fontWeight: 700, color: overallDot }}>
+          {data.overall === "operational" ? "All Systems Operational" : data.overall === "degraded" ? "Partial Disruption" : data.overall === "outage" ? "Major Outage" : "Unknown"}
+        </span>
+        <span style={{ fontSize: 11, color: "#4b5563", marginLeft: "auto" }}>
+          Last checked: {new Date(data.last_checked).toLocaleTimeString()}
+        </span>
       </div>
 
-      {/* Service cards */}
-      <SectionTitle>Services</SectionTitle>
+      {/* Component cards */}
+      <SectionTitle>Components</SectionTitle>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12, marginBottom: 32 }}>
-        {data.services.map(svc => {
-          const dotColor = STATUS_DOT[svc.status] ?? "#374151";
-          const neverUsed = svc.callsToday === 0 && !svc.lastCallAt;
+        {data.components.map(comp => {
+          const dotColor = STATUS_DOT[comp.status] ?? "#374151";
           return (
-            <div key={svc.service} style={{
+            <div key={comp.id} style={{
               background: "#0b0f18", border: "1px solid #111827", borderRadius: 8,
               padding: "16px 18px", fontSize: 12, lineHeight: 1.8,
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, display: "inline-block", flexShrink: 0 }} />
-                <span style={{ fontWeight: 700, color: "#e2e8f0", fontSize: 13 }}>
-                  {SERVICE_LABELS[svc.service] ?? svc.service}
-                </span>
+                <span style={{ fontWeight: 700, color: "#e2e8f0", fontSize: 13 }}>{comp.name}</span>
               </div>
-              {neverUsed ? (
-                <div style={{ fontSize: 12, color: "#4b5563", fontStyle: "italic", marginTop: 4 }}>Not yet used</div>
-              ) : (
-                <>
-                  <Row label="Status" value={svc.status.charAt(0).toUpperCase() + svc.status.slice(1)} color={dotColor} />
-                  <Row label="Last call" value={svc.lastCallAt ? timeAgo(svc.lastCallAt) : "Never"} />
-                  <Row label="Calls today" value={svc.callsToday > 0 ? String(svc.callsToday) : "Not yet used"} color={svc.callsToday === 0 ? "#4b5563" : undefined} />
-                  <Row label="Avg tokens" value={svc.avgTokensToday ? String(svc.avgTokensToday) : "n/a"} />
-                  <Row label="Blocked (PII)" value={String(svc.blockedToday)} color={svc.blockedToday > 0 ? "#f59e0b" : undefined} />
-                  <Row label="Errors" value={String(svc.errorsToday)} color={svc.errorsToday > 0 ? "#ef4444" : undefined} />
-                </>
-              )}
+              <div style={{ fontSize: 11, color: "#4b5563", marginBottom: 8 }}>{comp.description}</div>
+              <Row label="Status" value={comp.status.charAt(0).toUpperCase() + comp.status.slice(1)} color={dotColor} />
+              <Row label="Uptime" value={comp.uptime !== null ? `${comp.uptime}%` : "Insufficient data"} color={comp.uptime === null ? "#4b5563" : undefined} />
+              {comp.items.map(item => (
+                <Row key={item.name} label={item.name} value={item.status.charAt(0).toUpperCase() + item.status.slice(1)} color={STATUS_DOT[item.status] ?? "#374151"} />
+              ))}
             </div>
           );
         })}
-      </div>
-
-      {/* Recent activity — no case codes */}
-      <SectionTitle>Recent Activity (last 20)</SectionTitle>
-      <div style={{ background: "#0b0f18", border: "1px solid #111827", borderRadius: 8, overflow: "hidden", marginBottom: 32, fontSize: 11 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "140px 1fr 80px 70px", padding: "8px 14px", background: "#0d1220", color: "#4b5563", fontWeight: 700, letterSpacing: 0.5 }}>
-          <span>Time</span><span>Service</span><span>Tokens</span><span>Blocked</span>
-        </div>
-        {data.recentActivity.map((e, i) => (
-          <div key={i} style={{
-            display: "grid",
-            gridTemplateColumns: "140px 1fr 80px 70px",
-            padding: "6px 14px",
-            borderTop: "1px solid #111827",
-            color: "#94a3b8",
-          }}>
-            <span style={{ color: "#6b7280" }}>{new Date(e.time).toLocaleTimeString()}</span>
-            <span>{SERVICE_LABELS[e.service] ?? e.service}</span>
-            <span>{e.tokens ?? "-"}</span>
-            <span style={{ color: e.blocked ? "#f59e0b" : "#22c55e" }}>{e.blocked ? "yes" : "no"}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Redaction stats */}
-      <SectionTitle>Redaction Stats (7d)</SectionTitle>
-      <div style={{ background: "#0b0f18", border: "1px solid #111827", borderRadius: 8, padding: "16px 18px", fontSize: 12 }}>
-        <Row label="Prompts scrubbed" value={String(data.redactionStats.totalPromptsScrubbed)} />
-        <Row label="Outputs scrubbed" value={String(data.redactionStats.totalOutputsScrubbed)} />
-        <Row label="Most common flag" value={data.redactionStats.mostCommonFlag} color="#f59e0b" />
-
-        <div style={{ marginTop: 14, display: "flex", gap: 4, alignItems: "flex-end", height: 48 }}>
-          {data.redactionStats.byDay.map((d) => (
-            <div key={d.date} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-              <div style={{
-                width: "100%",
-                height: Math.max(2, (d.count / maxCount) * 40),
-                background: "#f59e0b",
-                borderRadius: 2,
-                opacity: 0.7,
-              }} />
-              <span style={{ fontSize: 8, color: "#4b5563" }}>{d.date.slice(5)}</span>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );
@@ -915,79 +821,11 @@ function LaunchReadinessTab() {
 // ── Cost tab ──────────────────────────────────────────────────────────────────
 
 function CostTab() {
-  const [data, setData] = useState<StatusData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const demoParam = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "true"
-    ? "&demo=true" : "";
-
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/status?_t=${Date.now()}${demoParam}`, { cache: "no-store" });
-      const json = await res.json();
-      if (json.data) setData(json.data);
-    } catch {} finally { setLoading(false); }
-  }, [demoParam]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  if (loading) return <div style={{ padding: "40px 0", textAlign: "center", fontSize: 13, color: "#4b5563" }}>Loading cost data...</div>;
-  if (!data?.costTracking) return <div style={{ padding: "20px 0", fontSize: 13, color: "#4b5563" }}>No cost data available yet.</div>;
-
-  const cost = data.costTracking;
-  const pct = Math.min(100, (cost.projectedMonthly / cost.budgetCeiling) * 100);
-  const barColor = cost.overBudget ? "#ef4444" : pct > 70 ? "#f59e0b" : "#22c55e";
-  const topServices = Object.entries(cost.costByService).sort((a, b) => b[1] - a[1]).slice(0, 8);
-
   return (
     <div style={{ paddingTop: 28 }}>
       <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 20 }}>Cost Tracking</div>
-
-      <div style={{ background: "#0b0f18", border: "1px solid #111827", borderRadius: 8, padding: "16px 18px", fontSize: 12 }}>
-        {cost.overBudget && (
-          <div style={{ background: "#1a0808", border: "1px solid #3d1a1a", borderRadius: 4, padding: "6px 10px", marginBottom: 12, color: "#f87171", fontSize: 11, fontWeight: 700 }}>
-            ALERT: Projected monthly cost ${`$${cost.projectedMonthly.toFixed(2)}`} exceeds $20 warning threshold
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: 32, marginBottom: 14, flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontSize: 10, color: "#4b5563", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Today</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#60a5fa" }}>${cost.costToday.toFixed(4)}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 10, color: "#4b5563", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Daily avg (7d)</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#94a3b8" }}>${cost.dailyAvg.toFixed(4)}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 10, color: "#4b5563", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Projected monthly</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: barColor }}>${cost.projectedMonthly.toFixed(2)}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 10, color: "#4b5563", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Budget ceiling (AI)</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#4b5563" }}>$25.00</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 10, color: "#4b5563", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Budget ceiling (total)</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#4b5563" }}>$150.00</div>
-          </div>
-        </div>
-
-        <div style={{ height: 6, background: "#1e293b", borderRadius: 3, overflow: "hidden", marginBottom: 20 }}>
-          <div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 3 }} />
-        </div>
-
-        {topServices.length > 0 && (
-          <div>
-            <div style={{ fontSize: 10, color: "#4b5563", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Cost by service (7d)</div>
-            {topServices.map(([svc, val]) => (
-              <div key={svc} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
-                <span style={{ color: "#6b7280" }}>{SERVICE_LABELS[svc] ?? svc}</span>
-                <span style={{ color: "#94a3b8", fontWeight: 500 }}>${val.toFixed(4)}</span>
-              </div>
-            ))}
-          </div>
-        )}
+      <div style={{ background: "#0b0f18", border: "1px solid #111827", borderRadius: 8, padding: "24px 18px", fontSize: 13, color: "#4b5563", textAlign: "center" }}>
+        Cost tracking has been moved to the Supabase dashboard. Check your project&apos;s usage page for current billing and cost data.
       </div>
     </div>
   );

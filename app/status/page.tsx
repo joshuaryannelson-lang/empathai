@@ -1,64 +1,107 @@
 // app/status/page.tsx
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ServiceStatus = {
-  service: string;
-  status: "healthy" | "degraded" | "inactive" | "unknown";
-  callsToday: number;
-  errorsToday: number;
+type ComponentStatus = "operational" | "degraded" | "down" | "unknown";
+type OverallStatus = "operational" | "degraded" | "outage" | "unknown";
+
+type StatusItem = {
+  name: string;
+  status: ComponentStatus;
 };
 
-type StatusData = {
-  services: ServiceStatus[];
-  summary: {
-    lastUpdated: string;
-  };
+type StatusComponent = {
+  id: string;
+  name: string;
+  description: string;
+  status: ComponentStatus;
+  uptime: number | null;
+  items: StatusItem[];
+};
+
+type StatusResponse = {
+  overall: OverallStatus;
+  last_checked: string;
+  components: StatusComponent[];
+  error?: string;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const DISPLAY_SERVICES: Record<string, string> = {
-  "session-prep": "Session Prep",
-  redaction: "PHI Redaction",
-  "risk-classification": "Risk Signals",
-  "ths-scoring": "Health Score Narrative",
+const DOT_COLORS: Record<ComponentStatus, string> = {
+  operational: "#4ade80",
+  degraded: "#fbbf24",
+  down: "#f87171",
+  unknown: "#6b7280",
 };
 
-const PORTAL_SERVICE = "Patient Portal";
-
-function deriveErrorRate(svc: ServiceStatus): number {
-  if (svc.callsToday === 0) return 0;
-  return svc.errorsToday / svc.callsToday;
-}
-
-function deriveOverall(rows: { errorRate: number }[]): "operational" | "degraded" | "outage" {
-  if (rows.some(r => r.errorRate > 0.2)) return "outage";
-  if (rows.some(r => r.errorRate >= 0.05)) return "degraded";
-  return "operational";
-}
-
-const OVERALL_CONFIG = {
-  operational: { label: "All Systems Operational", bg: "#061a0b", border: "#0e2e1a", fg: "#4ade80", dot: "#22c55e" },
-  degraded: { label: "Partial Disruption", bg: "#1a1000", border: "#3d2800", fg: "#fb923c", dot: "#f59e0b" },
-  outage: { label: "Major Outage", bg: "#1a0808", border: "#3d1a1a", fg: "#f87171", dot: "#ef4444" },
+const STATUS_LABELS: Record<ComponentStatus, string> = {
+  operational: "Operational",
+  degraded: "Degraded",
+  down: "Down",
+  unknown: "Unknown",
 };
 
-function dotColor(errorRate: number): string {
-  if (errorRate > 0.2) return "#ef4444";
-  if (errorRate >= 0.05) return "#f59e0b";
-  return "#22c55e";
+const OVERALL_CONFIG: Record<OverallStatus, {
+  label: string;
+  bg: string;
+  border: string;
+  fg: string;
+  dot: string;
+}> = {
+  operational: {
+    label: "All Systems Operational",
+    bg: "#061a0b",
+    border: "#0e2e1a",
+    fg: "#16a34a",
+    dot: "#16a34a",
+  },
+  degraded: {
+    label: "Partial Disruption \u2014 some features may be affected",
+    bg: "#1a1000",
+    border: "#3d2800",
+    fg: "#d97706",
+    dot: "#d97706",
+  },
+  outage: {
+    label: "Major Outage \u2014 some features are unavailable",
+    bg: "#1a0808",
+    border: "#3d1a1a",
+    fg: "#dc2626",
+    dot: "#dc2626",
+  },
+  unknown: {
+    label: "Status Unknown \u2014 checking...",
+    bg: "#111318",
+    border: "#1a1e2a",
+    fg: "#6b7280",
+    dot: "#6b7280",
+  },
+};
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins === 1) return "1 minute ago";
+  return `${mins} minutes ago`;
 }
+
+const FALLBACK_STATE: StatusResponse = {
+  overall: "unknown",
+  last_checked: new Date().toISOString(),
+  components: [],
+};
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function StatusPage() {
-  const [data, setData] = useState<StatusData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<StatusResponse | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [, setTick] = useState(0); // force re-render for "time ago"
 
   const demoParam =
     typeof window !== "undefined" &&
@@ -68,16 +111,21 @@ export default function StatusPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch(`/api/status?_t=${Date.now()}${demoParam}`, { cache: "no-store" });
+      const res = await fetch(`/api/status?_t=${Date.now()}${demoParam}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        setData(FALLBACK_STATE);
+        return;
+      }
       const json = await res.json();
-      if (json.error)
-        throw new Error(typeof json.error === "string" ? json.error : json.error?.message ?? "API error");
-      setData(json.data);
-      setError(null);
-    } catch (e: unknown) {
-      setError((e as Error).message ?? "Failed to fetch");
-    } finally {
-      setLoading(false);
+      if (json.overall) {
+        setData(json as StatusResponse);
+      } else {
+        setData(FALLBACK_STATE);
+      }
+    } catch {
+      setData(FALLBACK_STATE);
     }
   }, [demoParam]);
 
@@ -87,21 +135,23 @@ export default function StatusPage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Build service rows
-  const serviceRows = useMemo(() => {
-    if (!data) return [];
-    const mapped = Object.entries(DISPLAY_SERVICES).map(([key, label]) => {
-      const svc = data.services.find(s => s.service === key);
-      const errorRate = svc ? deriveErrorRate(svc) : 0;
-      const uptime = ((1 - errorRate) * 100).toFixed(1);
-      return { label, errorRate, uptime };
-    });
-    // Patient Portal — always operational (no API service for it)
-    mapped.push({ label: PORTAL_SERVICE, errorRate: 0, uptime: "100.0" });
-    return mapped;
-  }, [data]);
+  // Re-render every 30s to keep "time ago" fresh
+  useEffect(() => {
+    const interval = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const overall = useMemo(() => deriveOverall(serviceRows), [serviceRows]);
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const isLoading = data === null;
+  const overall = data?.overall ?? "unknown";
   const cfg = OVERALL_CONFIG[overall];
 
   return (
@@ -110,99 +160,311 @@ export default function StatusPage() {
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,900&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'DM Sans', sans-serif; }
+        @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
         @media (max-width: 767px) {
-          .status-main { padding: 64px 16px 60px !important; }
+          .status-main { padding: 48px 16px 60px !important; }
         }
       `}</style>
 
-      {/* Minimal public header */}
-      <header style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "16px 24px", borderBottom: "1px solid #1a1e2a",
-        maxWidth: 720, margin: "0 auto",
-      }}>
-        <div style={{ fontSize: 16, fontWeight: 900, color: "#f1f3f8", letterSpacing: -0.5, fontFamily: "'DM Sans', sans-serif" }}>
+      {/* Header */}
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "16px 24px",
+          borderBottom: "1px solid #1a1e2a",
+          maxWidth: 720,
+          margin: "0 auto",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 16,
+            fontWeight: 900,
+            color: "#f1f3f8",
+            letterSpacing: -0.5,
+            fontFamily: "'DM Sans', sans-serif",
+          }}
+        >
           EmpathAI
         </div>
-        <a href="/" style={{ fontSize: 13, color: "#6b7280", textDecoration: "none" }}>
+        <a
+          href="/"
+          style={{ fontSize: 13, color: "#6b7280", textDecoration: "none" }}
+        >
           &larr; Back to app
         </a>
       </header>
 
-      <main className="status-main" style={{ padding: "48px 24px 80px", maxWidth: 720, margin: "0 auto" }}>
-        {/* Page heading */}
-        <div style={{ marginBottom: 32 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 900, letterSpacing: -0.5, color: "#f1f3f8", lineHeight: 1, fontFamily: "'DM Sans', sans-serif" }}>
-            Product Health
-          </h1>
-          <div style={{ fontSize: 13, color: "#374151", marginTop: 6 }}>
-            Current status of EmpathAI services
+      <main
+        className="status-main"
+        style={{ padding: "48px 24px 80px", maxWidth: 720, margin: "0 auto" }}
+      >
+        {/* Overall status banner */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            padding: "18px 22px",
+            borderRadius: 12,
+            background: isLoading ? OVERALL_CONFIG.unknown.bg : cfg.bg,
+            border: `1px solid ${isLoading ? OVERALL_CONFIG.unknown.border : cfg.border}`,
+            marginBottom: 28,
+          }}
+        >
+          <div
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: "50%",
+              background: isLoading ? OVERALL_CONFIG.unknown.dot : cfg.dot,
+              flexShrink: 0,
+            }}
+          />
+          <div
+            style={{
+              fontSize: 17,
+              fontWeight: 800,
+              color: isLoading ? OVERALL_CONFIG.unknown.fg : cfg.fg,
+            }}
+          >
+            {isLoading ? OVERALL_CONFIG.unknown.label : cfg.label}
           </div>
         </div>
 
-        {error && (
-          <div style={{ background: "#1a0808", border: "1px solid #3d1a1a", borderRadius: 10, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "#f87171" }}>
-            {error}
-          </div>
-        )}
-
-        {loading && !data && (
-          <div style={{ fontSize: 13, color: "#4b5563", padding: "40px 0", textAlign: "center" }}>
-            Checking system status...
-          </div>
-        )}
-
-        {data && (
-          <>
-            {/* Overall status banner */}
-            <div style={{
-              display: "flex", alignItems: "center", gap: 14,
-              padding: "18px 22px", borderRadius: 12,
-              background: cfg.bg, border: `1px solid ${cfg.border}`,
-              marginBottom: 24,
-            }}>
-              <div style={{ width: 12, height: 12, borderRadius: "50%", background: cfg.dot, flexShrink: 0 }} />
-              <div style={{ fontSize: 17, fontWeight: 800, color: cfg.fg }}>{cfg.label}</div>
-            </div>
-
-            {/* Service list */}
-            <div style={{
-              background: "#0d1018", border: "1px solid #1a1e2a", borderRadius: 12,
-              overflow: "hidden", marginBottom: 24,
-            }}>
-              {serviceRows.map((row, i) => (
+        {/* Loading skeleton */}
+        {isLoading && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  background: "#0d1018",
+                  border: "1px solid #1a1e2a",
+                  borderRadius: 12,
+                  padding: "16px 20px",
+                  animation: "pulse 1.8s ease-in-out infinite",
+                  animationDelay: `${i * 0.12}s`,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: "#1a1e2a",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div
+                    style={{
+                      width: "40%",
+                      height: 14,
+                      borderRadius: 4,
+                      background: "#1a1e2a",
+                    }}
+                  />
+                  <div style={{ flex: 1 }} />
+                  <div
+                    style={{
+                      width: 72,
+                      height: 14,
+                      borderRadius: 4,
+                      background: "#1a1e2a",
+                    }}
+                  />
+                </div>
                 <div
-                  key={row.label}
                   style={{
-                    display: "flex", alignItems: "center", gap: 12,
-                    padding: "14px 20px",
-                    borderTop: i > 0 ? "1px solid #1a1e2a" : "none",
+                    width: "60%",
+                    height: 10,
+                    borderRadius: 4,
+                    background: "#1a1e2a",
+                    marginTop: 8,
+                    marginLeft: 20,
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Component list */}
+        {!isLoading && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {data!.components.map((comp) => {
+              const isExpanded = expanded.has(comp.id);
+              const dot = DOT_COLORS[comp.status];
+              const label = STATUS_LABELS[comp.status];
+
+              return (
+                <div
+                  key={comp.id}
+                  style={{
+                    background: "#0d1018",
+                    border: "1px solid #1a1e2a",
+                    borderRadius: 12,
+                    overflow: "hidden",
                   }}
                 >
-                  <div style={{
-                    width: 8, height: 8, borderRadius: "50%",
-                    background: dotColor(row.errorRate), flexShrink: 0,
-                  }} />
-                  <div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#e2e8f0" }}>
-                    {row.label}
+                  {/* Collapsed row (always visible) */}
+                  <div
+                    onClick={() => toggleExpand(comp.id)}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 12,
+                      padding: "16px 20px",
+                      cursor: "pointer",
+                      userSelect: "none",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: dot,
+                        flexShrink: 0,
+                        marginTop: 5,
+                      }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 12,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: "#e2e8f0",
+                          }}
+                        >
+                          {comp.name}
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            flexShrink: 0,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: dot,
+                            }}
+                          >
+                            {label}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              color: "#6b7280",
+                              transition: "transform 0.2s",
+                              display: "inline-block",
+                              transform: isExpanded
+                                ? "rotate(180deg)"
+                                : "rotate(0deg)",
+                            }}
+                          >
+                            &#9662;
+                          </span>
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#6b7280",
+                          marginTop: 2,
+                        }}
+                      >
+                        {comp.description}
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.5)", fontVariantNumeric: "tabular-nums" }}>
-                    {row.uptime}%
-                  </div>
+
+                  {/* Expanded items */}
+                  {isExpanded && comp.items.length > 0 && (
+                    <div
+                      style={{
+                        borderTop: "1px solid #1a1e2a",
+                        padding: "8px 20px 12px",
+                      }}
+                    >
+                      {comp.items.map((item) => (
+                        <div
+                          key={item.name}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            padding: "8px 0 8px 20px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: "50%",
+                              background: DOT_COLORS[item.status],
+                              flexShrink: 0,
+                            }}
+                          />
+                          <div
+                            style={{
+                              flex: 1,
+                              fontSize: 13,
+                              color: "#e2e8f0",
+                            }}
+                          >
+                            {item.name}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color:
+                                comp.uptime === null
+                                  ? "#6b7280"
+                                  : DOT_COLORS[item.status],
+                            }}
+                          >
+                            {comp.uptime === null
+                              ? "Insufficient data"
+                              : STATUS_LABELS[item.status]}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
+              );
+            })}
+          </div>
+        )}
 
-            {/* Last checked */}
-            <div style={{ fontSize: 12, color: "#4b5563", textAlign: "center", marginBottom: 40 }}>
-              Last checked {new Date(data.summary.lastUpdated).toLocaleTimeString()} &middot; Auto-refresh every 60s
+        {/* Footer */}
+        {!isLoading && (
+          <div style={{ marginTop: 32, textAlign: "center" }}>
+            <div style={{ fontSize: 12, color: "#4b5563", marginBottom: 8 }}>
+              Last checked: {timeAgo(data!.last_checked)} &middot; Auto-refresh
+              every 60s
             </div>
-
-            {/* Footer */}
-            <div style={{ fontSize: 12, color: "#374151", textAlign: "center" }}>
+            <div style={{ fontSize: 12, color: "#374151" }}>
               For support contact your practice admin
             </div>
-          </>
+          </div>
         )}
       </main>
     </div>
