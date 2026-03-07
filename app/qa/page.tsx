@@ -585,7 +585,7 @@ export default function QABoard() {
     return notes;
   }, [resultsByPage]);
 
-  // All results for the active tester (for "Your Results" filtered view)
+  // Actionable results for the active tester (fails + stale only)
   const myAllResults = useMemo(() => {
     const name = testerName.trim();
     if (!name) return [];
@@ -593,7 +593,7 @@ export default function QABoard() {
     for (const page of PAGES) {
       const pageResults = resultsByPage[page.id] ?? [];
       for (const r of pageResults) {
-        if (r.tester_name === name) {
+        if (r.tester_name === name && (r.status === "fail" || r.stale)) {
           items.push({
             page,
             checkIndex: r.check_index,
@@ -606,6 +606,17 @@ export default function QABoard() {
       }
     }
     return items;
+  }, [resultsByPage, testerName]);
+
+  // Whether tester has any results at all (to distinguish "no results" from "all caught up")
+  const testerHasAnyResults = useMemo(() => {
+    const name = testerName.trim();
+    if (!name) return false;
+    for (const page of PAGES) {
+      const pageResults = resultsByPage[page.id] ?? [];
+      if (pageResults.some(r => r.tester_name === name)) return true;
+    }
+    return false;
   }, [resultsByPage, testerName]);
 
   // Summary stats
@@ -791,8 +802,11 @@ export default function QABoard() {
               </button>
               {allNotesOpen && (
                 feedbackItems.length === 0 ? (
-                  <div style={{ padding: "0 18px 14px", fontSize: 12, color: T.text.disabled, fontStyle: "italic" }}>
-                    {isFiltered ? "No results yet \u2014 start testing above" : "No feedback submitted yet"}
+                  <div style={{ padding: "0 18px 14px", fontSize: 12, fontStyle: "italic",
+                    color: isFiltered && testerHasAnyResults ? T.pass.fg : T.text.disabled }}>
+                    {isFiltered
+                      ? (testerHasAnyResults ? "You\u2019re all caught up \u2713" : "No results yet \u2014 start testing above")
+                      : "No feedback submitted yet"}
                   </div>
                 ) : isFiltered ? (
                   <div style={{ padding: "0 18px 14px", display: "grid", gap: 8 }}>
