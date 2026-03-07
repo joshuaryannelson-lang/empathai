@@ -140,13 +140,35 @@ export async function POST(req: Request) {
     }
     console.log("[join] JWT minted successfully");
 
-    // ── Auto-reset test codes so they can be reused ──
-    if (joinCode.is_test) {
+    // AUTO-RESET: test codes
+    // Any code starting with "TEST-" is auto-resetting so QA can redeem
+    // it repeatedly without manual database intervention.
+    if (joinCode.code.startsWith("TEST-")) {
       await supabaseAdmin
         .from("join_codes")
-        .update({ redeemed_at: null })
+        .update({ redeemed_at: null, redeemed_by: null })
         .eq("id", joinCode.id);
-      console.log(`[join] auto-reset test code="${code}" for reuse`);
+
+      // Also reset the linked patient profile so profile-setup renders on re-use
+      const { data: caseRow } = await supabaseAdmin
+        .from("cases")
+        .select("patient_id")
+        .eq("case_code", joinCode.case_code)
+        .single();
+
+      if (caseRow?.patient_id) {
+        await supabaseAdmin
+          .from("patients")
+          .update({
+            has_completed_profile: false,
+            preferred_name: null,
+            pronouns: null,
+            timezone: null,
+          })
+          .eq("id", caseRow.patient_id);
+      }
+
+      console.log(`[join] auto-reset test code="${code}" + patient profile for reuse`);
     }
 
     // ── Audit log ──
