@@ -8,7 +8,8 @@ import MarkdownContent from "@/app/components/MarkdownContent";
 import AIBriefing, { type AIBriefingData } from "@/app/components/ai/AIBriefing";
 import { BUCKET, type Bucket } from "@/lib/constants";
 import { RISK_THRESHOLDS } from "@/lib/services/risk";
-import { isDemoMode } from "@/lib/demo/demoMode";
+import { isDemoMode, DEMO_CONFIG } from "@/lib/demo/demoMode";
+import { DEMO_TOUR_CASELOAD } from "@/lib/demo/demoData";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type CaseRow = {
@@ -150,9 +151,64 @@ function TherapistCareDashboard() {
     return `/api/therapists/${encodeURIComponent(therapistId)}/care${suffix}`;
   }, [therapistId, weekStartFromUrl, demoParam]);
 
+  // Check if this is the demo therapist in tour mode
+  const isDemoTherapist = therapistId === DEMO_CONFIG.therapistId && isDemoMode();
+
   async function load() {
     if (!therapistId) return;
     setLoading(true);
+
+    // Demo tour: inject seeded caseload directly — no API calls
+    if (isDemoTherapist) {
+      const seed = DEMO_TOUR_CASELOAD;
+      const demoCare: TherapistCareResponse = {
+        therapist_id: DEMO_CONFIG.therapistId,
+        therapist_name: "Dr. Maya Chen",
+        week_start: new Date().toISOString().slice(0, 10),
+        practice_id: "demo-practice-01",
+        totals: {
+          active_cases: seed.activeCases,
+          checkins: seed.checkIns,
+          avg_score: seed.avgScore,
+          at_risk_checkins: seed.atRiskCheckIns,
+          missing_checkins: seed.missingCheckIns,
+        },
+        cases: seed.cases.map(c => ({
+          case_id: c.caseCode,
+          case_title: null,
+          patient_first_name: c.firstName,
+          checkins: c.score > 0 ? 1 : 0,
+          avg_score: c.score,
+          lowest_score: c.score,
+          at_risk_checkins: c.flag === "at-risk" ? 1 : 0,
+          missing_checkin: c.flag === "missing",
+          last_checkin_at: c.lastCheckin,
+        })),
+      };
+      setCare(demoCare);
+      // Inject seeded structured briefing directly — no API call
+      setStructuredBriefing({
+        priorityAlerts: [
+          { firstName: "Morgan", score: 2, note: "Mentioned feeling overwhelmed", recommendation: "Reach out before Thursday's session" },
+        ],
+        positiveSignals: [
+          { firstName: "Jordan", scoreTrend: "climbing from 4 to 8", detail: "Strong momentum." },
+        ],
+        stable: [
+          { firstName: "Alex", score: 6, flag: null },
+          { firstName: "Riley", score: 5, flag: "missing" },
+        ],
+        recommendedActions: [
+          "Reach out to Morgan before Thursday's session",
+          "Review Morgan's safety plan at session start",
+          "Acknowledge Jordan's progress this week",
+        ],
+        weekOf: "Mar 7, 2026",
+      });
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch(apiUrl, { cache: "no-store" });
       const json = await res.json().catch(() => ({}));
@@ -397,12 +453,12 @@ function TherapistCareDashboard() {
         .status-pill--stable { background: #061a0b; border: 1px solid #0e2e1a; color: #4ade80; }
         .divider { height: 1px; background: #131720; margin: 14px 0; }
         .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
-        .stat-label { font-size: 10px; font-weight: 600; color: #4b5563; text-transform: uppercase; letter-spacing: .05em; }
+        .stat-label { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; }
         .stat-value { font-size: 13px; font-weight: 700; }
         .refresh-btn { width: 100%; padding: 8px 0; border-radius: 8px; border: 1px solid #1f2533; background: #111420; color: #9ca3af; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s; text-align: center; margin-top: 4px; }
         .refresh-btn:hover { border-color: #2e3650; color: #e8eaf0; background: #161b2e; }
         .quick-card { border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; padding: 14px 16px; animation: fadeUp .3s ease .05s both; }
-        .quick-title { font-size: 10px; font-weight: 700; color: #4b5563; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+        .quick-title { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
         .quick-link { font-size: 12px; color: #6b7280; text-decoration: none; padding: 4px 0; display: block; transition: color .15s; }
         .quick-link:hover { color: #9ca3af; }
 
@@ -420,7 +476,7 @@ function TherapistCareDashboard() {
         .tab-badge { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; font-size: 10px; font-weight: 700; margin-left: 6px; background: #ef4444; color: white; }
         .section { border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; animation: fadeUp .4s ease both; }
         .section-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #131720; }
-        .section-title { font-size: 13px; font-weight: 600; color: #9ca3af; letter-spacing: .04em; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+        .section-title { font-size: 13px; font-weight: 600; color: #94a3b8; letter-spacing: .04em; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
         .dot--red   { background: #ef4444; box-shadow: 0 0 6px #ef4444aa; }
         .dot--amber { background: #f59e0b; box-shadow: 0 0 6px #f59e0baa; }
         .section-count { font-size: 11px; font-weight: 600; color: #4b5563; padding: 2px 8px; border-radius: 20px; background: #111420; border: 1px solid #1f2533; }
@@ -472,7 +528,7 @@ function TherapistCareDashboard() {
         /* ── TASKS ── */
         .tasks-section { border-radius: 12px; border: 1px solid #1a1e2a; background: #0d1018; overflow: hidden; animation: fadeUp .4s ease .1s both; }
         .tasks-section-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border-bottom: 1px solid #131720; }
-        .tasks-section-title { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; display: flex; align-items: center; gap: 8px; }
+        .tasks-section-title { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; display: flex; align-items: center; gap: 8px; }
         .tasks-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #111420; border: 1px solid #1f2533; color: #4b5563; }
         .task-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #0f1218; }
         .task-row:last-child { border-bottom: none; }
@@ -489,6 +545,18 @@ function TherapistCareDashboard() {
 
       <div className="page-wrap">
         <Link href="/" className="back-link">← Home</Link>
+
+        {/* Page header */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: "#94a3b8", marginBottom: 6 }}>
+            Therapist Dashboard
+          </div>
+          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: "#f1f5f9" }}>
+            {care?.therapist_name
+              ? `${care.therapist_name.split(" ")[0]}'s caseload`
+              : "Your caseload"}
+          </h1>
+        </div>
 
         <div className="page-layout">
 

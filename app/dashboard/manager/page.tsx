@@ -193,9 +193,9 @@ function ManagerDashboardInner() {
                     ? (allPractices[0]?.name ?? "Your Practice")
                     : "Practice Operations"}
             </h1>
-            <div style={{ marginTop: 4, fontSize: 13, color: "#4b5563" }}>
+            <div style={{ marginTop: 4, fontSize: 13, color: "#94a3b8" }}>
               {isOwnerRole
-                ? "Network-level view · Last 7 days"
+                ? `${totals?.practices ?? "—"} practices · ${totals?.therapists ?? "—"} therapists · ${totals?.active_cases ?? "—"} active cases`
                 : filterPracticeId
                   ? "Single practice view · Last 7 days"
                   : managerMode === "single"
@@ -269,7 +269,7 @@ function ManagerDashboardInner() {
               border: `1px solid ${border ?? "#1a1e2a"}`,
               background: bg ?? "#0d1018",
             }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", color: "#4b5563", marginBottom: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", color: "#94a3b8", marginBottom: 8 }}>
                 {label}
               </div>
               <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: -0.5, color: accent }}>
@@ -294,7 +294,7 @@ function ManagerDashboardInner() {
           {/* Routing friction */}
           <div data-demo-spotlight="routing-friction" style={{ borderRadius: 12, border: "1px solid #1a1e2a", background: "#0d1018", overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px", borderBottom: "1px solid #131720" }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.7 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.7 }}>
                 Routing friction
               </div>
               <span style={{
@@ -330,7 +330,7 @@ function ManagerDashboardInner() {
           {/* Risk signals */}
           <div data-demo-spotlight="risk-signals" style={{ borderRadius: 12, border: "1px solid #1a1e2a", background: "#0d1018", overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px", borderBottom: "1px solid #131720" }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.7 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.7 }}>
                 Risk signals
               </div>
               <span style={{
@@ -366,7 +366,7 @@ function ManagerDashboardInner() {
 
         {/* Practice snapshot */}
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12 }}>
             Practice snapshot
           </div>
           <div style={{ display: "grid", gap: 8 }}>

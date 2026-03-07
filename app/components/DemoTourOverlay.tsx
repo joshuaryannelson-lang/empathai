@@ -47,12 +47,12 @@ export default function DemoTourOverlay() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Find and measure target element
+  // Find and measure target element — uses rAF with setTimeout fallback
   const updateHighlight = useCallback((selector?: string) => {
     if (!selector) { setHighlightRect(null); return; }
-    // Delay to let the page render first
-    const timeout = setTimeout(() => {
-      const el = document.querySelector(selector);
+
+    function measure() {
+      const el = document.querySelector(selector!);
       if (el) {
         const rect = el.getBoundingClientRect();
         setHighlightRect({
@@ -61,13 +61,29 @@ export default function DemoTourOverlay() {
           width: rect.width,
           height: rect.height,
         });
-        // Scroll element into view if needed
         el.scrollIntoView({ behavior: "smooth", block: "center" });
-      } else {
-        setHighlightRect(null);
+        return true;
       }
-    }, 400);
-    return () => clearTimeout(timeout);
+      return false;
+    }
+
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    // Use rAF to wait for the next paint, then try to find the element
+    const rafId = requestAnimationFrame(() => {
+      if (!measure()) {
+        // Element not found after rAF — retry once with 100ms fallback
+        fallbackTimer = setTimeout(() => {
+          if (!measure()) {
+            setHighlightRect(null);
+          }
+        }, 100);
+      }
+    });
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+    };
   }, []);
 
   // Re-measure on pathname/step change
@@ -116,9 +132,10 @@ export default function DemoTourOverlay() {
   function navigate(nextStep: number) {
     const nextDef = tour.steps[nextStep];
     if (!nextDef) return;
+    // Reset spotlight BEFORE navigation to prevent stale cutout flash
+    setHighlightRect(null);
     const newState: DemoTourState = { ...tourState!, step: nextStep };
     writeTourState(newState);
-    setHighlightRect(null);
     setVer(v => v + 1);
     // Extract base path (without query params) for comparison
     const currentBase = currentStep?.page?.split("?")[0] ?? "";
@@ -227,6 +244,7 @@ export default function DemoTourOverlay() {
               inset: 0,
               background: OVERLAY_BG,
               clipPath,
+              transition: "clip-path 300ms ease, opacity 200ms ease",
             }}
           />
         )}

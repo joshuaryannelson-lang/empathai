@@ -80,6 +80,7 @@ export default function AIBriefing({ briefing, isLoading, onRegenerate, context 
     }}>
       <style>{`
         @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        @media (max-width: 640px) { .ai-briefing-date { display: none !important; } }
       `}</style>
 
       {/* 2px accent bar top */}
@@ -92,6 +93,8 @@ export default function AIBriefing({ briefing, isLoading, onRegenerate, context 
         justifyContent: "space-between",
         padding: "14px 18px",
         borderBottom: `1px solid ${CARD_BORDER}`,
+        flexWrap: "nowrap",
+        gap: 10,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 14 }}>✦</span>
@@ -105,9 +108,9 @@ export default function AIBriefing({ briefing, isLoading, onRegenerate, context 
             AI Briefing
           </span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           {briefing && (
-            <span style={{ fontSize: 11, color: "#4b5563", fontFamily: "'DM Mono', monospace" }}>
+            <span className="ai-briefing-date" style={{ fontSize: 11, color: "#4b5563", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
               Week of {briefing.weekOf}
             </span>
           )}
@@ -125,6 +128,7 @@ export default function AIBriefing({ briefing, isLoading, onRegenerate, context 
                 cursor: "pointer",
                 fontFamily: "'DM Sans', system-ui",
                 transition: "all .15s",
+                whiteSpace: "nowrap",
               }}
             >
               ↺ Regenerate

@@ -18,6 +18,7 @@ const PERSONAS: {
   icon: string;
   tagline: string;
   description: string;
+  cta: string;
   accent: string;
   accentRgb: string;
 }[] = [
@@ -28,8 +29,20 @@ const PERSONAS: {
     tagline: "Your whole practice, one view",
     description:
       "See every therapist, every case, every risk signal \u2014 and act before small problems become big ones.",
+    cta: "Start practice manager tour",
     accent: "#00c8a0",
     accentRgb: "0,200,160",
+  },
+  {
+    id: "practice_owner",
+    label: "Practice Owner",
+    icon: "\u25C7",
+    tagline: "Your organization, fully visible",
+    description:
+      "Oversee every practice in your network. Spot risk signals across locations before they escalate.",
+    cta: "Start organization tour",
+    accent: "#f5a623",
+    accentRgb: "245,166,35",
   },
   {
     id: "therapist",
@@ -37,7 +50,8 @@ const PERSONAS: {
     icon: "\u25CE",
     tagline: "Know your patients. Really know them.",
     description:
-      "Walk into every session prepared. Surface the patients who need you most before they slip through the cracks.",
+      "Walk into every session prepared. Surface the patients who need you most before they slip through.",
+    cta: "Start therapist tour",
     accent: "#7c5cfc",
     accentRgb: "124,92,252",
   },
@@ -47,19 +61,10 @@ const PERSONAS: {
     icon: "\u2661",
     tagline: "Your care, your way.",
     description:
-      "Check in with how you\u2019re feeling, review session notes, track goals, and stay connected with your therapist.",
+      "Check in, track your goals, and stay connected with your therapist \u2014 privately and securely.",
+    cta: "Start patient tour",
     accent: "#38bdf8",
     accentRgb: "56,189,248",
-  },
-  {
-    id: "practice_owner",
-    label: "Practice Owner",
-    icon: "\u25C7",
-    tagline: "Run your practice smarter",
-    description:
-      "Single-practice owner view \u2014 see your team\u2019s performance, caseload health, and AI-generated weekly briefing.",
-    accent: "#f5a623",
-    accentRgb: "245,166,35",
   },
 ];
 
@@ -262,17 +267,16 @@ export default function DemoPage() {
             </div>
             <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: -0.4, color: "rgba(255,255,255,0.95)", fontFamily: "'Sora', system-ui" }}>EmpathAI</span>
           </div>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: "#94a3b8", fontFamily: "'DM Mono', monospace", marginBottom: 10 }}>
+            LIVE DEMO
+          </div>
           <h1 style={{ fontSize: "clamp(24px, 3.5vw, 40px)", fontWeight: 900, letterSpacing: -1.2, lineHeight: 1.15, color: "rgba(255,255,255,0.97)", fontFamily: "'Sora', system-ui", maxWidth: 600, margin: "0 auto" }}>
             See EmpathAI{" "}
             <span style={{ background: "linear-gradient(135deg, #7c5cfc 20%, #00c8a0 80%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>in action</span>
           </h1>
           <p style={{ marginTop: 12, fontSize: 15, color: "rgba(255,255,255,0.45)", maxWidth: 520, margin: "12px auto 0", lineHeight: 1.6 }}>
-            AI-powered therapy practice management. Pick a role below to start a guided walkthrough with real demo data.
+            Explore any perspective &mdash; all data is synthetic.
           </p>
-          <div style={{ marginTop: 16, display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", borderRadius: 999, border: "1px solid rgba(245,166,35,0.25)", background: "rgba(245,166,35,0.06)", fontSize: 11, fontWeight: 600, color: "rgba(245,166,35,0.8)", fontFamily: "'DM Mono', monospace", letterSpacing: 0.3 }}>
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#f5a623", flexShrink: 0 }} />
-            All data shown is synthetic — no real patient information
-          </div>
         </header>
 
         {/* Persona cards */}
@@ -331,7 +335,7 @@ export default function DemoPage() {
                         Loading...
                       </>
                     ) : (
-                      <>Start {p.label.toLowerCase()} tour {"\u2192"}</>
+                      <>{p.cta} {"\u2192"}</>
                     )}
                   </div>
                 </button>
@@ -347,10 +351,10 @@ export default function DemoPage() {
               Interested in EmpathAI?
             </h3>
             <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", marginBottom: 24, lineHeight: 1.5 }}>
-              We&apos;re onboarding pilot practices now. Get in touch to learn more.
+              We&apos;re onboarding pilot practices now.
             </p>
             <a href="mailto:hello@empathai.care" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 24px", borderRadius: 12, border: "1px solid rgba(124,92,252,0.35)", background: "linear-gradient(135deg, rgba(124,92,252,0.18), rgba(124,92,252,0.06))", color: "white", fontSize: 14, fontWeight: 800, textDecoration: "none", fontFamily: "'Sora', system-ui", letterSpacing: -0.2, cursor: "pointer" }}>
-              Get in touch {"\u2192"}
+              Request a pilot {"\u2192"}
             </a>
           </div>
           <div style={{ marginTop: 32, fontSize: 11, color: "rgba(255,255,255,0.2)", fontFamily: "'DM Mono', monospace" }}>

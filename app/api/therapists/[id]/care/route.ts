@@ -55,7 +55,8 @@ export async function GET(
   }
 
   if (isDemoMode(request.url)) {
-    return NextResponse.json({ data: getDemoTherapistCare(therapistId), error: null });
+    // Use the raw slug ID for demo data lookup (before UUID resolution)
+    return NextResponse.json({ data: getDemoTherapistCare(rawId!), error: null });
   }
 
   // 0) Therapist name + practice for header
