@@ -38,7 +38,7 @@ const PERSONAS = [
       "Check in with how you\u2019re feeling, review session notes, track goals, and stay connected with your therapist.",
     accent: "#38bdf8",
     accentRgb: "56,189,248",
-    href: "/portal/checkin?demo=true",
+    href: "/portal/welcome?demo=true",
   },
 ];
 
@@ -243,7 +243,8 @@ export default function DemoPage() {
         .demo-card:active { transform: scale(0.98); }
         .start-tour-btn:hover { box-shadow: 0 0 24px rgba(74,222,128,0.25); filter: brightness(1.1); }
         @media (max-width: 700px) {
-          .persona-row { flex-direction: column !important; }
+          .persona-row { flex-direction: column !important; align-items: center !important; }
+          .persona-row .demo-card { max-width: 400px !important; width: 100% !important; }
         }
       `}</style>
 

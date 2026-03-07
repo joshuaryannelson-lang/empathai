@@ -10,7 +10,7 @@ export default function PortalIndex() {
 
   useEffect(() => {
     if (session) {
-      router.replace("/portal/checkin");
+      router.replace("/portal/welcome");
     } else {
       router.replace("/portal/onboarding");
     }

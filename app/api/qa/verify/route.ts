@@ -1,7 +1,7 @@
 // app/api/qa/verify/route.ts
 // POST: mark a single qa_check as freshly verified (not stale)
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   if (!checkId) return bad("check_id required");
   if (!verifiedBy || verifiedBy.length > 50) return bad("verified_by required (max 50 chars)");
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("qa_checks")
     .update({
       stale: false,

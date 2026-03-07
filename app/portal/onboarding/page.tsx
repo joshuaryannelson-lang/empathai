@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useContext, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PortalIdentityContext } from "../layout";
 
 const ACCENT = "#38bdf8";
@@ -10,9 +10,10 @@ const ACCENT_RGB = "56,189,248";
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { session, setSession } = useContext(PortalIdentityContext);
+  const searchParams = useSearchParams();
+  const { session, setSession, signOut } = useContext(PortalIdentityContext);
 
-  const [mode, setMode] = useState<"join" | "welcome">("join");
+  const [mode, setMode] = useState<"join" | "welcome" | "returning">("join");
 
   // Join code
   const [joinCode, setJoinCode] = useState("");
@@ -23,9 +24,18 @@ export default function OnboardingPage() {
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState<string | null>(null);
 
+  // If ?fresh=1 is in the URL, clear session immediately
   useEffect(() => {
-    if (session) router.replace("/portal/checkin");
-  }, [session, router]);
+    if (searchParams.get("fresh") === "1" && session) {
+      signOut();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (session && searchParams.get("fresh") !== "1") {
+      router.replace("/portal/welcome");
+    }
+  }, [session, searchParams]);
 
   // ── Join code flow (primary) ──
   async function handleJoinCode() {
@@ -83,6 +93,48 @@ export default function OnboardingPage() {
     } finally {
       setDemoLoading(false);
     }
+  }
+
+  // ── RETURNING USER — existing session detected ──
+  if (mode === "returning" && session) {
+    return (
+      <div style={{ minHeight: "calc(100vh - 61px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 16px" }}>
+        <div style={{ width: "100%", maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
+          <div className="fade-in" style={{ marginBottom: 32 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: ACCENT, opacity: 0.85, fontFamily: "'DM Mono',monospace", marginBottom: 12 }}>
+              Welcome back
+            </div>
+            <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: -0.8, color: "rgba(255,255,255,0.97)", lineHeight: 1.2, fontFamily: "'Sora',system-ui" }}>
+              You have an active session
+            </h1>
+            <p style={{ marginTop: 10, fontSize: 14, color: "rgba(255,255,255,0.42)", lineHeight: 1.6 }}>
+              Continue to your portal, or start over with a new join code.
+            </p>
+          </div>
+
+          <div className="fade-in-1" style={{ display: "grid", gap: 12 }}>
+            <button className="btn-primary" onClick={() => router.push("/portal/welcome")} style={{ width: "100%" }}>
+              Continue to my portal &rarr;
+            </button>
+            <button
+              onClick={() => { signOut(); setMode("join"); }}
+              style={{
+                width: "100%", padding: "13px 0", borderRadius: 10,
+                border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)",
+                color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit", transition: "all .15s",
+              }}
+            >
+              Start over with a new code
+            </button>
+          </div>
+
+          <div className="fade-in-2" style={{ marginTop: 12, textAlign: "center", fontSize: 11, color: "rgba(255,255,255,0.2)", fontFamily: "'DM Mono',monospace" }}>
+            Starting over will clear your current session
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // ── JOIN CODE VIEW (primary) ──
@@ -179,7 +231,7 @@ export default function OnboardingPage() {
           </div>
 
           <div className="fade-in-2" style={{ marginTop: 28 }}>
-            <button className="btn-primary" onClick={() => router.push("/portal/checkin")} style={{ padding: "14px 40px" }}>
+            <button className="btn-primary" onClick={() => router.push("/portal/welcome")} style={{ padding: "14px 40px" }}>
               Open my portal &rarr;
             </button>
           </div>

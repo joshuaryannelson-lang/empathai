@@ -85,7 +85,7 @@ export default function GoalsPage() {
                     }}>
                       {done ? "\u2713" : ""}
                     </div>
-                    <div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
                         fontSize: 13, lineHeight: 1.5,
                         color: done ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.8)",
@@ -98,6 +98,35 @@ export default function GoalsPage() {
                           Target: {fmtDate(g.target_date)}
                         </div>
                       )}
+                    </div>
+                    {/* Status badge */}
+                    <div style={{
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      padding: "3px 8px",
+                      borderRadius: 6,
+                      background: done ? "rgba(74,222,128,0.08)" : "rgba(56,189,248,0.08)",
+                      border: `1px solid ${done ? "rgba(74,222,128,0.15)" : "rgba(56,189,248,0.15)"}`,
+                      marginTop: 1,
+                    }}>
+                      {done ? (
+                        <span style={{ fontSize: 10, color: "#4ade80", fontWeight: 900, lineHeight: 1 }}>{"\u2713"}</span>
+                      ) : (
+                        <span style={{
+                          width: 6, height: 6, borderRadius: "50%",
+                          background: "#4ade80",
+                          flexShrink: 0,
+                        }} />
+                      )}
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, letterSpacing: 0.3,
+                        color: done ? "rgba(74,222,128,0.7)" : "rgba(74,222,128,0.7)",
+                        fontFamily: "'DM Mono', monospace",
+                      }}>
+                        {done ? "Completed" : "Active"}
+                      </span>
                     </div>
                   </div>
                 );

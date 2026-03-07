@@ -51,6 +51,18 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [session, setSessionState] = useState<PortalSession | null>(null);
   const [ready, setReady] = useState(false);
 
+  // Decode JWT expiry client-side (no verification — just check exp claim)
+  function isTokenExpired(token: string): boolean {
+    if (!token) return false; // empty token = demo mode, not "expired"
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      if (typeof payload.exp === "number") {
+        return payload.exp * 1000 < Date.now();
+      }
+    } catch {}
+    return false;
+  }
+
   // Restore session from localStorage
   useEffect(() => {
     try {
@@ -58,7 +70,15 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       const caseCode = localStorage.getItem(LS_CASE_CODE);
       const label = localStorage.getItem(LS_LABEL);
       if (token && caseCode) {
-        setSessionState({ token, case_code: caseCode, display_label: label || "Patient" });
+        // If the JWT is expired, clear it and show join code screen
+        if (isTokenExpired(token)) {
+          localStorage.removeItem(LS_TOKEN);
+          localStorage.removeItem(LS_CASE_CODE);
+          localStorage.removeItem(LS_LABEL);
+          // Don't restore session — leave it null
+        } else {
+          setSessionState({ token, case_code: caseCode, display_label: label || "Patient" });
+        }
       } else {
         // Try legacy keys (demo mode backward compat)
         const caseId = localStorage.getItem(LS_LEGACY_CASE_ID);

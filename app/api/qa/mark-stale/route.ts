@@ -1,7 +1,7 @@
 // app/api/qa/mark-stale/route.ts
 // POST: mark all qa_checks for a given page_path as stale
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   const pagePath = typeof body?.page_path === "string" ? body.page_path.trim() : "";
   if (!pagePath) return bad("page_path required");
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("qa_checks")
     .update({ stale: true })
     .eq("page_path", pagePath)

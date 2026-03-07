@@ -1,7 +1,7 @@
 // app/api/qa/route.ts
 // GET: all check results, POST: submit (upsert), DELETE: clear a result
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +9,7 @@ function ok(data: unknown, status = 200) { return NextResponse.json({ data, erro
 function bad(msg: string, status = 400) { return NextResponse.json({ data: null, error: { message: msg } }, { status }); }
 
 export async function GET() {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("qa_checks")
     .select("id, page_id, check_index, tester_name, status, note, checked_at, page_path, last_verified_at, last_verified_by, stale")
     .order("checked_at", { ascending: false });
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   if (!["pass", "fail", "skip"].includes(status)) return bad("status must be pass, fail, or skip");
 
   // Upsert: one result per check per tester
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("qa_checks")
     .upsert(
       { page_id: pageId, check_index: checkIndex, tester_name: testerName, status, note },
@@ -57,7 +57,7 @@ export async function DELETE(request: Request) {
   if (checkIndex < 0 || !Number.isInteger(checkIndex)) return bad("check_index required");
   if (!testerName) return bad("tester_name required");
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from("qa_checks")
     .delete()
     .eq("page_id", pageId)
