@@ -38,14 +38,15 @@ export default function HistoryPage() {
 
   const [checkins, setCheckins] = useState<Checkin[]>([]);
   const [sessionNotes, setSessionNotes] = useState<SessionNote[]>([]);
-  const [therapistName, setTherapistName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!session) { router.replace("/portal/onboarding"); return; }
     const identity = { case_id: session.case_id ?? session.case_code };
+    // Append ?demo=true for demo sessions (empty token = legacy demo mode)
+    const demoSuffix = !session.token ? "?demo=true" : "";
     setLoading(true);
-    fetch(`/api/cases/${identity.case_id}/timeline`, { cache: "no-store" })
+    fetch(`/api/cases/${identity.case_id}/timeline${demoSuffix}`, { cache: "no-store" })
       .then(r => r.json())
       .then(json => {
         const data = json?.data ?? json;
@@ -55,7 +56,7 @@ export default function HistoryPage() {
             (a: SessionNote, b: SessionNote) => b.date.localeCompare(a.date)
           )
         );
-        setTherapistName(data?.therapist?.name ?? null);
+        // Therapist name intentionally not displayed on patient portal
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -69,11 +70,9 @@ export default function HistoryPage() {
         <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5, color: "rgba(255,255,255,0.9)", fontFamily: "'Sora',system-ui" }}>
           My History
         </h2>
-        {therapistName && (
-          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", marginTop: 4 }}>
-            Care provider: {therapistName}
-          </p>
-        )}
+        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", marginTop: 4 }}>
+          Your check-in timeline and session notes.
+        </p>
       </div>
 
       {loading ? (

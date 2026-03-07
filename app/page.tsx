@@ -220,12 +220,23 @@ export default function DemoLanding() {
   const [selected, setSelected] = useState<string | null>(null);
   const [launched, setLaunched] = useState(false);
   const [managerMode, setManagerMode] = useState<"multi" | "single">("multi");
+  const ctaRef = useRef<HTMLDivElement>(null);
 
   // Practice picker state (manager single-practice mode)
   const [practices, setPractices] = useState<Practice[]>([]);
   const [practicesLoading, setPracticesLoading] = useState(false);
 
   const weekStart = useMemo(() => toMondayYYYYMMDD(toYYYYMMDD(new Date())), []);
+
+  // Scroll CTA into view when a persona is selected
+  useEffect(() => {
+    if (selected) {
+      // Wait a tick for the action bar to render
+      requestAnimationFrame(() => {
+        ctaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    }
+  }, [selected]);
 
   // Filter practices for demo modes
   const harperPractice = practices.find(p => p.name?.toLowerCase().includes("harper"));
@@ -440,7 +451,7 @@ export default function DemoLanding() {
 
           {/* ── Manager action bar ── */}
           {showActionBar && (
-            <div className="action-bar" style={{
+            <div ref={ctaRef} className="action-bar" style={{
               marginTop: 20,
               display: "flex", alignItems: "center", justifyContent: "space-between",
               gap: 16, flexWrap: "wrap",

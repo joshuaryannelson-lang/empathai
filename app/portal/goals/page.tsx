@@ -25,8 +25,10 @@ export default function GoalsPage() {
   useEffect(() => {
     if (!session) { router.replace("/portal/onboarding"); return; }
     const identity = { case_id: session.case_id ?? session.case_code };
+    // Append ?demo=true for demo sessions (empty token = legacy demo mode)
+    const demoSuffix = !session.token ? "?demo=true" : "";
     setLoading(true);
-    fetch(`/api/cases/${identity.case_id}/goals`, { cache: "no-store" })
+    fetch(`/api/cases/${identity.case_id}/goals${demoSuffix}`, { cache: "no-store" })
       .then(r => r.json())
       .then(json => setGoals(json?.data ?? []))
       .catch(() => {})

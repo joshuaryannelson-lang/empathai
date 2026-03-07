@@ -25,8 +25,9 @@ const SCORE_LABELS: Record<number, string> = {
 function CheckinPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isDemo = searchParams?.get("demo") === "true";
   const { session, authHeader } = useContext(PortalIdentityContext);
+  // Demo mode: URL param OR session with empty token (legacy demo patient flow)
+  const isDemo = searchParams?.get("demo") === "true" || (session != null && !session.token);
 
   const [score, setScore] = useState<number | null>(null);
   const [note, setNote] = useState("");

@@ -215,13 +215,36 @@ export default function CaseDetailClient({ caseId }: { caseId: string }) {
         @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
         input[type="date"] { color-scheme: dark; }
+
+        /* 3-column above 1024px (default) */
+
+        /* 768–1024: 2 columns — sidebar + main merged, right below */
         @media (max-width: 1023px) {
-          .case-detail-grid { grid-template-columns: 1fr 1fr !important; }
+          .case-detail-grid {
+            grid-template-columns: 1fr 1fr !important;
+          }
         }
+
+        /* Below 768: single column, stacked: header → session prep → sidebar → right */
         @media (max-width: 767px) {
-          .case-detail-grid { grid-template-columns: 1fr !important; }
-          .case-detail-main { padding: 24px 16px 60px !important; }
-          .case-detail-ai-grid { grid-template-columns: 1fr !important; }
+          .case-detail-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .case-detail-grid > .case-detail-col-left {
+            order: 2;
+          }
+          .case-detail-grid > .case-detail-col-main {
+            order: 1;
+          }
+          .case-detail-main {
+            padding: 20px 16px 60px !important;
+          }
+          .case-detail-ai-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .case-detail-header {
+            position: static !important;
+          }
         }
       `}</style>
 
@@ -254,7 +277,7 @@ export default function CaseDetailClient({ caseId }: { caseId: string }) {
       <div className="case-detail-grid" style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 14, alignItems: "start" }}>
 
         {/* ── Left column: Case context + THS ── */}
-        <div style={{ display: "grid", gap: 14 }}>
+        <div className="case-detail-col-left" style={{ display: "grid", gap: 14 }}>
 
         {/* ── Left: Case context ── */}
         <div style={{ borderRadius: 12, border: "1px solid #1a1e2a", background: "#0d1018", overflow: "hidden" }}>
@@ -310,7 +333,7 @@ export default function CaseDetailClient({ caseId }: { caseId: string }) {
         </div>{/* end left column */}
 
         {/* ── Right: AI Session Prep ── */}
-        <div style={{ display: "grid", gap: 10 }}>
+        <div className="case-detail-col-main" style={{ display: "grid", gap: 10, position: "relative", zIndex: 1 }}>
           {/* Header */}
           <div style={{ borderRadius: 12, border: "1px solid #1a2240", background: "linear-gradient(160deg, #0a0e1c, #0d1018)", padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg, #3b4fd4, #6d3fc4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>✦</div>

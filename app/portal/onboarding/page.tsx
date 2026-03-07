@@ -56,34 +56,25 @@ export default function OnboardingPage() {
   }
 
   // ── Demo patient shortcut ──
+  // Always use demo API endpoints (?demo=true) so we get deterministic
+  // synthetic data instead of hitting the real DB.
   async function handleDemoPatient() {
     setDemoLoading(true);
     setDemoError(null);
     try {
-      const practicesJson = await fetch("/api/practices", { cache: "no-store" }).then(r => r.json());
-      const practices: { id: string; name: string }[] = practicesJson?.data ?? [];
-      if (!practices.length) throw new Error("No practices found in demo data.");
+      const casesJson = await fetch("/api/cases?practice_id=demo-practice-01&demo=true&limit=50", { cache: "no-store" }).then(r => r.json());
+      const cases: { id: string; patient_id: string | null; patient_first_name: string | null }[] = casesJson?.data ?? [];
+      const eligible = cases.filter(c => c.patient_id && c.patient_first_name);
+      if (!eligible.length) throw new Error("No patient cases found in demo data.");
 
-      const shuffled = [...practices].sort(() => Math.random() - 0.5);
-      let picked: { id: string; patient_id: string; patient_first_name: string } | null = null;
-      for (const practice of shuffled) {
-        const casesJson = await fetch(`/api/cases?practice_id=${practice.id}&limit=50`, { cache: "no-store" }).then(r => r.json());
-        const cases: { id: string; patient_id: string | null; patient_first_name: string | null }[] = casesJson?.data ?? [];
-        const eligible = cases.filter(c => c.patient_id && c.patient_first_name);
-        if (eligible.length) {
-          const c = eligible[Math.floor(Math.random() * eligible.length)];
-          picked = { id: c.id, patient_id: c.patient_id!, patient_first_name: c.patient_first_name! };
-          break;
-        }
-      }
-      if (!picked) throw new Error("No patient cases found in demo data.");
+      // Pick a deterministic demo case (case 2 = Jordan, the demo patient persona)
+      const picked = eligible.find(c => c.patient_first_name === "Jordan") ?? eligible[0];
 
-      const patientName = picked.patient_first_name;
       setSession({
         case_code: picked.id,
-        token: "",
-        display_label: patientName,
-        patient_id: picked.patient_id,
+        token: "", // No JWT in demo mode
+        display_label: picked.patient_first_name!,
+        patient_id: picked.patient_id!,
         case_id: picked.id,
       });
       setMode("welcome");
