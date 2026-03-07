@@ -52,10 +52,10 @@ describe("Suite 10: QA API routes use supabaseAdmin", () => {
     expect(content).toContain('return bad("check_id required")');
   });
 
-  test("60g. qa/mark-stale/route.ts validates page_path", () => {
+  test("60g. qa/mark-stale/route.ts validates page_id", () => {
     const content = fs.readFileSync(path.join(qaDir, "mark-stale", "route.ts"), "utf-8");
-    expect(content).toContain("page_path");
-    expect(content).toContain('return bad("page_path required")');
+    expect(content).toContain("page_id");
+    expect(content).toContain('return bad("page_id required")');
   });
 });
 

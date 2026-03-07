@@ -311,7 +311,14 @@ export default function QABoard() {
     try {
       const res = await fetch("/api/qa", { cache: "no-store" });
       const json = await res.json();
-      if (Array.isArray(json?.data)) setResults(json.data);
+      if (Array.isArray(json?.data)) {
+        // Debug: show raw stale values for admin-dev rows
+        const adminDevRows = json.data.filter((r: CheckResult) => r.page_id === "admin-dev");
+        if (adminDevRows.length > 0) {
+          console.log("[QA] admin-dev stale values:", adminDevRows.map((r: CheckResult) => ({ check_index: r.check_index, stale: r.stale, tester: r.tester_name })));
+        }
+        setResults(json.data);
+      }
     } catch {} finally { setLoading(false); }
   }, []);
 
@@ -505,7 +512,7 @@ export default function QABoard() {
       const res = await fetch("/api/qa/mark-stale", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ page_path: page.url }),
+        body: JSON.stringify({ page_id: page.id }),
       });
       if (res.ok) {
         setResults(prev => prev.map(r =>

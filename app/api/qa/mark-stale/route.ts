@@ -1,5 +1,5 @@
 // app/api/qa/mark-stale/route.ts
-// POST: mark all qa_checks for a given page_path as stale
+// POST: mark all qa_checks for a given page_id as stale
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 
@@ -11,13 +11,13 @@ function bad(msg: string, status = 400) { return NextResponse.json({ data: null,
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
 
-  const pagePath = typeof body?.page_path === "string" ? body.page_path.trim() : "";
-  if (!pagePath) return bad("page_path required");
+  const pageId = typeof body?.page_id === "string" ? body.page_id.trim() : "";
+  if (!pageId) return bad("page_id required");
 
   const { data, error } = await supabaseAdmin
     .from("qa_checks")
     .update({ stale: true })
-    .eq("page_path", pagePath)
+    .eq("page_id", pageId)
     .select("id");
 
   if (error) return bad(error.message, 500);
