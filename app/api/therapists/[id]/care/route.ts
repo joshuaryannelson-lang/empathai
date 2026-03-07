@@ -1,7 +1,7 @@
 // FILE: app/api/therapists/[id]/care/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 import { isScoreCritical } from "@/lib/services/risk";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoTherapistCare } from "@/lib/demo/demoData";
@@ -57,7 +57,7 @@ export async function GET(
   }
 
   // 0) Therapist name + practice for header
-  const { data: therapistRow, error: therapistErr } = await supabase
+  const { data: therapistRow, error: therapistErr } = await supabaseAdmin
     .from("therapists")
     .select("id, name, practice_id")
     .eq("id", therapistId)
@@ -74,7 +74,7 @@ export async function GET(
   const weekEndISO = addDaysISO(weekStartYYYYMMDD, 7);
 
   // 1) Cases assigned to therapist (optionally scoped to practice)
-  let casesQuery = supabase
+  let casesQuery = supabaseAdmin
     .from("cases")
     .select("id")
     .eq("therapist_id", therapistId);
@@ -110,7 +110,7 @@ export async function GET(
   }
 
   // 2) Check-ins within bucket
-  const { data: checkinsRaw, error: checkinsError } = await supabase
+  const { data: checkinsRaw, error: checkinsError } = await supabaseAdmin
     .from("checkins")
     .select("case_id, score, created_at")
     .in("case_id", caseIds)
@@ -176,7 +176,7 @@ export async function GET(
   }
 
   // 3) Fetch case meta + patient names for ALL cases
-  const { data: metaRows, error: metaErr } = await supabase
+  const { data: metaRows, error: metaErr } = await supabaseAdmin
     .from("cases")
     .select("id, title, patient_id")
     .in("id", caseIds);
@@ -195,7 +195,7 @@ export async function GET(
 
   const patientById = new Map<string, { first_name: string | null }>();
   if (patientIds.size) {
-    const { data: pRows, error: pErr } = await supabase
+    const { data: pRows, error: pErr } = await supabaseAdmin
       .from("patients")
       .select("id, first_name")
       .in("id", Array.from(patientIds));

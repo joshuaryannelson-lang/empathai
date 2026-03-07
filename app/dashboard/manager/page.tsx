@@ -225,10 +225,16 @@ export default function ManagerDashboard() {
             <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: "#f1f3f8" }}>
               {filterPracticeId
                 ? (allPractices.find(p => p.id === filterPracticeId)?.name ?? "Practice Operations")
-                : "Practice Operations"}
+                : managerMode === "single"
+                  ? (allPractices[0]?.name ?? "Your Practice")
+                  : "Practice Operations"}
             </h1>
             <div style={{ marginTop: 4, fontSize: 13, color: "#4b5563" }}>
-              {filterPracticeId ? "Single practice view · Last 7 days" : "Network-wide view · Last 7 days"}
+              {filterPracticeId
+                ? "Single practice view · Last 7 days"
+                : managerMode === "single"
+                  ? "Your practice · Last 7 days"
+                  : "Network-wide view · Last 7 days"}
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
@@ -243,7 +249,7 @@ export default function ManagerDashboard() {
                 cursor: "pointer", outline: "none",
               }}
             >
-              <option value="">All practices</option>
+              <option value="">{managerMode === "single" ? "Your practice" : "All practices"}</option>
               {allPractices.map(p => (
                 <option key={p.id} value={p.id}>{p.name ?? p.id}</option>
               ))}
