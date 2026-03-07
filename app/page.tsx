@@ -167,8 +167,23 @@ function PersonaCard({ persona, index, selected, onSelect }: {
             }),
         display: "flex",
         flexDirection: "column",
+        overflow: "visible",
       } as React.CSSProperties}
     >
+      {/* Pulse ring overlay */}
+      {isSelected && (
+        <span
+          style={{
+            position: "absolute",
+            inset: -1,
+            borderRadius: 20,
+            border: `2px solid ${persona.accent}`,
+            opacity: 0,
+            animation: "pulseRing 1.8s ease-out infinite",
+            pointerEvents: "none",
+          }}
+        />
+      )}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
         <div style={{
           width: 44, height: 44, borderRadius: 14,
@@ -389,7 +404,7 @@ export default function DemoLanding() {
         @keyframes orb1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(40px,-30px) scale(1.08); } }
         @keyframes orb2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-50px,40px) scale(1.05); } }
         @keyframes orb3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,50px) scale(1.1); } }
-        @keyframes pulseRing { 0% { transform: scale(0.95); opacity: 0.6; } 100% { transform: scale(1.4); opacity: 0; } }
+        @keyframes pulseRing { 0% { transform: scale(1); opacity: 0.7; } 100% { transform: scale(1.04); opacity: 0; } }
         @keyframes launchPulse { 0% { transform: scale(1); } 50% { transform: scale(0.96); } 100% { transform: scale(1); } }
         .persona-card-wrap:active { transform: scale(0.97) !important; }
         .persona-card-wrap:focus-visible {
