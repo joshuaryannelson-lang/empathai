@@ -565,7 +565,7 @@ export default function QABoard() {
 
   // Collect all notes across all pages for the summary
   const allNotes = useMemo(() => {
-    const notes: { page: PageSection; checkIndex: number; checkText: string; tester: string; note: string; status: string }[] = [];
+    const notes: { page: PageSection; checkIndex: number; checkText: string; tester: string; note: string; status: string; stale?: boolean }[] = [];
     for (const page of PAGES) {
       const pageResults = resultsByPage[page.id] ?? [];
       for (const r of pageResults) {
@@ -577,12 +577,36 @@ export default function QABoard() {
             tester: r.tester_name,
             note: r.note,
             status: r.status,
+            stale: r.stale,
           });
         }
       }
     }
     return notes;
   }, [resultsByPage]);
+
+  // All results for the active tester (for "Your Results" filtered view)
+  const myAllResults = useMemo(() => {
+    const name = testerName.trim();
+    if (!name) return [];
+    const items: { page: PageSection; checkIndex: number; checkText: string; status: string; note: string | null; stale?: boolean }[] = [];
+    for (const page of PAGES) {
+      const pageResults = resultsByPage[page.id] ?? [];
+      for (const r of pageResults) {
+        if (r.tester_name === name) {
+          items.push({
+            page,
+            checkIndex: r.check_index,
+            checkText: page.checks[r.check_index] ?? "",
+            status: r.status,
+            note: r.note ?? null,
+            stale: r.stale,
+          });
+        }
+      }
+    }
+    return items;
+  }, [resultsByPage, testerName]);
 
   // Summary stats
   const totalChecks = PAGES.reduce((s, p) => s + p.checks.length, 0);
@@ -739,66 +763,110 @@ export default function QABoard() {
           {loading && <span style={{ color: T.text.disabled, fontStyle: "italic" }}>Loading...</span>}
         </div>
 
-        {/* All Feedback — collapsible summary */}
-        <div style={{
-          marginBottom: 32, borderRadius: 12,
-          background: T.bg.card, border: `1px solid ${T.border.DEFAULT}`,
-          overflow: "hidden",
-        }}>
-          <button
-            onClick={() => setAllNotesOpen(prev => !prev)}
-            style={{
-              width: "100%", padding: "12px 18px",
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              background: "none", border: "none", cursor: "pointer",
-              fontSize: 13, fontWeight: 700, color: T.text.secondary,
-              fontFamily: FONT.body,
-            }}
-          >
-            <span>All Feedback ({allNotes.length})</span>
-            <span style={{ fontSize: 11, color: T.text.muted }}>
-              {allNotesOpen ? "\u25B4 collapse" : "\u25BE expand"}
-            </span>
-          </button>
-          {allNotesOpen && (
-            allNotes.length === 0 ? (
-              <div style={{ padding: "0 18px 14px", fontSize: 12, color: T.text.disabled, fontStyle: "italic" }}>
-                No feedback submitted yet
-              </div>
-            ) : (
-              <div style={{ padding: "0 18px 14px", display: "grid", gap: 10 }}>
-                {allNotes.map((n, i) => {
-                  const colors = n.status === "pass" ? T.pass : n.status === "fail" ? T.fail : T.skip;
-                  return (
-                    <div key={i} style={{ fontSize: 12, lineHeight: 1.5 }}>
-                      <div style={{ color: T.text.muted, fontSize: 11, marginBottom: 2 }}>
-                        <span style={{ color: T.accent, cursor: "pointer" }} onClick={() => scrollToCard(n.page.id)}>
-                          {n.page.name}
-                        </span>
-                        {" \u2192 "}
-                        <span style={{ color: T.text.disabled }}>
-                          {n.checkText.length > 60 ? n.checkText.slice(0, 60) + "..." : n.checkText}
-                        </span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                        <span style={{
-                          display: "inline-block", padding: "1px 6px", borderRadius: 999,
-                          fontSize: 10, fontWeight: 700,
-                          background: colors.bg, border: `1px solid ${colors.border}`, color: colors.fg,
-                        }}>
-                          {n.tester}
-                        </span>
-                        <span style={{ color: T.text.secondary, fontStyle: "italic" }}>
-                          &ldquo;{n.note}&rdquo;
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )
-          )}
-        </div>
+        {/* All Feedback / Your Results — collapsible summary */}
+        {(() => {
+          const isFiltered = !!testerName.trim();
+          const feedbackItems = isFiltered ? myAllResults : allNotes;
+          const headerLabel = isFiltered ? `Your Results (${feedbackItems.length})` : `All Feedback (${allNotes.length})`;
+          return (
+            <div style={{
+              marginBottom: 32, borderRadius: 12,
+              background: T.bg.card, border: `1px solid ${T.border.DEFAULT}`,
+              overflow: "hidden",
+            }}>
+              <button
+                onClick={() => setAllNotesOpen(prev => !prev)}
+                style={{
+                  width: "100%", padding: "12px 18px",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  background: "none", border: "none", cursor: "pointer",
+                  fontSize: 13, fontWeight: 700, color: T.text.secondary,
+                  fontFamily: FONT.body,
+                }}
+              >
+                <span>{headerLabel}</span>
+                <span style={{ fontSize: 11, color: T.text.muted }}>
+                  {allNotesOpen ? "\u25B4 collapse" : "\u25BE expand"}
+                </span>
+              </button>
+              {allNotesOpen && (
+                feedbackItems.length === 0 ? (
+                  <div style={{ padding: "0 18px 14px", fontSize: 12, color: T.text.disabled, fontStyle: "italic" }}>
+                    {isFiltered ? "No results yet \u2014 start testing above" : "No feedback submitted yet"}
+                  </div>
+                ) : isFiltered ? (
+                  <div style={{ padding: "0 18px 14px", display: "grid", gap: 8 }}>
+                    {myAllResults.map((r, i) => {
+                      const colors = r.status === "pass" ? T.pass : r.status === "fail" ? T.fail : T.skip;
+                      const statusLabel = r.status === "pass" ? "Pass" : r.status === "fail" ? "Fail" : "Skip";
+                      return (
+                        <div key={i} style={{ fontSize: 12, lineHeight: 1.5, display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{
+                            display: "inline-block", padding: "1px 8px", borderRadius: 999,
+                            fontSize: 10, fontWeight: 700, flexShrink: 0,
+                            background: colors.bg, border: `1px solid ${colors.border}`, color: colors.fg,
+                          }}>
+                            {statusLabel}
+                          </span>
+                          <span style={{ color: T.text.secondary, flex: 1, minWidth: 0 }}>
+                            {r.checkText.length > 70 ? r.checkText.slice(0, 70) + "..." : r.checkText}
+                          </span>
+                          <span
+                            style={{ color: T.accent, cursor: "pointer", fontSize: 11, flexShrink: 0, fontWeight: 600 }}
+                            onClick={() => scrollToCard(r.page.id)}
+                          >
+                            {r.page.name}
+                          </span>
+                          {r.stale && (
+                            <span style={{
+                              display: "inline-block", padding: "1px 7px", borderRadius: 999,
+                              fontSize: 10, fontWeight: 700, flexShrink: 0,
+                              background: T.amber.bg, border: `1px solid ${T.amber.border}`,
+                              color: T.amber.fg,
+                            }}>
+                              Needs re-check
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ padding: "0 18px 14px", display: "grid", gap: 10 }}>
+                    {allNotes.map((n, i) => {
+                      const colors = n.status === "pass" ? T.pass : n.status === "fail" ? T.fail : T.skip;
+                      return (
+                        <div key={i} style={{ fontSize: 12, lineHeight: 1.5 }}>
+                          <div style={{ color: T.text.muted, fontSize: 11, marginBottom: 2 }}>
+                            <span style={{ color: T.accent, cursor: "pointer" }} onClick={() => scrollToCard(n.page.id)}>
+                              {n.page.name}
+                            </span>
+                            {" \u2192 "}
+                            <span style={{ color: T.text.disabled }}>
+                              {n.checkText.length > 60 ? n.checkText.slice(0, 60) + "..." : n.checkText}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                            <span style={{
+                              display: "inline-block", padding: "1px 6px", borderRadius: 999,
+                              fontSize: 10, fontWeight: 700,
+                              background: colors.bg, border: `1px solid ${colors.border}`, color: colors.fg,
+                            }}>
+                              {n.tester}
+                            </span>
+                            <span style={{ color: T.text.secondary, fontStyle: "italic" }}>
+                              &ldquo;{n.note}&rdquo;
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
+              )}
+            </div>
+          );
+        })()}
 
         {/* Page cards */}
         {GROUPS.map(group => (
