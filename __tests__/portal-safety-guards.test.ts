@@ -92,6 +92,27 @@ describe("Suite 6: Crisis Detection", () => {
   test("30n. does NOT flag 'The house isn't safe' (environmental, not self-referential)", () => {
     expect(detectCrisisLanguage("The house isn't safe")).toBe(false);
   });
+
+  test("30o. does NOT flag 'can't go on vacation' (false positive)", () => {
+    expect(detectCrisisLanguage("I can't go on vacation this year")).toBe(false);
+  });
+
+  test("30p. does NOT flag 'want to die my hair' (false positive)", () => {
+    expect(detectCrisisLanguage("I want to die my hair blonde")).toBe(false);
+  });
+
+  test("30q. detects 'I can't go on anymore'", () => {
+    expect(detectCrisisLanguage("I can't go on anymore")).toBe(true);
+  });
+
+  test("30r. detects 'I want to die' at end of sentence", () => {
+    expect(detectCrisisLanguage("I want to die")).toBe(true);
+    expect(detectCrisisLanguage("I want to die.")).toBe(true);
+  });
+
+  test("30s. does NOT flag 'can't go on the trip' (false positive)", () => {
+    expect(detectCrisisLanguage("I can't go on the trip tomorrow")).toBe(false);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════
