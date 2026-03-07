@@ -158,12 +158,13 @@ export default function ManagerDashboard() {
 
   const [filterPracticeId, setFilterPracticeId] = useState<string>("");
 
-  // Filter to Northside practices only in multi-practice mode
+  // Filter practices based on manager mode
   const allPractices = useMemo(() => {
     const raw = data?.practices ?? [];
     if (managerMode === "multi") return raw.filter(p => p.name?.toLowerCase().includes("northside"));
+    if (managerMode === "single" && selectedPracticeId) return raw.filter(p => p.id === selectedPracticeId);
     return raw;
-  }, [data, managerMode]);
+  }, [data, managerMode, selectedPracticeId]);
   const practices = filterPracticeId
     ? allPractices.filter(p => p.id === filterPracticeId)
     : allPractices;

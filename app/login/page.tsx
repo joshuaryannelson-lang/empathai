@@ -50,6 +50,7 @@ const ROLES = [
     onClick: () => {
       try { localStorage.setItem("selected_persona", "manager"); } catch {}
       try { localStorage.setItem("selected_manager_mode", "single"); } catch {}
+      try { localStorage.setItem("selected_practice_id", "demo-practice-01"); } catch {}
     },
     route: "/dashboard/manager",
   },
@@ -66,8 +67,9 @@ const ROLES = [
     ),
     onClick: () => {
       try { localStorage.setItem("selected_persona", "therapist"); } catch {}
+      try { localStorage.setItem("selected_therapist_id", "demo-therapist-01"); } catch {}
     },
-    route: "/dashboard",
+    route: "/dashboard/therapists/demo-therapist-01/care",
   },
   {
     id: "patient",

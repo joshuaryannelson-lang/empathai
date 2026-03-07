@@ -39,9 +39,13 @@ ON CONFLICT (id) DO NOTHING;
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Note: created_by is uuid NOT NULL (references auth user, not therapists table).
 -- Use a deterministic demo UUID that won't collide with real users.
+-- Delete any existing TEST-0000 first (code has UNIQUE constraint, ON CONFLICT (id) won't catch code collisions)
+DELETE FROM join_codes WHERE code = 'TEST-0000';
 INSERT INTO join_codes (id, code, case_code, created_by, expires_at, redeemed_at) VALUES
   ('00000000-0000-0000-0000-000000000001'::uuid, 'TEST-0000', 'EMP-DEMO01',
    '00000000-0000-0000-0000-de0000000001'::uuid, '2099-12-31T23:59:59Z', null)
 ON CONFLICT (id) DO UPDATE SET
+  code        = EXCLUDED.code,
+  case_code   = EXCLUDED.case_code,
   redeemed_at = null,
   expires_at  = '2099-12-31T23:59:59Z';
