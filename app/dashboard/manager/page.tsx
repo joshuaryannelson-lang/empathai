@@ -220,7 +220,7 @@ export default function ManagerDashboard() {
         <div className="mgr-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 28 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: "#4b5563", marginBottom: 6 }}>
-              Manager Dashboard
+              {managerMode === "single" ? "Practice Owner" : "Network Manager"}
             </div>
             <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: "#f1f3f8" }}>
               {filterPracticeId

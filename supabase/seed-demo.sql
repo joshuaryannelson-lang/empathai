@@ -72,17 +72,25 @@ INSERT INTO goals (case_id, title, status, target_date, created_at) VALUES
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Demo join code for patient testing
--- Never expires (2099), not redeemed
+-- Never expires (2099), not redeemed, is_test=true (auto-resets after redemption)
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Note: created_by is uuid NOT NULL (references auth user, not therapists table).
 -- Use a deterministic demo UUID that won't collide with real users.
 -- Delete any existing TEST-0000 first (code has UNIQUE constraint, ON CONFLICT (id) won't catch code collisions)
 DELETE FROM join_codes WHERE code = 'TEST-0000';
-INSERT INTO join_codes (id, code, case_code, created_by, expires_at, redeemed_at) VALUES
+
+-- Ensure is_test column exists (idempotent)
+DO $$ BEGIN
+  ALTER TABLE join_codes ADD COLUMN IF NOT EXISTS is_test boolean NOT NULL DEFAULT false;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+INSERT INTO join_codes (id, code, case_code, created_by, expires_at, redeemed_at, is_test) VALUES
   ('00000000-0000-0000-0000-000000000001'::uuid, 'TEST-0000', 'EMP-DEMO01',
-   '00000000-0000-0000-0000-de0000000001'::uuid, '2099-12-31T23:59:59Z', null)
+   '00000000-0000-0000-0000-de0000000001'::uuid, '2099-12-31T23:59:59Z', null, true)
 ON CONFLICT (id) DO UPDATE SET
   code        = EXCLUDED.code,
   case_code   = EXCLUDED.case_code,
   redeemed_at = null,
-  expires_at  = '2099-12-31T23:59:59Z';
+  expires_at  = '2099-12-31T23:59:59Z',
+  is_test     = true;

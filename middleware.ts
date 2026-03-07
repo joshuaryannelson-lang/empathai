@@ -14,6 +14,34 @@ export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const res = NextResponse.next();
 
+  // ── Portal profile gate (runs before admin MFA gate) ──
+  if (pathname.startsWith("/portal/")) {
+    const hasToken = !!req.cookies.get("portal_token")?.value;
+    const profileComplete = req.cookies.get("portal_profile_complete")?.value === "1";
+
+    // Only gate authenticated patients (have a token cookie)
+    if (hasToken) {
+      const isOnboarding = pathname === "/portal/onboarding";
+      const isProfileSetup = pathname === "/portal/profile-setup";
+
+      if (!profileComplete && !isOnboarding && !isProfileSetup) {
+        // Not completed profile → redirect to profile-setup
+        const url = req.nextUrl.clone();
+        url.pathname = "/portal/profile-setup";
+        return NextResponse.redirect(url);
+      }
+
+      if (profileComplete && isProfileSetup) {
+        // Already completed → redirect to welcome
+        const url = req.nextUrl.clone();
+        url.pathname = "/portal/welcome";
+        return NextResponse.redirect(url);
+      }
+    }
+
+    return res;
+  }
+
   // Create a Supabase client that reads/writes cookies on the request/response
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -85,5 +113,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/portal/:path*"],
 };

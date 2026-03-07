@@ -78,6 +78,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           // Don't restore session — leave it null
         } else {
           setSessionState({ token, case_code: caseCode, display_label: label || "Patient" });
+          // Sync cookie for middleware profile gate
+          document.cookie = `portal_token=${token}; path=/portal; SameSite=Lax; max-age=86400`;
         }
       } else {
         // Try legacy keys (demo mode backward compat)
@@ -109,6 +111,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         if (s.case_id) localStorage.setItem(LS_LEGACY_CASE_ID, s.case_id);
         if (s.display_label) localStorage.setItem(LS_LEGACY_NAME, s.display_label);
         if (s.patient_id) localStorage.setItem(LS_LEGACY_PID, s.patient_id);
+        // Set cookie for middleware profile gate (httpOnly=false so JS can clear it)
+        if (s.token) {
+          document.cookie = `portal_token=${s.token}; path=/portal; SameSite=Lax; max-age=86400`;
+        }
       } catch {}
     }
   }
@@ -121,6 +127,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       localStorage.removeItem(LS_LEGACY_CASE_ID);
       localStorage.removeItem(LS_LEGACY_NAME);
       localStorage.removeItem(LS_LEGACY_PID);
+      // Clear middleware cookies
+      document.cookie = "portal_token=; path=/portal; max-age=0";
+      document.cookie = "portal_profile_complete=; path=/portal; max-age=0";
     } catch {}
     setSessionState(null);
     router.push("/portal/onboarding");

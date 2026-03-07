@@ -1,10 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PortalIdentityContext } from "../layout";
-import { useProfileGate } from "../hooks/useProfileGate";
 
 type Goal = {
   id: string;
@@ -19,8 +17,6 @@ const fmtDate = (iso: string) =>
 export default function GoalsPage() {
   const router = useRouter();
   const { session } = useContext(PortalIdentityContext);
-  useProfileGate();
-
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
 

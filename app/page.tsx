@@ -396,16 +396,22 @@ export default function DemoLanding() {
           outline: 2px solid #6b82d4;
           outline-offset: 3px;
         }
-        .persona-card-wrap:hover {
+        .persona-card-wrap:not(.persona-card-selected):hover {
           box-shadow: 0 0 0 1.5px #6b82d4, 0 4px 24px rgba(107,130,212,0.15) !important;
           transition: all 200ms ease !important;
         }
         @keyframes accentPulse {
-          0%, 100% { box-shadow: 0 0 0 1.5px rgba(107,130,212,0.3), 0 0 20px rgba(107,130,212,0.05); }
-          50% { box-shadow: 0 0 0 1.5px rgba(107,130,212,0.6), 0 0 30px rgba(107,130,212,0.12); }
+          0%, 100% { box-shadow: 0 0 0 1.5px rgba(var(--accent-rgb),0.35), 0 0 20px rgba(var(--accent-rgb),0.08); }
+          50% { box-shadow: 0 0 0 2px rgba(var(--accent-rgb),0.7), 0 0 30px rgba(var(--accent-rgb),0.18); }
         }
         .persona-card-selected {
           animation: accentPulse 2s ease-in-out infinite !important;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .persona-card-selected {
+            animation: none !important;
+            box-shadow: 0 0 0 2px rgba(var(--accent-rgb),0.5), 0 0 20px rgba(var(--accent-rgb),0.12) !important;
+          }
         }
         @media (max-width: 640px) {
           .hero-h1 { letter-spacing: -0.8px !important; }

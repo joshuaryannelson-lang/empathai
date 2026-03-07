@@ -114,6 +114,8 @@ export default function ProfileSetupPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Something went wrong.");
+      // Set cookie for middleware gate
+      document.cookie = "portal_profile_complete=1; path=/portal; SameSite=Lax; max-age=31536000";
       router.push("/portal/welcome");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Something went wrong.";

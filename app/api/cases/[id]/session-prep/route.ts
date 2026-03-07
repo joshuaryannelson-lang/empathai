@@ -277,6 +277,24 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
     };
   }
 
+  // ── Replace [NAME] placeholders with actual patient first name ──
+  // The AI sometimes echoes the [NAME] redaction tag from scrubbed check-in notes
+  // instead of using the patientFirstName field provided separately in the prompt.
+  if (patientFirstName) {
+    const replaceName = (s: string | null) => s?.replace(/\[NAME\]/g, patientFirstName) ?? s;
+    parsed.open_with = replaceName(parsed.open_with);
+    parsed.watch_for = replaceName(parsed.watch_for);
+    parsed.try_this = replaceName(parsed.try_this);
+    parsed.send_this = replaceName(parsed.send_this);
+  } else {
+    // No name available — replace [NAME] with a safe fallback
+    const replaceName = (s: string | null) => s?.replace(/\[NAME\]/g, "there") ?? s;
+    parsed.open_with = replaceName(parsed.open_with);
+    parsed.watch_for = replaceName(parsed.watch_for);
+    parsed.try_this = replaceName(parsed.try_this);
+    parsed.send_this = replaceName(parsed.send_this);
+  }
+
   // ── Validate output against policy ──
   const violations = validateSessionPrepOutput(parsed);
   if (violations.length > 0) {

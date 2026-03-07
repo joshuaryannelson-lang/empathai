@@ -136,5 +136,12 @@ export async function POST(req: Request) {
     // Audit failure must not break the flow
   }
 
-  return NextResponse.json({ success: true });
+  const res = NextResponse.json({ success: true });
+  // Set cookie so middleware can gate without DB call
+  res.cookies.set("portal_profile_complete", "1", {
+    path: "/portal",
+    sameSite: "lax",
+    maxAge: 86400 * 365, // 1 year — cleared on sign out
+  });
+  return res;
 }

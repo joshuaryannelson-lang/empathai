@@ -74,7 +74,7 @@ export async function POST(req: Request) {
   // expires_at can be NULL (no expiry) or a future timestamp — both are valid.
   const { data: joinCode, error: lookupError } = await supabaseAdmin
     .from("join_codes")
-    .select("id, code, case_code, expires_at, redeemed_at")
+    .select("id, code, case_code, expires_at, redeemed_at, is_test")
     .eq("code", code)
     .is("redeemed_at", null)
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
@@ -139,6 +139,15 @@ export async function POST(req: Request) {
       );
     }
     console.log("[join] JWT minted successfully");
+
+    // ── Auto-reset test codes so they can be reused ──
+    if (joinCode.is_test) {
+      await supabaseAdmin
+        .from("join_codes")
+        .update({ redeemed_at: null })
+        .eq("id", joinCode.id);
+      console.log(`[join] auto-reset test code="${code}" for reuse`);
+    }
 
     // ── Audit log ──
     await logAudit("join_code_redeemed", joinCode.case_code, ip, {
