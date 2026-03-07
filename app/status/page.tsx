@@ -5,12 +5,13 @@ import { useCallback, useEffect, useState } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ComponentStatus = "operational" | "degraded" | "down" | "unknown";
+type ComponentStatus = "operational" | "degraded" | "partial" | "down" | "unknown";
 type OverallStatus = "operational" | "degraded" | "outage" | "unknown";
 
 type StatusItem = {
   name: string;
   status: ComponentStatus;
+  totalCalls?: number;
 };
 
 type StatusComponent = {
@@ -20,6 +21,7 @@ type StatusComponent = {
   status: ComponentStatus;
   uptime: number | null;
   items: StatusItem[];
+  totalCalls?: number;
 };
 
 type StatusResponse = {
@@ -34,6 +36,7 @@ type StatusResponse = {
 const DOT_COLORS: Record<ComponentStatus, string> = {
   operational: "#4ade80",
   degraded: "#fbbf24",
+  partial: "#d97706",
   down: "#f87171",
   unknown: "#6b7280",
 };
@@ -41,7 +44,8 @@ const DOT_COLORS: Record<ComponentStatus, string> = {
 const STATUS_LABELS: Record<ComponentStatus, string> = {
   operational: "Operational",
   degraded: "Degraded",
-  down: "Down",
+  partial: "Partial Outage",
+  down: "Major Outage",
   unknown: "Unknown",
 };
 
@@ -391,6 +395,16 @@ export default function StatusPage() {
                       >
                         {comp.description}
                       </div>
+                      {comp.totalCalls !== undefined && comp.totalCalls > 0 && (
+                        <div style={{
+                          fontFamily: "'DM Mono', monospace",
+                          color: "#94a3b8",
+                          fontSize: 12,
+                          marginTop: 6,
+                        }}>
+                          {comp.totalCalls} calls in last 60 min
+                        </div>
+                      )}
                     </div>
                   </div>
 

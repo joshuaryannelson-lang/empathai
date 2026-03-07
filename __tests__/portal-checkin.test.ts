@@ -3,10 +3,15 @@
 
 import {
   TEST_CASE_CODE_A, TEST_CASE_CODE_B, TEST_CASE_ID_A,
-  VALID_CHECKIN,
+  VALID_CHECKIN, CHECKIN_WITH_CRISIS,
   CHECKIN_RATING_TOO_LOW, CHECKIN_RATING_TOO_HIGH,
   CHECKIN_RATING_FLOAT, CHECKIN_RATING_STRING,
 } from "@/lib/fixtures/portalTestData";
+
+// ── Mock rate limiter ──
+jest.mock("@/lib/rateLimit", () => ({
+  checkRateLimitAsync: jest.fn().mockResolvedValue({ allowed: true, remaining: 10, resetAt: Date.now() + 60000 }),
+}));
 
 // ── Mock patientAuth ──
 const mockAuthenticatePatient = jest.fn();
@@ -215,5 +220,31 @@ describe("Suite 2: Check-in via case_code", () => {
 
     const res = await POST(makeRequest(VALID_CHECKIN, "valid-token"));
     expect(res.status).toBe(404);
+  });
+
+  // Test 15: Crisis language in free text → 200 (server does NOT block submission)
+  test("15. crisis language in notes still returns 200 (not blocked server-side)", async () => {
+    mockAuthenticatePatient.mockResolvedValue({ role: "patient", case_code: TEST_CASE_CODE_A });
+
+    const res = await POST(makeRequest(CHECKIN_WITH_CRISIS, "valid-token"));
+    const json = await res.json();
+
+    // Server should accept the submission — crisis detection is client-side only
+    expect(res.status).toBe(200);
+    expect(json.data).toBeDefined();
+    expect(json.error).toBeNull();
+  });
+
+  // Test 16: PHI guard — no sensitive fields in checkin response
+  test("16. PHI guard: no sensitive fields in response", async () => {
+    mockAuthenticatePatient.mockResolvedValue({ role: "patient", case_code: TEST_CASE_CODE_A });
+
+    const res = await POST(makeRequest(VALID_CHECKIN, "valid-token"));
+    const body = JSON.stringify(await res.json());
+
+    expect(body).not.toContain('"last_name"');
+    expect(body).not.toContain('"dob"');
+    expect(body).not.toContain('"email"');
+    expect(body).not.toContain('"phone"');
   });
 });

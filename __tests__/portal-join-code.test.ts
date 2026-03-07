@@ -402,6 +402,44 @@ describe("Suite 4: Join Code Generation", () => {
     expect(responseStr).not.toContain("patient_name");
   });
 
+  // Test 23b: PHI guard — no sensitive fields in join response
+  test("23b. PHI guard: no last_name, dob, email, or phone in response", async () => {
+    const casesChain = chainMock();
+    casesChain.select.mockReturnValue({
+      eq: jest.fn().mockReturnValue({
+        single: jest.fn().mockResolvedValue({
+          data: { id: "case-uuid", case_code: TEST_CASE_CODE_A },
+          error: null,
+        }),
+      }),
+    });
+
+    const joinCodesChain = chainMock();
+    joinCodesChain.update.mockReturnValue({
+      eq: jest.fn().mockReturnValue({
+        is: jest.fn().mockResolvedValue({ error: null }),
+      }),
+    });
+    joinCodesChain.insert.mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        single: jest.fn().mockResolvedValue({
+          data: { id: "new-jc", code: "ABCD-5678", expires_at: "2099-01-01T00:00:00Z" },
+          error: null,
+        }),
+      }),
+    });
+
+    fromHandlers = { cases: casesChain, join_codes: joinCodesChain };
+
+    const res = await generatePOST(makeGenerateRequest({ case_code: TEST_CASE_CODE_A }));
+    const body = JSON.stringify(await res.json());
+
+    expect(body).not.toContain('"last_name"');
+    expect(body).not.toContain('"dob"');
+    expect(body).not.toContain('"email"');
+    expect(body).not.toContain('"phone"');
+  });
+
   // Test 24: Join code expiry is ~48 hours
   test("24. invalidates existing active codes before generating new one", async () => {
     const casesChain = chainMock();

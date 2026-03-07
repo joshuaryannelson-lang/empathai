@@ -1,0 +1,22 @@
+name: Preview Database Setup
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  setup-preview-db:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup preview database
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          GIT_BRANCH: ${{ github.head_ref }}
+        run: |
+          chmod +x scripts/setup-preview-db.sh
+          ./scripts/setup-preview-db.sh

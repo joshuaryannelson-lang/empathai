@@ -28,6 +28,7 @@ const PERSONAS = [
   {
     id: "manager",
     label: "Practice Manager",
+    descriptor: "Practice health & reporting",
     icon: "⬡",
     tagline: "Your whole practice, one view",
     description: "Stop flying blind. See every therapist, every case, every risk signal — and act before small problems become big ones.",
@@ -39,6 +40,7 @@ const PERSONAS = [
   {
     id: "therapist",
     label: "Therapist",
+    descriptor: "Cases, sessions & clinical tools",
     icon: "◎",
     tagline: "Know your patients. Really know them.",
     description: "Walk into every session prepared. Surface the patients who need you most before they slip through the cracks.",
@@ -50,6 +52,7 @@ const PERSONAS = [
   {
     id: "patient",
     label: "Patient",
+    descriptor: "Your care portal",
     icon: "♡",
     tagline: "Your care, your way.",
     description: "Check in with how you're feeling, review notes from your sessions, track your goals, and stay connected with your therapist.",
@@ -61,6 +64,7 @@ const PERSONAS = [
   {
     id: "admin",
     label: "Admin",
+    descriptor: "Full system access",
     icon: "⬢",
     tagline: "Total system control",
     description: "Configure practices, manage your therapist roster, and keep patient assignments clean — all from one place.",
@@ -72,6 +76,7 @@ const PERSONAS = [
   {
     id: "analytics",
     label: "Analytics",
+    descriptor: "Data insights & benchmarks",
     icon: "◈",
     tagline: "Signal, not noise",
     description: "Real-time signal intelligence across your practice — health scores, risk patterns, utilization, and benchmarks.",
@@ -121,8 +126,16 @@ function PersonaCard({ persona, index, selected, onSelect }: {
   return (
     <div
       ref={ref}
-      className="persona-card-wrap"
+      className={`persona-card-wrap${isSelected ? ' persona-card-selected' : ''}`}
+      role="button"
+      tabIndex={0}
+      aria-label={`Sign in as ${persona.label}`}
       onClick={() => onSelect(persona.id)}
+      onKeyDown={(e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(persona.id); }
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); const next = (e.currentTarget.nextElementSibling as HTMLElement); if (next) next.focus(); }
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); const prev = (e.currentTarget.previousElementSibling as HTMLElement); if (prev) prev.focus(); }
+      }}
       style={{
         "--accent": persona.accent,
         "--accent-rgb": persona.accentRgb,
@@ -175,6 +188,9 @@ function PersonaCard({ persona, index, selected, onSelect }: {
       <div style={{ marginTop: 18 }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.8, textTransform: "uppercase", color: persona.accent, opacity: 0.9, fontFamily: "'DM Mono', 'Fira Mono', monospace" }}>
           {persona.label}
+        </div>
+        <div style={{ marginTop: 4, fontSize: 13, color: "#94a3b8", fontFamily: "'DM Sans', system-ui", fontWeight: 400 }}>
+          {persona.descriptor}
         </div>
         <div style={{ marginTop: 6, fontSize: 19, fontWeight: 900, letterSpacing: -0.6, color: "rgba(255,255,255,0.97)", lineHeight: 1.15, fontFamily: "'Sora', 'DM Sans', system-ui" }}>
           {persona.tagline}
@@ -371,12 +387,27 @@ export default function DemoLanding() {
         @keyframes pulseRing { 0% { transform: scale(0.95); opacity: 0.6; } 100% { transform: scale(1.4); opacity: 0; } }
         @keyframes launchPulse { 0% { transform: scale(1); } 50% { transform: scale(0.96); } 100% { transform: scale(1); } }
         .persona-card-wrap:active { transform: scale(0.97) !important; }
+        .persona-card-wrap:focus-visible {
+          outline: 2px solid #6b82d4;
+          outline-offset: 3px;
+        }
+        .persona-card-wrap:hover {
+          box-shadow: 0 0 0 1.5px #6b82d4, 0 4px 24px rgba(107,130,212,0.15) !important;
+          transition: all 200ms ease !important;
+        }
+        @keyframes accentPulse {
+          0%, 100% { box-shadow: 0 0 0 1.5px rgba(107,130,212,0.3), 0 0 20px rgba(107,130,212,0.05); }
+          50% { box-shadow: 0 0 0 1.5px rgba(107,130,212,0.6), 0 0 30px rgba(107,130,212,0.12); }
+        }
+        .persona-card-selected {
+          animation: accentPulse 2s ease-in-out infinite !important;
+        }
         @media (max-width: 640px) {
           .hero-h1 { letter-spacing: -0.8px !important; }
           .hero-section-gap { margin-top: 24px !important; }
           .action-bar { flex-direction: column !important; align-items: stretch !important; }
           .action-bar-launch { width: 100% !important; justify-content: center !important; }
-          .persona-grid { grid-template-columns: 1fr !important; }
+          .persona-grid { grid-template-columns: 1fr !important; gap: 16px !important; }
           .demo-steps-grid { grid-template-columns: 1fr !important; }
           .demo-step-cell { border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.05); }
           .demo-header-hint { display: none; }

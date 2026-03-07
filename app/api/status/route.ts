@@ -10,12 +10,13 @@ import { getDemoStatusResponse } from "@/lib/demo/demoStatusData";
 
 export const dynamic = "force-dynamic";
 
-type ItemStatus = "operational" | "degraded" | "down" | "unknown";
+type ItemStatus = "operational" | "degraded" | "partial" | "down" | "unknown";
 type OverallStatus = "operational" | "degraded" | "outage" | "unknown";
 
 interface StatusItem {
   name: string;
   status: ItemStatus;
+  totalCalls?: number;
 }
 
 interface StatusComponent {
@@ -25,6 +26,7 @@ interface StatusComponent {
   status: ItemStatus;
   uptime: number | null;
   items: StatusItem[];
+  totalCalls?: number;
 }
 
 interface StatusResponse {
@@ -45,16 +47,22 @@ const AI_SERVICE_MAP: Record<string, string[]> = {
   "Risk Signals": ["risk-classification"],
 };
 
-const MIN_VOLUME = 10;
+const SAMPLE_THRESHOLD = Number(process.env.STATUS_MIN_SAMPLE_THRESHOLD) || 5;
 
-function deriveItemStatus(errorRate: number): ItemStatus {
-  if (errorRate < 0.05) return "operational";
-  if (errorRate <= 0.20) return "degraded";
-  return "down";
+export function classifyComponentStatus(
+  errors: number, total: number, threshold: number
+): { status: ItemStatus; label?: string } {
+  if (total < threshold) return { status: "operational", label: "Low sample — monitoring" };
+  const rate = total > 0 ? errors / total : 0;
+  if (rate < 0.05) return { status: "operational" };
+  if (rate <= 0.20) return { status: "degraded" };
+  if (rate <= 0.40) return { status: "partial" };
+  return { status: "down" };
 }
 
 function worstStatus(statuses: ItemStatus[]): ItemStatus {
   if (statuses.includes("down")) return "down";
+  if (statuses.includes("partial")) return "partial";
   if (statuses.includes("degraded")) return "degraded";
   if (statuses.includes("unknown")) return "unknown";
   return "operational";
@@ -62,7 +70,7 @@ function worstStatus(statuses: ItemStatus[]): ItemStatus {
 
 function deriveOverall(components: StatusComponent[]): OverallStatus {
   if (components.some(c => c.status === "down")) return "outage";
-  if (components.some(c => c.status === "degraded")) return "degraded";
+  if (components.some(c => c.status === "partial" || c.status === "degraded")) return "degraded";
   return "operational";
 }
 
@@ -113,16 +121,14 @@ export async function GET(request: Request) {
     for (const [itemName, serviceKeys] of Object.entries(AI_SERVICE_MAP)) {
       const matching = logs.filter((l: any) => serviceKeys.includes(l.service));
       const total = matching.length;
+      const errors = matching.filter((l: any) => l.error === true).length;
+      const result = classifyComponentStatus(errors, total, SAMPLE_THRESHOLD);
 
-      if (total < MIN_VOLUME) {
-        aiItems.push({ name: itemName, status: "operational" });
-        // Don't add to aiUptimes — insufficient data
-      } else {
-        const errors = matching.filter((l: any) => l.error === true).length;
+      aiItems.push({ name: itemName, status: result.status, totalCalls: total });
+
+      if (total >= SAMPLE_THRESHOLD) {
         const errorRate = errors / total;
-        const status = deriveItemStatus(errorRate);
         const uptime = Math.round((1 - errorRate) * 10000) / 100;
-        aiItems.push({ name: itemName, status });
         aiUptimes.push(uptime);
       }
     }
@@ -138,6 +144,7 @@ export async function GET(request: Request) {
       status: worstStatus(aiItems.map(i => i.status)),
       uptime: aiUptime,
       items: aiItems,
+      totalCalls: aiItems.reduce((sum, i) => sum + (i.totalCalls ?? 0), 0),
     };
 
     // Static components (will be wired to real checks in a future sprint)
