@@ -3,12 +3,12 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { NavSidebar } from "@/app/components/NavSidebar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type Tab = "api" | "debug";
+type Tab = "debug" | "ai" | "api" | "readiness" | "cost";
 
 type Severity = "critical" | "warning" | "info" | "empty";
 type CheckState = "idle" | "running" | "done";
@@ -29,6 +29,56 @@ type CheckResult = {
   rca?: string;
 };
 
+// ── Status API types ──────────────────────────────────────────────────────────
+
+type ServiceStatus = {
+  service: string;
+  status: "healthy" | "degraded" | "inactive" | "unknown";
+  lastCallAt: string | null;
+  callsToday: number;
+  avgTokensToday: number;
+  blockedToday: number;
+  errorsToday: number;
+  lastError: string | null;
+};
+
+type ActivityEntry = {
+  time: string;
+  service: string;
+  tokens: number | null;
+  blocked: boolean;
+};
+
+type RedactionStats = {
+  totalPromptsScrubbed: number;
+  totalOutputsScrubbed: number;
+  mostCommonFlag: string;
+  byDay: Array<{ date: string; count: number }>;
+};
+
+type CostTracking = {
+  costToday: number;
+  projectedMonthly: number;
+  dailyAvg: number;
+  costByService: Record<string, number>;
+  budgetCeiling: number;
+  alertThreshold: number;
+  overBudget: boolean;
+};
+
+type StatusData = {
+  services: ServiceStatus[];
+  summary: {
+    totalCallsToday: number;
+    totalBlockedToday: number;
+    totalErrorsToday: number;
+    lastUpdated: string;
+  };
+  costTracking?: CostTracking;
+  recentActivity: ActivityEntry[];
+  redactionStats: RedactionStats;
+};
+
 // ── Utilities ─────────────────────────────────────────────────────────────────
 async function fetchRaw(url: string) {
   const res = await fetch(url, { cache: "no-store" });
@@ -43,7 +93,24 @@ function toMondayYYYYMMDD(s: string) {
   return toYYYYMMDD(d);
 }
 
-// ── Design tokens (from docs/ui-specs/design-system-tokens.ts) ────────────────
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 60000) return "just now";
+  if (ms < 3600000) return `${Math.floor(ms / 60000)}m ago`;
+  if (ms < 86400000) return `${Math.floor(ms / 3600000)}h ago`;
+  return `${Math.floor(ms / 86400000)}d ago`;
+}
+
+const SERVICE_LABELS: Record<string, string> = {
+  briefing: "Briefing Service",
+  "session-prep": "Session Prep",
+  "ths-scoring": "Health Score Narrative",
+  "task-generation": "Task Generation",
+  redaction: "PHI Redaction",
+  "risk-classification": "Risk Signals",
+};
+
+// ── Design tokens ─────────────────────────────────────────────────────────────
 const SEVERITY_STYLE: Record<Severity, {
   borderLeft: string;
   bg: string;
@@ -51,34 +118,10 @@ const SEVERITY_STYLE: Record<Severity, {
   dotColor: string;
   label: string;
 }> = {
-  critical: {
-    borderLeft: "3px solid #f87171",
-    bg: "#1a0808",
-    fg: "#f87171",
-    dotColor: "#f87171",
-    label: "CRITICAL",
-  },
-  warning: {
-    borderLeft: "3px solid #fb923c",
-    bg: "rgba(251,146,60,0.04)",
-    fg: "#fb923c",
-    dotColor: "#fb923c",
-    label: "WARNING",
-  },
-  info: {
-    borderLeft: "3px solid rgba(165,180,252,0.3)",
-    bg: "transparent",
-    fg: "#a5b4fc",
-    dotColor: "#a5b4fc",
-    label: "INFO",
-  },
-  empty: {
-    borderLeft: "3px solid transparent",
-    bg: "transparent",
-    fg: "rgba(255,255,255,0.35)",
-    dotColor: "rgba(255,255,255,0.15)",
-    label: "",
-  },
+  critical: { borderLeft: "3px solid #f87171", bg: "#1a0808", fg: "#f87171", dotColor: "#f87171", label: "CRITICAL" },
+  warning: { borderLeft: "3px solid #fb923c", bg: "rgba(251,146,60,0.04)", fg: "#fb923c", dotColor: "#fb923c", label: "WARNING" },
+  info: { borderLeft: "3px solid rgba(165,180,252,0.3)", bg: "transparent", fg: "#a5b4fc", dotColor: "#a5b4fc", label: "INFO" },
+  empty: { borderLeft: "3px solid transparent", bg: "transparent", fg: "rgba(255,255,255,0.35)", dotColor: "rgba(255,255,255,0.15)", label: "" },
 };
 
 // ── Shared UI ─────────────────────────────────────────────────────────────────
@@ -96,15 +139,35 @@ function Badge({ children, tone = "neutral" }: { children: any; tone?: "neutral"
   );
 }
 
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.4, color: "#4b5563", textTransform: "uppercase", marginBottom: 12 }}>
+      {children}
+    </div>
+  );
+}
+
+function Row({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, lineHeight: 1.8 }}>
+      <span style={{ color: "#6b7280" }}>{label}:</span>
+      <span style={{ color: color ?? "#94a3b8", fontWeight: 500 }}>{value}</span>
+    </div>
+  );
+}
+
 // ── Tab nav ───────────────────────────────────────────────────────────────────
 const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: "api",   label: "API Reference",  icon: "\u2301" },
-  { id: "debug", label: "Diagnostics",    icon: "\u25CE" },
+  { id: "debug",     label: "Diagnostics",      icon: "\u25CE" },
+  { id: "ai",        label: "AI Services",      icon: "\u26A1" },
+  { id: "api",       label: "API Reference",    icon: "\u2301" },
+  { id: "readiness", label: "Launch Readiness",  icon: "\u2713" },
+  { id: "cost",      label: "Cost",             icon: "$" },
 ];
 
 function TabNav({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
   return (
-    <div style={{ display: "flex", gap: 4, borderBottom: "1px solid #1a1e2a" }}>
+    <div style={{ display: "flex", gap: 4, borderBottom: "1px solid #1a1e2a", flexWrap: "wrap" }}>
       {TABS.map((t) => (
         <button
           key={t.id}
@@ -346,7 +409,7 @@ const CHECKS: CheckDef[] = [
       if (status >= 400) return { severity: "critical", summary: `HTTP ${status}`, rca: "Could not fetch overview data." };
       const t = json?.data?.totals;
       if (!t) return { severity: "critical", summary: "No totals in response", rca: "Check endpoint health first." };
-      if (t.at_risk_checkins > 0) return { severity: "info", summary: `${t.at_risk_checkins} at-risk check-in${t.at_risk_checkins !== 1 ? "s" : ""} this week — review in Manager Dashboard` };
+      if (t.at_risk_checkins > 0) return { severity: "info", summary: `${t.at_risk_checkins} at-risk check-in${t.at_risk_checkins !== 1 ? "s" : ""} this week \u2014 review in Manager Dashboard` };
       return { severity: "info", summary: "No at-risk check-ins in current window" };
     },
   },
@@ -380,6 +443,24 @@ const CHECKS: CheckDef[] = [
       return { severity: "info", summary: "Endpoint reachable and responding" };
     },
   },
+  {
+    id: "supabase-connectivity", label: "Supabase connectivity", desc: "Verifies DB reachability via /api/practices", url: "/api/practices",
+    validate: (_json, status) => {
+      if (status >= 500) return { severity: "critical", summary: "Supabase unreachable", rca: "Check SUPABASE_URL and service role key." };
+      return { severity: "info", summary: "Supabase connected and responding" };
+    },
+  },
+  {
+    id: "ai-latency", label: "AI service latency", desc: "Checks last response time per AI service", url: "/api/status",
+    validate: (json, status) => {
+      if (status >= 400) return { severity: "warning", summary: "Could not fetch AI status", rca: "Check /api/status route handler." };
+      const services = json?.data?.services ?? [];
+      const active = services.filter((s: any) => s.lastCallAt);
+      if (active.length === 0) return { severity: "info", summary: "No AI service calls recorded yet" };
+      const lines = active.map((s: any) => `${SERVICE_LABELS[s.service] ?? s.service}: last call ${timeAgo(s.lastCallAt)}`);
+      return { severity: "info", summary: lines.join(" \u00b7 ") };
+    },
+  },
 ];
 
 // ── Diagnostic check card ─────────────────────────────────────────────────────
@@ -389,7 +470,6 @@ function CheckCard({ check, result }: { check: CheckDef; result: CheckResult | u
   const isRunning = state === "running";
   const severity = result?.severity ?? null;
   const ss = severity ? SEVERITY_STYLE[severity] : null;
-
   const isEmpty = severity === "empty";
 
   return (
@@ -512,7 +592,6 @@ function DiagnosticsTab() {
   const actionableCount = counts.critical + counts.warning;
   const allHealthy = allDone && actionableCount === 0;
 
-  // Sort: critical first, then warning, then info, then empty
   const sortedChecks = [...CHECKS].sort((a, b) => {
     const order: Record<string, number> = { critical: 0, warning: 1, info: 2, empty: 3 };
     const sA = results[a.id]?.severity;
@@ -520,7 +599,6 @@ function DiagnosticsTab() {
     return (order[sA ?? "info"] ?? 2) - (order[sB ?? "info"] ?? 2);
   });
 
-  // Split into groups
   const criticalItems = sortedChecks.filter(c => results[c.id]?.severity === "critical");
   const warningItems = sortedChecks.filter(c => results[c.id]?.severity === "warning");
   const infoItems = sortedChecks.filter(c => results[c.id]?.severity === "info");
@@ -548,7 +626,6 @@ function DiagnosticsTab() {
         </div>
       </div>
 
-      {/* All healthy banner */}
       {allHealthy && (
         <div style={{ marginBottom: 20 }}>
           <div style={{
@@ -572,7 +649,7 @@ function DiagnosticsTab() {
                 cursor: "pointer", whiteSpace: "nowrap",
               }}
             >
-              {checksExpanded ? "Hide checks ▴" : `Show ${CHECKS.length} checks ▾`}
+              {checksExpanded ? "Hide checks \u25B4" : `Show ${CHECKS.length} checks \u25BE`}
             </button>
           </div>
           {checksExpanded && (
@@ -583,7 +660,6 @@ function DiagnosticsTab() {
         </div>
       )}
 
-      {/* Summary line when there are actionable items */}
       {allDone && actionableCount > 0 && (
         <div style={{ fontSize: 13, fontWeight: 700, color: counts.critical > 0 ? "#f87171" : "#fb923c", marginBottom: 16 }}>
           {actionableCount} item{actionableCount !== 1 ? "s" : ""} need{actionableCount === 1 ? "s" : ""} attention
@@ -591,16 +667,9 @@ function DiagnosticsTab() {
       )}
 
       <div style={{ display: "grid", gap: 8 }}>
-        {/* Critical items — always visible */}
         {criticalItems.map((check) => <CheckCard key={check.id} check={check} result={results[check.id]} />)}
-
-        {/* Warning items — always visible */}
         {warningItems.map((check) => <CheckCard key={check.id} check={check} result={results[check.id]} />)}
-
-        {/* Pending items (still running) */}
         {pendingItems.map((check) => <CheckCard key={check.id} check={check} result={results[check.id]} />)}
-
-        {/* Info items — collapsed by default if > 3 */}
         {infoItems.length > 0 && !allHealthy && (
           <>
             {infoItems.length > 3 && !infoExpanded ? (
@@ -623,9 +692,302 @@ function DiagnosticsTab() {
             )}
           </>
         )}
-
-        {/* Empty state items — always visible but ghost-styled */}
         {emptyItems.map((check) => <CheckCard key={check.id} check={check} result={results[check.id]} />)}
+      </div>
+    </div>
+  );
+}
+
+// ── AI Services tab ───────────────────────────────────────────────────────────
+
+function AIServicesTab() {
+  const [data, setData] = useState<StatusData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const demoParam = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "true"
+    ? "&demo=true" : "";
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/status?_t=${Date.now()}${demoParam}`, { cache: "no-store" });
+      const json = await res.json();
+      if (json.error) throw new Error(typeof json.error === "string" ? json.error : json.error?.message ?? "API error");
+      setData(json.data);
+      setError(null);
+    } catch (e: unknown) {
+      setError((e as Error).message ?? "Failed to fetch");
+    } finally {
+      setLoading(false);
+    }
+  }, [demoParam]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const STATUS_DOT: Record<string, string> = {
+    healthy: "#22c55e",
+    degraded: "#f59e0b",
+    inactive: "#6b7280",
+    unknown: "#374151",
+  };
+
+  if (loading) return <div style={{ padding: "40px 0", textAlign: "center", fontSize: 13, color: "#4b5563" }}>Loading AI service data...</div>;
+  if (error) return <div style={{ padding: "20px 0", fontSize: 13, color: "#f87171" }}>{error}</div>;
+  if (!data) return null;
+
+  const maxCount = Math.max(1, ...data.redactionStats.byDay.map(d => d.count));
+
+  return (
+    <div style={{ paddingTop: 28 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 20 }}>
+        <div style={{ fontWeight: 900, fontSize: 16 }}>AI Services</div>
+        <div style={{ fontSize: 13, opacity: 0.4 }}>Per-service usage and health</div>
+      </div>
+
+      {/* Summary bar */}
+      <div style={{ display: "flex", gap: 24, marginBottom: 28, flexWrap: "wrap" }}>
+        {[
+          { label: "Calls today", value: data.summary.totalCallsToday, color: "#60a5fa" },
+          { label: "Blocked (PII)", value: data.summary.totalBlockedToday, color: data.summary.totalBlockedToday > 0 ? "#f59e0b" : "#22c55e" },
+          { label: "Errors", value: data.summary.totalErrorsToday, color: data.summary.totalErrorsToday > 0 ? "#ef4444" : "#22c55e" },
+          { label: "Services healthy", value: data.services.filter(s => s.status === "healthy").length + "/" + data.services.length, color: "#22c55e" },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ minWidth: 120 }}>
+            <div style={{ fontSize: 10, color: "#4b5563", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Service cards */}
+      <SectionTitle>Services</SectionTitle>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12, marginBottom: 32 }}>
+        {data.services.map(svc => {
+          const dotColor = STATUS_DOT[svc.status] ?? "#374151";
+          const neverUsed = svc.callsToday === 0 && !svc.lastCallAt;
+          return (
+            <div key={svc.service} style={{
+              background: "#0b0f18", border: "1px solid #111827", borderRadius: 8,
+              padding: "16px 18px", fontSize: 12, lineHeight: 1.8,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, display: "inline-block", flexShrink: 0 }} />
+                <span style={{ fontWeight: 700, color: "#e2e8f0", fontSize: 13 }}>
+                  {SERVICE_LABELS[svc.service] ?? svc.service}
+                </span>
+              </div>
+              {neverUsed ? (
+                <div style={{ fontSize: 12, color: "#4b5563", fontStyle: "italic", marginTop: 4 }}>Not yet used</div>
+              ) : (
+                <>
+                  <Row label="Status" value={svc.status.charAt(0).toUpperCase() + svc.status.slice(1)} color={dotColor} />
+                  <Row label="Last call" value={svc.lastCallAt ? timeAgo(svc.lastCallAt) : "Never"} />
+                  <Row label="Calls today" value={svc.callsToday > 0 ? String(svc.callsToday) : "Not yet used"} color={svc.callsToday === 0 ? "#4b5563" : undefined} />
+                  <Row label="Avg tokens" value={svc.avgTokensToday ? String(svc.avgTokensToday) : "n/a"} />
+                  <Row label="Blocked (PII)" value={String(svc.blockedToday)} color={svc.blockedToday > 0 ? "#f59e0b" : undefined} />
+                  <Row label="Errors" value={String(svc.errorsToday)} color={svc.errorsToday > 0 ? "#ef4444" : undefined} />
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Recent activity — no case codes */}
+      <SectionTitle>Recent Activity (last 20)</SectionTitle>
+      <div style={{ background: "#0b0f18", border: "1px solid #111827", borderRadius: 8, overflow: "hidden", marginBottom: 32, fontSize: 11 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "140px 1fr 80px 70px", padding: "8px 14px", background: "#0d1220", color: "#4b5563", fontWeight: 700, letterSpacing: 0.5 }}>
+          <span>Time</span><span>Service</span><span>Tokens</span><span>Blocked</span>
+        </div>
+        {data.recentActivity.map((e, i) => (
+          <div key={i} style={{
+            display: "grid",
+            gridTemplateColumns: "140px 1fr 80px 70px",
+            padding: "6px 14px",
+            borderTop: "1px solid #111827",
+            color: "#94a3b8",
+          }}>
+            <span style={{ color: "#6b7280" }}>{new Date(e.time).toLocaleTimeString()}</span>
+            <span>{SERVICE_LABELS[e.service] ?? e.service}</span>
+            <span>{e.tokens ?? "-"}</span>
+            <span style={{ color: e.blocked ? "#f59e0b" : "#22c55e" }}>{e.blocked ? "yes" : "no"}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Redaction stats */}
+      <SectionTitle>Redaction Stats (7d)</SectionTitle>
+      <div style={{ background: "#0b0f18", border: "1px solid #111827", borderRadius: 8, padding: "16px 18px", fontSize: 12 }}>
+        <Row label="Prompts scrubbed" value={String(data.redactionStats.totalPromptsScrubbed)} />
+        <Row label="Outputs scrubbed" value={String(data.redactionStats.totalOutputsScrubbed)} />
+        <Row label="Most common flag" value={data.redactionStats.mostCommonFlag} color="#f59e0b" />
+
+        <div style={{ marginTop: 14, display: "flex", gap: 4, alignItems: "flex-end", height: 48 }}>
+          {data.redactionStats.byDay.map((d) => (
+            <div key={d.date} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <div style={{
+                width: "100%",
+                height: Math.max(2, (d.count / maxCount) * 40),
+                background: "#f59e0b",
+                borderRadius: 2,
+                opacity: 0.7,
+              }} />
+              <span style={{ fontSize: 8, color: "#4b5563" }}>{d.date.slice(5)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Launch Readiness tab ──────────────────────────────────────────────────────
+
+type ChecklistItem = { label: string; done: boolean };
+
+const CHECKLIST: ChecklistItem[] = [
+  { label: "RLS policies validated", done: false },
+  { label: "Redaction blocking live", done: true },
+  { label: "Crisis language detection active", done: true },
+  { label: "Audit log active", done: true },
+  { label: "Session prep < 10 seconds p95", done: true },
+  { label: "Patient onboarding < 2 minutes", done: false },
+  { label: "THS formula unit tested", done: true },
+  { label: "Regression suite passing (43 tests)", done: true },
+  { label: "MFA enabled for manager accounts", done: false },
+  { label: "Backup policy confirmed", done: false },
+  { label: "Monthly cost < $150", done: false },
+  { label: "Support triage documented", done: false },
+];
+
+const DONE_COUNT = CHECKLIST.filter(i => i.done).length;
+const PILOT_PCT = Math.round((DONE_COUNT / CHECKLIST.length) * 100);
+
+function LaunchReadinessTab() {
+  return (
+    <div style={{ paddingTop: 28 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
+        <div style={{ fontWeight: 900, fontSize: 16 }}>Launch Readiness</div>
+      </div>
+      <div style={{ fontSize: 12, color: "#4b5563", marginBottom: 24, fontStyle: "italic" }}>
+        Pre-pilot checklist &mdash; move to Linear after launch
+      </div>
+
+      <div style={{ background: "#0b0f18", border: "1px solid #111827", borderRadius: 8, padding: "18px 20px", fontSize: 12 }}>
+        {/* Progress bar */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ color: "#94a3b8", fontWeight: 600 }}>Pilot Readiness</span>
+            <span style={{ color: PILOT_PCT >= 80 ? "#22c55e" : PILOT_PCT >= 50 ? "#f59e0b" : "#ef4444", fontWeight: 700 }}>{PILOT_PCT}%</span>
+          </div>
+          <div style={{ height: 6, background: "#1e293b", borderRadius: 3, overflow: "hidden" }}>
+            <div style={{
+              width: `${PILOT_PCT}%`,
+              height: "100%",
+              background: PILOT_PCT >= 80 ? "#22c55e" : PILOT_PCT >= 50 ? "#f59e0b" : "#ef4444",
+              borderRadius: 3,
+              transition: "width 0.4s",
+            }} />
+          </div>
+        </div>
+
+        {/* Items */}
+        {CHECKLIST.map((item) => (
+          <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 10, padding: "5px 0", borderTop: "1px solid #111827" }}>
+            <span style={{
+              width: 16, height: 16, borderRadius: 3, flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 10, fontWeight: 700,
+              background: item.done ? "#052e16" : "#1e293b",
+              border: item.done ? "1px solid #166534" : "1px solid #334155",
+              color: item.done ? "#22c55e" : "#4b5563",
+            }}>
+              {item.done ? "\u2713" : ""}
+            </span>
+            <span style={{ color: item.done ? "#94a3b8" : "#4b5563" }}>{item.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Cost tab ──────────────────────────────────────────────────────────────────
+
+function CostTab() {
+  const [data, setData] = useState<StatusData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const demoParam = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "true"
+    ? "&demo=true" : "";
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/status?_t=${Date.now()}${demoParam}`, { cache: "no-store" });
+      const json = await res.json();
+      if (json.data) setData(json.data);
+    } catch {} finally { setLoading(false); }
+  }, [demoParam]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  if (loading) return <div style={{ padding: "40px 0", textAlign: "center", fontSize: 13, color: "#4b5563" }}>Loading cost data...</div>;
+  if (!data?.costTracking) return <div style={{ padding: "20px 0", fontSize: 13, color: "#4b5563" }}>No cost data available yet.</div>;
+
+  const cost = data.costTracking;
+  const pct = Math.min(100, (cost.projectedMonthly / cost.budgetCeiling) * 100);
+  const barColor = cost.overBudget ? "#ef4444" : pct > 70 ? "#f59e0b" : "#22c55e";
+  const topServices = Object.entries(cost.costByService).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+  return (
+    <div style={{ paddingTop: 28 }}>
+      <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 20 }}>Cost Tracking</div>
+
+      <div style={{ background: "#0b0f18", border: "1px solid #111827", borderRadius: 8, padding: "16px 18px", fontSize: 12 }}>
+        {cost.overBudget && (
+          <div style={{ background: "#1a0808", border: "1px solid #3d1a1a", borderRadius: 4, padding: "6px 10px", marginBottom: 12, color: "#f87171", fontSize: 11, fontWeight: 700 }}>
+            ALERT: Projected monthly cost ${`$${cost.projectedMonthly.toFixed(2)}`} exceeds $20 warning threshold
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 32, marginBottom: 14, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 10, color: "#4b5563", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Today</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#60a5fa" }}>${cost.costToday.toFixed(4)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: "#4b5563", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Daily avg (7d)</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#94a3b8" }}>${cost.dailyAvg.toFixed(4)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: "#4b5563", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Projected monthly</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: barColor }}>${cost.projectedMonthly.toFixed(2)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: "#4b5563", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Budget ceiling (AI)</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#4b5563" }}>$25.00</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: "#4b5563", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Budget ceiling (total)</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#4b5563" }}>$150.00</div>
+          </div>
+        </div>
+
+        <div style={{ height: 6, background: "#1e293b", borderRadius: 3, overflow: "hidden", marginBottom: 20 }}>
+          <div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 3 }} />
+        </div>
+
+        {topServices.length > 0 && (
+          <div>
+            <div style={{ fontSize: 10, color: "#4b5563", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Cost by service (7d)</div>
+            {topServices.map(([svc, val]) => (
+              <div key={svc} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
+                <span style={{ color: "#6b7280" }}>{SERVICE_LABELS[svc] ?? svc}</span>
+                <span style={{ color: "#94a3b8", fontWeight: 500 }}>${val.toFixed(4)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -698,8 +1060,11 @@ function AdminDevPage() {
         <TabNav active={tab} onChange={setTab} />
 
         <div>
-          {tab === "api"   && <ApiTab />}
-          {tab === "debug" && <DiagnosticsTab />}
+          {tab === "debug"     && <DiagnosticsTab />}
+          {tab === "ai"        && <AIServicesTab />}
+          {tab === "api"       && <ApiTab />}
+          {tab === "readiness" && <LaunchReadinessTab />}
+          {tab === "cost"      && <CostTab />}
         </div>
 
       </main>

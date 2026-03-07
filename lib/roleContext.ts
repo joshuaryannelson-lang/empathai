@@ -49,7 +49,20 @@ export function getRole(): Role {
     // no-op — fall through to sessionStorage
   }
 
-  // 2. Check sessionStorage
+  // 2. Check cookie for admin (demo mode — no JWT but landing page wrote cookie)
+  try {
+    const cookie = document.cookie
+      .split("; ")
+      .find(c => c.startsWith(`${ROLE_COOKIE}=`));
+    if (cookie) {
+      const val = decodeURIComponent(cookie.split("=")[1]);
+      if (val === "admin") return "admin";
+    }
+  } catch {
+    // no-op
+  }
+
+  // 3. Check sessionStorage
   try {
     const stored = sessionStorage.getItem(SESSION_KEY) as Role | null;
     if (stored === "therapist" || stored === "manager" || stored === "patient") {
@@ -79,7 +92,20 @@ export async function getRoleAsync(): Promise<Role> {
     // no-op
   }
 
-  // 2. Check sessionStorage
+  // 2. Check cookie for admin (demo mode — no JWT but landing page wrote cookie)
+  try {
+    const cookie = document.cookie
+      .split("; ")
+      .find(c => c.startsWith(`${ROLE_COOKIE}=`));
+    if (cookie) {
+      const val = decodeURIComponent(cookie.split("=")[1]);
+      if (val === "admin") return "admin";
+    }
+  } catch {
+    // no-op
+  }
+
+  // 3. Check sessionStorage
   try {
     const stored = sessionStorage.getItem(SESSION_KEY) as Role | null;
     if (stored === "therapist" || stored === "manager" || stored === "patient") {
