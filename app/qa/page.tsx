@@ -128,8 +128,8 @@ const PAGES: PageSection[] = [
   {
     id: "therapist-care",
     name: "My Cases",
-    url: "/dashboard/therapists/demo-therapist-01/care?demo=true",
-    who: "Therapists (pick 'I'm a Therapist' on the home page first)",
+    url: "/dashboard",
+    who: "Therapists (select your role on the home page first, then navigate here)",
     group: "For Therapists",
     checks: [
       "The page opens with the therapist's name and a summary of their caseload",
@@ -143,11 +143,11 @@ const PAGES: PageSection[] = [
   {
     id: "case-detail",
     name: "Case Detail",
-    url: "/cases/demo-case-03?demo=true",
-    who: "Therapists",
+    url: "/cases",
+    who: "Therapists (open a case from the list to see details)",
     group: "For Therapists",
     checks: [
-      "The page opens with the case title, patient first name, and therapist name",
+      "Open a case from the All Cases list — it opens with the case title, patient first name, and therapist name",
       "You can see a timeline of past check-ins with scores and dates",
       "There's a 'Generate Session Prep' button — it's visible and clickable",
       "Goals section shows active goals with target dates",
@@ -158,8 +158,8 @@ const PAGES: PageSection[] = [
   {
     id: "case-list",
     name: "All Cases",
-    url: "/cases?demo=true",
-    who: "Therapists / Practice Managers",
+    url: "/cases",
+    who: "Therapists / Practice Managers (select your role on the home page first)",
     group: "For Therapists",
     checks: [
       "The page opens with a list of cases showing patient first name, therapist, score, and status",
@@ -173,8 +173,8 @@ const PAGES: PageSection[] = [
   {
     id: "practice-status",
     name: "Practice Status",
-    url: "/admin/status?demo=true",
-    who: "Practice Managers (pick 'I'm a Manager' on the home page first)",
+    url: "/admin/status",
+    who: "Practice Managers (select 'I'm a Manager' on the home page first)",
     group: "For Practice Managers",
     checks: [
       "The page opens with 4 summary cards: check-in rate, average rating, cases needing attention, and health score",
@@ -189,8 +189,8 @@ const PAGES: PageSection[] = [
   {
     id: "practice-health",
     name: "Practice Health Score",
-    url: "/practices/demo-practice-01/health-score?demo=true",
-    who: "Practice Managers",
+    url: "/admin/status",
+    who: "Practice Managers (health score is shown on the Practice Status page)",
     group: "For Practice Managers",
     checks: [
       "The page opens with an overall health score number and a breakdown of what goes into it",
@@ -557,7 +557,7 @@ export default function QABoard() {
             </button>
           </div>
           <p style={{ fontSize: 14, color: T.text.tertiary, marginTop: 8, lineHeight: 1.6 }}>
-            Help us test EmpathAI! Enter your name below, then open each page and run through the checks. Click Pass, Fail, or Skip for each one. Everyone&apos;s results show up here in real time.
+            Select your role on the home page first, then open each page link and run through the checks. Some pages require you to be logged in &mdash; if you see a login screen, that&apos;s expected behavior. Click Pass, Fail, or Skip for each one. Everyone&apos;s results show up here in real time.
           </p>
         </div>
 
