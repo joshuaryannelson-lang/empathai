@@ -224,8 +224,8 @@ const PAGES: PageSection[] = [
     who: "Admins only",
     group: "For Admin",
     checks: [
-      "The page opens with 5 tabs. Click Diagnostics — you see health checks for each service with green or red status",
-      "Each check shows a status and response time. Click 'Show checks' to expand the full list",
+      "The page opens with 5 tabs: Diagnostics, AI Services, API Reference, Launch Readiness, and Cost",
+      "Click the Diagnostics tab — each check shows a status and response time. Click 'Show checks' to expand the full list",
       "No patient data or personal information visible — only system numbers",
       "If you're not an admin, you should not be able to reach this page",
       "Shrink the window narrow — panels stack vertically",
@@ -234,14 +234,14 @@ const PAGES: PageSection[] = [
   {
     id: "system-status",
     name: "AI Services Status",
-    url: "/admin/dev",
-    who: "Admins only — select Admin on home page first",
+    url: "/status",
+    who: "Anyone — no login needed",
     group: "For Admin",
     checks: [
-      "The page opens to the Developer Tools console with 5 tabs: Diagnostics, AI Services, API Reference, Launch Readiness, and Cost",
-      "Click the AI Services tab — you see call counts and status for Session Prep, PHI Redaction, Risk Signals, and Health Score Narrative",
-      "No patient data visible — only system performance numbers",
-      "Shrink the window narrow — tabs and panels stack cleanly",
+      "The page shows an overall status banner — green means all systems operational",
+      "You see 5 services listed: Session Prep, PHI Redaction, Risk Signals, Health Score Narrative, and Patient Portal — each with a status dot",
+      "No patient data, costs, or technical metrics visible — just service names and status",
+      "The page says when it was last checked and updates automatically",
     ],
   },
   {

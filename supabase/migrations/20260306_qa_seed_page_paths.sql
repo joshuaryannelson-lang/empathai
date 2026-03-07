@@ -16,5 +16,5 @@ UPDATE public.qa_checks SET page_path = '/admin/status' WHERE page_id = 'practic
 UPDATE public.qa_checks SET page_path = '/admin/status' WHERE page_id = 'practice-health';
 UPDATE public.qa_checks SET page_path = '/admin' WHERE page_id = 'admin-home';
 UPDATE public.qa_checks SET page_path = '/admin/dev' WHERE page_id = 'admin-dev';
-UPDATE public.qa_checks SET page_path = '/admin/dev' WHERE page_id = 'system-status';
+UPDATE public.qa_checks SET page_path = '/status' WHERE page_id = 'system-status';
 UPDATE public.qa_checks SET page_path = '/status' WHERE page_id = 'product-health';
