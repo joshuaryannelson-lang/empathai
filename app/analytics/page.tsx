@@ -2,6 +2,7 @@
 "use client";
 
 import Link from "next/link";
+import EngagementModule from "@/app/components/analytics/EngagementModule";
 
 // ── Sparkline ─────────────────────────────────────────────────────────────────
 function Sparkline({ values, width = 160, height = 52, color = "#f5a623" }: { values: number[]; width?: number; height?: number; color?: string }) {
@@ -267,6 +268,29 @@ export default function AnalyticsComingSoon() {
                 </div>
               }
             />
+          </div>
+
+          {/* ── Module 2: Patient Engagement ───────────────────────────── */}
+          <div style={{
+            borderTop: "1px solid rgba(255,255,255,0.06)",
+            paddingTop: 32,
+            marginBottom: 48,
+            animation: "fadeUp 0.7s 0.35s cubic-bezier(0.16,1,0.3,1) both",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <span style={{ fontSize: 16, color: "#6b82d4" }}>◉</span>
+              <span style={{ fontWeight: 900, fontSize: 18, letterSpacing: -0.3, color: "#f1f5f9" }}>Patient Engagement</span>
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase" as const,
+                color: "#4ade80", opacity: 0.85,
+                background: "rgba(74,222,128,0.1)",
+                border: "1px solid rgba(74,222,128,0.3)",
+                padding: "2px 8px", borderRadius: 999,
+              }}>
+                ● Live
+              </span>
+            </div>
+            <EngagementModule />
           </div>
 
           {/* Bottom CTA */}
