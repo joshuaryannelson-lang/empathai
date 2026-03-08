@@ -2,6 +2,16 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
+const PHI_KEYS = new Set(["email", "phone", "date_of_birth"]);
+function stripPhi(ep: unknown): Record<string, unknown> {
+  if (!ep || typeof ep !== "object") return {};
+  const clean: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(ep as Record<string, unknown>)) {
+    if (!PHI_KEYS.has(k)) clean[k] = v;
+  }
+  return clean;
+}
+
 export async function GET(
   _req: Request,
   context: { params: Promise<{ id: string }> }
@@ -14,7 +24,7 @@ export async function GET(
     .single();
 
   if (error) return NextResponse.json({ data: null, error }, { status: 500 });
-  return NextResponse.json({ data, error: null });
+  return NextResponse.json({ data: { ...data, extended_profile: stripPhi(data?.extended_profile) }, error: null });
 }
 
 export async function PATCH(
@@ -32,8 +42,8 @@ export async function PATCH(
   if (typeof body?.last_name === "string" && body.last_name.trim()) coreUpdates.last_name = body.last_name.trim();
 
   // Extended profile fields
+  // PHI fields (email, phone, date_of_birth) removed — GAP-06
   const extendedKeys = [
-    "email", "phone", "date_of_birth",
     "primary_diagnosis", "secondary_diagnoses",
     "emergency_contact_name", "emergency_contact_phone",
     "insurance_provider", "clinical_notes",
@@ -77,5 +87,5 @@ export async function PATCH(
     .single();
 
   if (error) return NextResponse.json({ data: null, error }, { status: 500 });
-  return NextResponse.json({ data, error: null });
+  return NextResponse.json({ data: { ...data, extended_profile: stripPhi(data?.extended_profile) }, error: null });
 }

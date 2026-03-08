@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireRole, isAuthError, logUnauthorizedAccess, getClientIp } from "@/lib/apiAuth";
 
 function toMondayISO(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00`);
@@ -45,6 +46,12 @@ function realisticScore(rng: () => number): number {
  * Optional body: { week_start?: "YYYY-MM-DD" }
  */
 export async function POST(req: Request) {
+  const auth = await requireRole("admin");
+  if (isAuthError(auth)) {
+    await logUnauthorizedAccess("/api/admin/seed/demo", null, getClientIp(req));
+    return auth;
+  }
+
   try {
     let weekStart: string;
     try {

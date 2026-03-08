@@ -489,8 +489,8 @@ export default function CasePage() {
             {/* ── SIDEBAR ── */}
             <aside className="sidebar">
 
-              {/* Profile + score card */}
-              <div className="profile-card">
+              {/* ── PHI BOUNDARY: Identity header (name only, no scores) ── */}
+              <div className="profile-card" data-phi="identity-header">
                 <div className="avatar-row">
                   <div className="avatar">{initials || "?"}</div>
                   <div className="status-pill">
@@ -500,7 +500,10 @@ export default function CasePage() {
 
                 <div className="p-name">{patientName}</div>
                 <div className="p-sub">{d?.therapist?.name ?? "Unassigned"}</div>
+              </div>
 
+              {/* ── PHI BOUNDARY: Clinical data (scores only, no patient name) ── */}
+              <div className="profile-card" data-phi="clinical-data" style={{ marginTop: 0 }}>
                 <div className="score-row">
                   <div className="score-big">{latest?.score ?? "—"}</div>
                   <div className="score-aside">

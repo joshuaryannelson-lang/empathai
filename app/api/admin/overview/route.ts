@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoAdminOverview } from "@/lib/demo/demoData";
+import { requireRole, isAuthError, logUnauthorizedAccess, getClientIp } from "@/lib/apiAuth";
 
 type RangeKey = "1d" | "7d" | "30d" | "this_week" | "last_week";
 
@@ -49,6 +50,12 @@ function errMsg(e: any) {
 }
 
 export async function GET(request: Request) {
+  const auth = await requireRole("admin");
+  if (isAuthError(auth)) {
+    await logUnauthorizedAccess("/api/admin/overview", null, getClientIp(request));
+    return auth;
+  }
+
   if (isDemoMode(request.url)) {
     return NextResponse.json({ data: getDemoAdminOverview(), error: null });
   }

@@ -2,9 +2,14 @@
 // Patient profile setup — accepts preferred_name, pronouns, timezone.
 // Marks has_completed_profile = true on success (including skip).
 // No PHI logged — audit records patient_id and action only.
+//
+// GAP-17: Uses patient-scoped Supabase client (anon key + patient JWT)
+// so that RLS enforces patients can only update their own row.
+// supabaseAdmin is only used for audit logging (no patient RLS policy on that table).
 
 import { NextResponse } from "next/server";
-import { authenticatePatient } from "@/lib/patientAuth";
+import { createClient } from "@supabase/supabase-js";
+import { authenticatePatient, extractPatientToken } from "@/lib/patientAuth";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +22,19 @@ function containsIdentifier(text: string): boolean {
   return EMAIL_RE.test(text) || PHONE_RE.test(text);
 }
 
+/** Create a Supabase client scoped to the patient's JWT for RLS enforcement. */
+function createPatientClient(patientJwt: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: { Authorization: `Bearer ${patientJwt}` },
+      },
+    }
+  );
+}
+
 export async function GET(req: Request) {
   const claims = await authenticatePatient(req);
   if (!claims) {
@@ -26,7 +44,11 @@ export async function GET(req: Request) {
     );
   }
 
-  const { data: caseRow } = await supabaseAdmin
+  const token = extractPatientToken(req)!;
+  const db = createPatientClient(token);
+
+  // RLS on cases table allows patient to SELECT their own case via case_code
+  const { data: caseRow } = await db
     .from("cases")
     .select("patient_id")
     .eq("case_code", claims.case_code)
@@ -36,7 +58,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ has_completed_profile: false });
   }
 
-  const { data: patient } = await supabaseAdmin
+  // RLS on patients table allows patient to SELECT their own row via case_code
+  const { data: patient } = await db
     .from("patients")
     .select("has_completed_profile")
     .eq("id", caseRow.patient_id)
@@ -57,10 +80,12 @@ export async function POST(req: Request) {
     );
   }
 
+  const token = extractPatientToken(req)!;
+  const db = createPatientClient(token);
   const { case_code } = claims;
 
-  // Resolve patient_id from case_code
-  const { data: caseRow, error: caseError } = await supabaseAdmin
+  // Resolve patient_id from case_code (RLS-scoped)
+  const { data: caseRow, error: caseError } = await db
     .from("cases")
     .select("patient_id")
     .eq("case_code", case_code)
@@ -111,10 +136,12 @@ export async function POST(req: Request) {
   if (pronouns) updates.pronouns = pronouns;
   if (timezone) updates.timezone = timezone;
 
-  const { error: updateError } = await supabaseAdmin
+  // Update via patient-scoped client — RLS enforces patient can only update own row
+  const { data: updated, error: updateError } = await db
     .from("patients")
     .update(updates)
-    .eq("id", patientId);
+    .eq("id", patientId)
+    .select("id");
 
   if (updateError) {
     return NextResponse.json(
@@ -123,7 +150,15 @@ export async function POST(req: Request) {
     );
   }
 
-  // Audit log — no PHI, only patient_id and action
+  if (!updated || updated.length === 0) {
+    console.error("[profile-setup] 0 rows updated for patient_id:", patientId);
+    return NextResponse.json(
+      { error: "Patient record not found. Please contact your care team." },
+      { status: 404 }
+    );
+  }
+
+  // Audit log — uses supabaseAdmin (patients have no RLS on audit table)
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   try {
     await supabaseAdmin.from("portal_audit_log").insert({

@@ -16,6 +16,9 @@ import {
 } from "@/lib/ai/sessionPrepPrompt";
 import { describeDsmCodes } from "@/lib/ai/dsmDescriptions";
 import { hashPrompt, logAiCall } from "@/lib/services/audit";
+import { scrubOutput } from "@/lib/phi/scrub";
+import { requireRole, isAuthError, verifyCaseOwnership } from "@/lib/apiAuth";
+import { checkAiCostCeiling } from "@/lib/aiCostCeiling";
 
 // Format "2026-03-03" → "Week of Mar 3"
 function formatWeekLabel(weekStart: string): string {
@@ -91,13 +94,27 @@ export async function GET(req: Request, ctx: RouteContextWithId) {
 }
 
 export async function POST(req: Request, ctx: RouteContextWithId) {
+  // ── Auth guard: admin or therapist only ──
+  const auth = await requireRole("admin", "therapist");
+  if (isAuthError(auth)) return auth;
+
   const caseId = await getIdFromContext(ctx);
   if (!caseId) return bad("Missing case id");
+
+  // Ownership check
+  const ownershipErr = await verifyCaseOwnership(caseId, auth);
+  if (ownershipErr) return ownershipErr;
 
   // Demo mode: return canned session prep (structured 4-card)
   if (isDemoMode(req.url)) {
     const structured = getDemoSessionPrepStructured(caseId);
     return ok(structured);
+  }
+
+  // ── Cost ceiling: $25/month ──
+  const costCheck = await checkAiCostCeiling();
+  if (!costCheck.allowed) {
+    return bad("AI limit reached — monthly cost ceiling exceeded", 503);
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -308,6 +325,15 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
     }
   }
 
+  // ── Scrub AI output before returning to client (GAP-18) ──
+  const textFields = ["open_with", "watch_for", "try_this", "send_this"] as const;
+  for (const key of textFields) {
+    if (parsed[key]) {
+      const scrubbed = scrubOutput(parsed[key]!, { field: key, route: "/api/cases/session-prep" });
+      parsed[key] = scrubbed.text;
+    }
+  }
+
   // ── Audit log (store only the artifact, never raw prompt) ──
   const estimatedCost = (promptTokens * INPUT_COST_PER_TOKEN) + (completionTokens * OUTPUT_COST_PER_TOKEN);
 
@@ -354,8 +380,14 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
 }
 
 export async function PATCH(req: Request, ctx: RouteContextWithId) {
+  const auth = await requireRole("admin", "therapist");
+  if (isAuthError(auth)) return auth;
+
   const caseId = await getIdFromContext(ctx);
   if (!caseId) return bad("Missing case id");
+
+  const ownershipErr = await verifyCaseOwnership(caseId, auth);
+  if (ownershipErr) return ownershipErr;
 
   const body = await req.json().catch(() => ({}));
   const reviewed = body?.reviewed;

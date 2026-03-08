@@ -1,19 +1,26 @@
 // app/api/cases/[id]/checkins/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
-// SERVICE ROLE: justified — server-side aggregation for therapist dashboard
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { toMondayISO } from "@/lib/week";
+import { requireAuth, isAuthError, verifyCaseOwnership } from "@/lib/apiAuth";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(req: Request, ctx: Ctx) {
   try {
+    const auth = await requireAuth();
+    if (isAuthError(auth)) return auth;
+
     const { id: caseId } = await ctx.params;
 
     if (!caseId) {
       return NextResponse.json({ data: null, error: "Missing case id" }, { status: 400 });
     }
+
+    // Ownership check: therapist must be assigned to this case
+    const ownershipErr = await verifyCaseOwnership(caseId, auth);
+    if (ownershipErr) return ownershipErr;
 
     const body = await req.json().catch(() => ({}));
     const weekStartRaw = body.week_start;
@@ -32,7 +39,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
     const weekStart = toMondayISO(String(weekStartRaw));
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("checkins")
       .insert({
         case_id: caseId,
@@ -64,7 +71,7 @@ export async function GET(_req: Request, ctx: Ctx) {
       return NextResponse.json({ data: null, error: "Missing case id" }, { status: 400 });
     }
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("checkins")
       .select("id, case_id, score, mood, note, week_start, created_at")
       .eq("case_id", caseId)

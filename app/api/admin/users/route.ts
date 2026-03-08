@@ -3,11 +3,18 @@
 // Minimal endpoint for the manager assignment combobox.
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { requireRole, isAuthError, logUnauthorizedAccess, getClientIp } from "@/lib/apiAuth";
 
 function ok(data: unknown) { return NextResponse.json({ data, error: null }); }
 function bad(msg: string, status = 400) { return NextResponse.json({ data: null, error: { message: msg } }, { status }); }
 
 export async function GET(request: Request) {
+  const auth = await requireRole("admin");
+  if (isAuthError(auth)) {
+    await logUnauthorizedAccess("/api/admin/users", null, getClientIp(request));
+    return auth;
+  }
+
   const { searchParams } = new URL(request.url);
   const role = searchParams.get("role");
 

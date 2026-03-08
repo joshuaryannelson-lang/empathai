@@ -6,6 +6,16 @@ import { demoPatients } from "@/lib/demo/demoData";
 
 export const dynamic = "force-dynamic";
 
+const PHI_KEYS = new Set(["email", "phone", "date_of_birth"]);
+function stripPhi(ep: unknown): Record<string, unknown> {
+  if (!ep || typeof ep !== "object") return {};
+  const clean: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(ep as Record<string, unknown>)) {
+    if (!PHI_KEYS.has(k)) clean[k] = v;
+  }
+  return clean;
+}
+
 export async function POST(request: Request) {
   if (isDemoMode(request.url)) {
     return NextResponse.json({ data: null, error: "Demo mode — changes are disabled" }, { status: 403 });
@@ -19,9 +29,7 @@ export async function POST(request: Request) {
   }
 
   const extended_profile: Record<string, string> = {};
-  if (typeof body?.date_of_birth === "string" && body.date_of_birth) extended_profile.date_of_birth = body.date_of_birth;
-  if (typeof body?.email === "string" && body.email) extended_profile.email = body.email;
-  if (typeof body?.phone === "string" && body.phone) extended_profile.phone = body.phone;
+  // PHI fields (email, phone, date_of_birth) removed — GAP-06
 
   const practice_id = typeof body?.practice_id === "string" && body.practice_id ? body.practice_id : null;
   const therapist_id = typeof body?.therapist_id === "string" && body.therapist_id ? body.therapist_id : null;
@@ -136,7 +144,7 @@ export async function GET(request: Request) {
       therapist_id: c?.therapist_id ?? null,
       therapist_name: c ? (therapistMap.get(c.therapist_id ?? "")?.name ?? null) : null,
       status: c?.status ?? "active",
-      extended_profile: patient.extended_profile ?? {},
+      extended_profile: stripPhi(patient.extended_profile),
     };
   });
 

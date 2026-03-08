@@ -60,6 +60,9 @@ export default function OnboardingPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message ?? "Invalid join code.");
       const { token, case_code } = json.data;
+      // Clear any stale demo session keys to prevent localStorage conflicts (BUG-003)
+      localStorage.removeItem("portal_case_code");
+      localStorage.removeItem("portal_label");
       setSession({
         token,
         case_code,

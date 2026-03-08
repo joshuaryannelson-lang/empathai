@@ -2,14 +2,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { bad, getIdFromContext, ok, RouteContextWithId } from "@/lib/route-helpers";
 import { updateTaskStatus, type TaskStatus } from "@/lib/services/taskGeneration";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/demo/demoMode";
+import { requireAuth, isAuthError } from "@/lib/apiAuth";
 
 const VALID_STATUSES: TaskStatus[] = ["pending", "in_progress", "completed", "dismissed"];
 
 export async function PATCH(req: Request, ctx: RouteContextWithId) {
   try {
     if (isDemoMode(req.url)) return bad("Demo mode — changes are disabled", 403);
+
+    const auth = await requireAuth();
+    if (isAuthError(auth)) return auth;
 
     const taskId = await getIdFromContext(ctx);
     if (!taskId) return bad("Missing task id");
@@ -43,10 +47,13 @@ export async function DELETE(req: Request, ctx: RouteContextWithId) {
   try {
     if (isDemoMode(req.url)) return bad("Demo mode — changes are disabled", 403);
 
+    const auth = await requireAuth();
+    if (isAuthError(auth)) return auth;
+
     const taskId = await getIdFromContext(ctx);
     if (!taskId) return bad("Missing task id");
 
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from("tasks")
       .delete()
       .eq("id", taskId);

@@ -6,6 +6,7 @@ import { BUCKET } from "@/lib/constants";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoNormalizedCases } from "@/lib/demo/demoData";
 import { resolveDemoTherapistId } from "@/lib/demo/demoIds";
+import { requireAuth, isAuthError } from "@/lib/apiAuth";
 
 
 export const dynamic = "force-dynamic";
@@ -163,6 +164,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAuth();
+  if (isAuthError(auth)) return auth;
+
   const body = await req.json().catch(() => ({}));
   const patient_id = typeof body?.patient_id === "string" ? body.patient_id.trim() : "";
   const practice_id = typeof body?.practice_id === "string" ? body.practice_id.trim() : "";

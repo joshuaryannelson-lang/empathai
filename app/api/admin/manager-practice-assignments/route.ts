@@ -3,6 +3,7 @@
 // POST: create a new assignment (admin only)
 import { NextResponse } from "next/server";
 import { supabase, supabaseAdmin } from "@/lib/supabase";
+import { requireRole, isAuthError, logUnauthorizedAccess, getClientIp } from "@/lib/apiAuth";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -10,6 +11,12 @@ function ok(data: unknown, status = 200) { return NextResponse.json({ data, erro
 function bad(msg: string, status = 400) { return NextResponse.json({ data: null, error: { message: msg } }, { status }); }
 
 export async function GET(request: Request) {
+  const authResult = await requireRole("admin");
+  if (isAuthError(authResult)) {
+    await logUnauthorizedAccess("/api/admin/manager-practice-assignments", null, getClientIp(request));
+    return authResult;
+  }
+
   const { searchParams } = new URL(request.url);
   const practiceId = searchParams.get("practice_id");
   const managerId = searchParams.get("manager_id");
@@ -63,6 +70,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const authResult = await requireRole("admin");
+  if (isAuthError(authResult)) {
+    await logUnauthorizedAccess("/api/admin/manager-practice-assignments", null, getClientIp(request));
+    return authResult;
+  }
+
   const body = await request.json().catch(() => ({}));
   const managerId = typeof body?.manager_id === "string" ? body.manager_id.trim() : "";
   const practiceId = typeof body?.practice_id === "string" ? body.practice_id.trim() : "";

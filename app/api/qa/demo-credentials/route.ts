@@ -1,8 +1,11 @@
 // app/api/qa/demo-credentials/route.ts
-// Returns demo credentials from environment variables for QA testing.
+// Returns demo credentials for QA testing — admin only.
+// All credentials come from DEMO_* env vars (never real production data).
 export const dynamic = "force-dynamic";
 
 import { ok, bad } from "@/lib/route-helpers";
+import { requireRole, isAuthError, logUnauthorizedAccess, getClientIp } from "@/lib/apiAuth";
+import { checkRateLimitAsync } from "@/lib/rateLimit";
 
 type Credential = {
   role: string;
@@ -11,7 +14,24 @@ type Credential = {
   joinCode?: string;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
+  // ── Auth guard: admin only ──
+  const auth = await requireRole("admin");
+  if (isAuthError(auth)) {
+    await logUnauthorizedAccess("/api/qa/demo-credentials", null, getClientIp(request));
+    return auth;
+  }
+
+  // ── Rate limit: 10 calls/hour per IP ──
+  const ip = getClientIp(request);
+  const rl = await checkRateLimitAsync(`qa:demo-creds:${ip}`, 10, 3600_000);
+  if (!rl.allowed) {
+    return bad("Rate limit exceeded", 429);
+  }
+
+  // All credentials are DEMO ONLY — sourced from DEMO_* env vars,
+  // never from production tables. These are hardcoded demo accounts
+  // created specifically for QA testing.
   const envMap: { role: string; emailVar: string; passwordVar?: string; joinCodeVar?: string }[] = [
     { role: "Admin", emailVar: "DEMO_ADMIN_EMAIL", passwordVar: "DEMO_ADMIN_PASSWORD" },
     { role: "Owner (Multi)", emailVar: "DEMO_OWNER_MULTI_EMAIL", passwordVar: "DEMO_OWNER_MULTI_PASSWORD" },

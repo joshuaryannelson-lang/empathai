@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/demo/demoMode";
+import { requireRole, isAuthError, logUnauthorizedAccess, getClientIp } from "@/lib/apiAuth";
 
 function addDaysISO(dateStr: string, days: number) {
   const d = new Date(`${dateStr}T00:00:00`);
@@ -33,6 +34,12 @@ async function safeJson(req: Request) {
  * }
  */
 export async function POST(request: Request) {
+  const auth = await requireRole("admin");
+  if (isAuthError(auth)) {
+    await logUnauthorizedAccess("/api/admin/seed/check-ins", null, getClientIp(request));
+    return auth;
+  }
+
   if (isDemoMode(request.url)) {
     return NextResponse.json({ data: null, error: "Demo mode — changes are disabled" }, { status: 403 });
   }

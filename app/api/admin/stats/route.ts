@@ -4,8 +4,15 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { demoCases, demoTherapists, demoCheckins } from "@/lib/demo/demoData";
+import { requireRole, isAuthError, logUnauthorizedAccess, getClientIp } from "@/lib/apiAuth";
 
 export async function GET(request: Request) {
+  const auth = await requireRole("admin");
+  if (isAuthError(auth)) {
+    await logUnauthorizedAccess("/api/admin/stats", null, getClientIp(request));
+    return auth;
+  }
+
   if (isDemoMode(request.url)) {
     return NextResponse.json({
       data: {

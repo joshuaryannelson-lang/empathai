@@ -1,10 +1,11 @@
 // app/api/cases/[id]/tasks/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { bad, getIdFromContext, ok, RouteContextWithId } from "@/lib/route-helpers";
 import { createManualTask } from "@/lib/services/taskGeneration";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoCaseTasks } from "@/lib/demo/demoData";
+import { requireAuth, isAuthError, verifyCaseOwnership } from "@/lib/apiAuth";
 
 export async function GET(_req: Request, ctx: RouteContextWithId) {
   try {
@@ -13,7 +14,7 @@ export async function GET(_req: Request, ctx: RouteContextWithId) {
 
     if (isDemoMode(_req.url)) return ok(getDemoCaseTasks(caseId));
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("tasks")
       .select("id, case_id, title, description, status, assignee, due_date, created_at, updated_at")
       .eq("case_id", caseId)
@@ -40,6 +41,12 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
     if (isDemoMode(req.url)) {
       return bad("Demo mode — changes are disabled", 403);
     }
+
+    const auth = await requireAuth();
+    if (isAuthError(auth)) return auth;
+
+    const ownershipErr = await verifyCaseOwnership(caseId, auth);
+    if (ownershipErr) return ownershipErr;
 
     let body: any;
     try {

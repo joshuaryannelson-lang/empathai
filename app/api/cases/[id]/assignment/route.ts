@@ -1,11 +1,15 @@
-// app/api/cases/[id]/assign/route.ts
+// app/api/cases/[id]/assignment/route.ts
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
+import { requireAuth, isAuthError, verifyCaseOwnership } from "@/lib/apiAuth";
 
 export async function POST(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth();
+  if (isAuthError(auth)) return auth;
+
   const { id } = await context.params;
 
   if (!id) {
@@ -14,6 +18,10 @@ export async function POST(
       { status: 400 }
     );
   }
+
+  // Ownership check (admin bypasses)
+  const ownershipErr = await verifyCaseOwnership(id, auth);
+  if (ownershipErr) return ownershipErr;
 
   const body = await req.json().catch(() => ({}));
   const therapist_id = body?.therapist_id;
@@ -25,8 +33,7 @@ export async function POST(
     );
   }
 
-  // NOTE: If your table is named "cases" instead of "case", change it below.
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from("cases")
     .update({ therapist_id })
     .eq("id", id)

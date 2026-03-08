@@ -13,17 +13,18 @@ ADD CONSTRAINT chk_valid_modalities
 CHECK (modalities <@ ARRAY['CBT','DBT','ACT','EMDR','IFS','Psychodynamic','Gottman','Somatic','Other']::text[]);
 
 -- RLS: therapist reads/writes own profile, admin reads all, manager reads, patient cannot
+-- Note: therapist_profiles.id = auth.users(id), so id = auth.uid() for ownership
 CREATE POLICY therapist_own_modalities ON therapist_profiles
-  FOR ALL USING (auth.uid()::text = user_id);
+  FOR ALL USING (id = auth.uid());
 
 CREATE POLICY admin_read_modalities ON therapist_profiles
   FOR SELECT USING (
-    EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid()::text AND role = 'admin')
+    EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin')
   );
 
 CREATE POLICY manager_read_modalities ON therapist_profiles
   FOR SELECT USING (
-    EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid()::text AND role = 'manager')
+    EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'manager')
   );
 
 -- ── DSM codes on cases ──────────────────────────────────────────────────────
@@ -37,15 +38,11 @@ ADD COLUMN IF NOT EXISTS dsm_codes text[] DEFAULT '{}';
 -- The column is excluded from patient-facing and manager-facing API queries.
 
 CREATE POLICY therapist_own_dsm ON cases
-  FOR ALL USING (
-    therapist_id IN (
-      SELECT id FROM therapists WHERE user_id = auth.uid()::text
-    )
-  );
+  FOR ALL USING (therapist_id = auth.uid());
 
 CREATE POLICY admin_read_dsm ON cases
   FOR SELECT USING (
-    EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid()::text AND role = 'admin')
+    EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin')
   );
 
 -- Explicitly deny patient access to dsm_codes at the application layer.

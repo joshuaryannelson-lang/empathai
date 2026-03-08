@@ -11,9 +11,6 @@ type SessionNote = { date: string; text: string };
 type Activity = { date: string; description: string };
 
 type ExtendedProfile = {
-  email?: string;
-  phone?: string;
-  date_of_birth?: string;
   primary_diagnosis?: string;
   secondary_diagnoses?: string[];
   emergency_contact_name?: string;
@@ -250,7 +247,6 @@ function ActivitiesEditor({ activities, onChange }: { activities: Activity[]; on
 // ── Empty form state ───────────────────────────────────────────────────────────
 type PatientForm = {
   first_name: string; last_name: string;
-  email: string; phone: string; date_of_birth: string;
   primary_diagnosis: string; secondary_diagnoses: string[];
   emergency_contact_name: string; emergency_contact_phone: string;
   insurance_provider: string; clinical_notes: string;
@@ -260,7 +256,7 @@ type PatientForm = {
 
 function emptyForm(): PatientForm {
   return {
-    first_name: "", last_name: "", email: "", phone: "", date_of_birth: "",
+    first_name: "", last_name: "",
     primary_diagnosis: "", secondary_diagnoses: [],
     emergency_contact_name: "", emergency_contact_phone: "",
     insurance_provider: "", clinical_notes: "",
@@ -274,8 +270,6 @@ function rowToForm(p: PatientRow): PatientForm {
   const ep = p.extended_profile ?? {};
   return {
     first_name: first, last_name: rest.join(" "),
-    email: ep.email ?? "", phone: ep.phone ?? "",
-    date_of_birth: ep.date_of_birth ?? "",
     primary_diagnosis: ep.primary_diagnosis ?? "",
     secondary_diagnoses: ep.secondary_diagnoses ?? [],
     emergency_contact_name: ep.emergency_contact_name ?? "",
@@ -399,7 +393,6 @@ export default function PatientManagerPage() {
     setError(null);
     try {
       const extFields = {
-        email: form.email, phone: form.phone, date_of_birth: form.date_of_birth,
         primary_diagnosis: form.primary_diagnosis, secondary_diagnoses: form.secondary_diagnoses,
         emergency_contact_name: form.emergency_contact_name, emergency_contact_phone: form.emergency_contact_phone,
         insurance_provider: form.insurance_provider, clinical_notes: form.clinical_notes,
@@ -516,7 +509,6 @@ export default function PatientManagerPage() {
             <div key={p.id} style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 1.2fr 1.4fr 0.7fr 120px", padding: "14px", borderBottom: "1px solid #1a1e2a", alignItems: "center", fontSize: 13 }}>
               <div>
                 <div style={{ fontWeight: 800 }}>{p.name ? p.name.split(" ")[0] : "—"}</div>
-                {ep.email && <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>{ep.email.slice(0, 2)}***@***.com</div>}
                 <div style={{ marginTop: 3, fontSize: 10, fontFamily: "monospace", opacity: 0.25 }}>{p.id}</div>
               </div>
               <div>
@@ -588,13 +580,7 @@ export default function PatientManagerPage() {
           <FormField label="First Name" value={form.first_name} onChange={(v) => setField("first_name", v)} placeholder="First" />
           <FormField label="Last Name" value={form.last_name} onChange={(v) => setField("last_name", v)} placeholder="Last" />
         </div>
-        <FormField label="Date of Birth" value={form.date_of_birth} onChange={(v) => setField("date_of_birth", v)} type="date" />
-
-        <FormSectionLabel>Contact</FormSectionLabel>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <FormField label="Email" value={form.email} onChange={(v) => setField("email", v)} placeholder="patient@example.com" type="email" />
-          <FormField label="Phone" value={form.phone} onChange={(v) => setField("phone", v)} placeholder="(555) 000-0000" />
-        </div>
+        <FormSectionLabel>Emergency Contact</FormSectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <FormField label="Emergency Contact" value={form.emergency_contact_name} onChange={(v) => setField("emergency_contact_name", v)} placeholder="Name" />
           <FormField label="Emergency Phone" value={form.emergency_contact_phone} onChange={(v) => setField("emergency_contact_phone", v)} placeholder="(555) 000-0000" />

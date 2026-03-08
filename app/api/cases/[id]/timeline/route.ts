@@ -8,6 +8,16 @@ import { getDemoTimeline } from "@/lib/demo/demoData";
 
 export const dynamic = "force-dynamic";
 
+const PHI_KEYS = new Set(["email", "phone", "date_of_birth"]);
+function stripPhi(ep: unknown): Record<string, unknown> {
+  if (!ep || typeof ep !== "object") return {};
+  const clean: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(ep as Record<string, unknown>)) {
+    if (!PHI_KEYS.has(k)) clean[k] = v;
+  }
+  return clean;
+}
+
 export async function GET(
   _req: Request,
   ctx: { params: { id: string } } | { params: Promise<{ id: string }> }
@@ -67,7 +77,7 @@ export async function GET(
   return NextResponse.json({
     data: {
       case: caseRow,
-      patient: patientRow ?? null,
+      patient: patientRow ? { ...patientRow, extended_profile: stripPhi((patientRow as any).extended_profile) } : null,
       therapist: therapistRow ?? null,
       checkins: checkins ?? [],
     },

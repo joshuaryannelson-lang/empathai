@@ -1,9 +1,10 @@
 // app/api/cases/[id]/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { bad, getIdFromContext, ok, RouteContextWithId } from "@/lib/route-helpers";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoCase } from "@/lib/demo/demoData";
+import { requireAuth, isAuthError, verifyCaseOwnership } from "@/lib/apiAuth";
 
 export async function GET(_req: Request, ctx: RouteContextWithId) {
   const id = await getIdFromContext(ctx);
@@ -15,7 +16,7 @@ export async function GET(_req: Request, ctx: RouteContextWithId) {
     return ok(c);
   }
 
-  const { data, error } = await supabaseAdmin.from("cases").select("*").eq("id", id).single();
+  const { data, error } = await supabase.from("cases").select("*").eq("id", id).single();
 
   if (error) return bad(error.message, 400, error);
   return ok(data);
@@ -24,8 +25,15 @@ export async function GET(_req: Request, ctx: RouteContextWithId) {
 export async function PATCH(req: Request, ctx: RouteContextWithId) {
   if (isDemoMode(req.url)) return bad("Demo mode — changes are disabled", 403);
 
+  const auth = await requireAuth();
+  if (isAuthError(auth)) return auth;
+
   const id = await getIdFromContext(ctx);
   if (!id) return bad("Missing case id");
+
+  // Ownership check: therapist must be assigned to this case (admin bypasses)
+  const ownershipErr = await verifyCaseOwnership(id, auth);
+  if (ownershipErr) return ownershipErr;
 
   let body: any;
   try {
@@ -53,11 +61,11 @@ export async function PATCH(req: Request, ctx: RouteContextWithId) {
   // Capture previous therapist for audit if assignment is changing
   let previousTherapistId: string | null = null;
   if (patch.therapist_id !== undefined) {
-    const prev = await supabaseAdmin.from("cases").select("therapist_id").eq("id", id).single();
+    const prev = await supabase.from("cases").select("therapist_id").eq("id", id).single();
     previousTherapistId = prev.data?.therapist_id ?? null;
   }
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from("cases")
     .update(patch)
     .eq("id", id)
@@ -68,12 +76,16 @@ export async function PATCH(req: Request, ctx: RouteContextWithId) {
 
   // Audit log for assignment changes
   if (patch.therapist_id !== undefined && patch.therapist_id !== previousTherapistId) {
-    await supabaseAdmin.from("audit_log").insert({
-      event_type: "case_assigned",
+    await supabase.from("audit_log").insert({
+      event: "case_assigned",
       case_id: id,
-      old_therapist_id: previousTherapistId,
-      new_therapist_id: patch.therapist_id,
-      timestamp: new Date().toISOString(),
+      user_id: auth.user_id,
+      role: auth.role,
+      route: `/api/cases/${id}`,
+      metadata: {
+        old_therapist_id: previousTherapistId,
+        new_therapist_id: patch.therapist_id,
+      },
     }).then(({ error: auditErr }) => {
       if (auditErr) console.error(`[cases] audit log error: ${auditErr.message}`);
     });
@@ -85,10 +97,17 @@ export async function PATCH(req: Request, ctx: RouteContextWithId) {
 export async function DELETE(_req: Request, ctx: RouteContextWithId) {
   if (isDemoMode(_req.url)) return bad("Demo mode — changes are disabled", 403);
 
+  const auth = await requireAuth();
+  if (isAuthError(auth)) return auth;
+
   const id = await getIdFromContext(ctx);
   if (!id) return bad("Missing case id");
 
-  const { data, error } = await supabaseAdmin.from("cases").delete().eq("id", id).select().single();
+  // Ownership check
+  const ownershipErr = await verifyCaseOwnership(id, auth);
+  if (ownershipErr) return ownershipErr;
+
+  const { data, error } = await supabase.from("cases").delete().eq("id", id).select().single();
 
   if (error) return bad(error.message, 400, error);
   return ok(data);

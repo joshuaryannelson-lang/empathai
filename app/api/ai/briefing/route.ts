@@ -4,6 +4,11 @@
 import { NextResponse } from "next/server";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { DEMO_TOUR_CASELOAD } from "@/lib/demo/demoData";
+import { scrubPrompt, scrubOutput } from "@/lib/phi/scrub";
+import { requireRole, isAuthError, logUnauthorizedAccess, getClientIp } from "@/lib/apiAuth";
+import { checkRateLimitAsync } from "@/lib/rateLimit";
+import { logAiCall, hashPrompt } from "@/lib/services/audit";
+import { checkAiCostCeiling } from "@/lib/aiCostCeiling";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +52,31 @@ function getDemoStructuredBriefing() {
 }
 
 export async function POST(req: Request) {
+  // ── Auth guard: admin or therapist only ──
+  const auth = await requireRole("admin", "therapist");
+  if (isAuthError(auth)) {
+    await logUnauthorizedAccess("/api/ai/briefing", null, getClientIp(req));
+    return auth;
+  }
+
+  // ── Rate limiting: therapist 20/hr, admin 60/hr ──
+  const rateLimitMax = auth.role === "admin" ? 60 : 20;
+  const rateLimitKey = `ai:briefing:${auth.user_id ?? auth.role}`;
+  const rl = await checkRateLimitAsync(rateLimitKey, rateLimitMax, 3600_000);
+  if (!rl.allowed) {
+    const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
+    return new NextResponse(
+      JSON.stringify({ data: null, error: { message: "AI rate limit exceeded" } }),
+      { status: 429, headers: { "Retry-After": String(retryAfter), "Content-Type": "application/json" } },
+    );
+  }
+
+  // ── Cost ceiling: $25/month ──
+  const costCheck = await checkAiCostCeiling();
+  if (!costCheck.allowed) {
+    return bad("AI limit reached — monthly cost ceiling exceeded", 503);
+  }
+
   try {
     const body = await req.json().catch(() => ({}));
     const { dataSnapshot, context } = body;
@@ -71,7 +101,12 @@ export async function POST(req: Request) {
 }
 Rules: first names only, no identifiers, priorityAlerts for score ≤ 3 or drop ≥ 3 points, max 4 recommendedActions, every item clinically relevant.`;
 
-    const userPrompt = `Generate a structured weekly briefing for a ${context ?? "therapist"} based on this data:\n${JSON.stringify(dataSnapshot)}`;
+    // Scrub all user-derived data before it enters the prompt
+    const rawSnapshot = JSON.stringify(dataSnapshot);
+    const scrubbedSnapshot = scrubPrompt(rawSnapshot, { field: "dataSnapshot", route: "/api/ai/briefing" });
+    const scrubbedContext = context ? scrubPrompt(String(context), { field: "context", route: "/api/ai/briefing" }).text : "therapist";
+
+    const userPrompt = `Generate a structured weekly briefing for a ${scrubbedContext} based on this data:\n${scrubbedSnapshot.text}`;
 
     // Try to call Claude API if key is available
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -95,6 +130,17 @@ Rules: first names only, no identifiers, priorityAlerts for score ≤ 3 or drop 
       }),
     });
 
+    // ── Audit log: every AI call ──
+    const tokensEstimated = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+    await logAiCall({
+      service: "briefing",
+      case_code: null,
+      triggered_by: auth.user_id ?? auth.role ?? "unknown",
+      input_hash: hashPrompt(systemPrompt + userPrompt),
+      model: "claude-haiku-4-5-20251001",
+      tokens_used: tokensEstimated,
+    });
+
     if (!response.ok) {
       const err = await response.text().catch(() => "");
       // Fallback to structured data if API fails
@@ -108,7 +154,9 @@ Rules: first names only, no identifiers, priorityAlerts for score ≤ 3 or drop 
       const parsed = JSON.parse(text);
       // Add weekOf
       parsed.weekOf = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-      return ok(parsed);
+      // Scrub AI output before returning to client
+      const scrubbed = scrubOutput(JSON.stringify(parsed), { field: "briefing_output", route: "/api/ai/briefing" });
+      return ok(JSON.parse(scrubbed.text));
     } catch {
       // JSON parse failed, return fallback
       return ok(buildFallbackBriefing(dataSnapshot));

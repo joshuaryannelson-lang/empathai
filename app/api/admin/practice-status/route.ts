@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/demo/demoMode";
+import { requireRole, isAuthError, logUnauthorizedAccess, getClientIp } from "@/lib/apiAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,12 @@ function bad(msg: string, status = 500) { return NextResponse.json({ data: null,
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(request: Request) {
+  const auth = await requireRole("admin");
+  if (isAuthError(auth)) {
+    await logUnauthorizedAccess("/api/admin/practice-status", null, getClientIp(request));
+    return auth;
+  }
+
   if (isDemoMode(request.url)) {
     return ok(buildDemoData());
   }

@@ -1,89 +1,101 @@
 /**
- * RLS Policy Test Suite — EmpathAI Security Audit
+ * RLS Policy Test Suite — EmpathAI Security Audit (Sprint K-1)
  *
- * These tests validate that row-level security policies correctly isolate
- * data between therapists, patients, managers, and practices.
+ * Tests validate row-level security policies isolate data correctly.
  *
- * To run against a live Supabase instance:
- *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... npx jest supabase/tests/rls.test.ts
+ * Requirements:
+ *   1. Running Supabase local dev instance (supabase start)
+ *   2. Test users seeded via supabase/seed/test-users.sql
+ *   3. All migrations applied (supabase db reset)
  *
- * The tests use the service role to set up fixtures, then impersonate
- * different user roles via Supabase's auth header overrides to verify
- * that RLS policies are enforced.
+ * Run:
+ *   SUPABASE_URL=http://127.0.0.1:54321 \
+ *   SUPABASE_SERVICE_ROLE_KEY=<service_role_key> \
+ *   npx jest --testPathPattern=rls
  *
- * IMPORTANT: These tests require:
- * 1. A running Supabase instance with the RLS migration applied
- * 2. Test users created with proper role claims in app_metadata
- *
- * In the absence of a live DB, these tests serve as executable documentation
- * of expected RLS behavior. They are structured so a CI pipeline with
- * Supabase local dev (supabase start) can run them automatically.
+ * Auth approach: real Supabase auth sessions via signInWithPassword().
+ * Service role client seeds fixtures; per-role clients enforce RLS.
  */
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_URL =
+  process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+const ANON_KEY =
+  process.env.SUPABASE_ANON_KEY ??
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+  "";
 
-const canConnect = Boolean(SUPABASE_URL && SERVICE_ROLE_KEY);
+if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+  throw new Error(
+    "RLS tests require SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars. " +
+      "Run `supabase start` and export the values shown."
+  );
+}
 
-// Skip the entire suite if no live DB is available
-const describeWithDb = canConnect ? describe : describe.skip;
+// ── Test user credentials (must match supabase/seed/test-users.sql) ─────────
 
-// ── Test user definitions ───────────────────────────────────────────────────
+const TEST_PASSWORD = "TestPass123!";
 
-const PRACTICE_1 = "rls-test-practice-01";
-const PRACTICE_2 = "rls-test-practice-02";
-
-interface TestUser {
+interface TestUserDef {
   id: string;
+  email: string;
   role: "therapist" | "patient" | "manager" | "admin";
   practice_id: string;
 }
 
-const THERAPIST_A: TestUser = {
+const THERAPIST_A: TestUserDef = {
   id: "00000000-0000-0000-0000-aaaaaaaaaaaa",
+  email: "therapist-a@rls-test.local",
   role: "therapist",
-  practice_id: PRACTICE_1,
+  practice_id: "00000000-0000-0000-0001-000000000001",
 };
 
-const THERAPIST_B: TestUser = {
+const THERAPIST_B: TestUserDef = {
   id: "00000000-0000-0000-0000-bbbbbbbbbbbb",
+  email: "therapist-b@rls-test.local",
   role: "therapist",
-  practice_id: PRACTICE_1,
+  practice_id: "00000000-0000-0000-0001-000000000001",
 };
 
-const PATIENT_A: TestUser = {
+const PATIENT_A: TestUserDef = {
   id: "00000000-0000-0000-0000-cccccccccccc",
+  email: "patient-a@rls-test.local",
   role: "patient",
-  practice_id: PRACTICE_1,
+  practice_id: "00000000-0000-0000-0001-000000000001",
 };
 
-const PATIENT_B: TestUser = {
-  id: "00000000-0000-0000-0000-dddddddddddd",
-  role: "patient",
-  practice_id: PRACTICE_1,
-};
-
-const MANAGER_P1: TestUser = {
+const MANAGER_P1: TestUserDef = {
   id: "00000000-0000-0000-0000-eeeeeeeeeeee",
+  email: "manager-p1@rls-test.local",
   role: "manager",
-  practice_id: PRACTICE_1,
+  practice_id: "00000000-0000-0000-0001-000000000001",
 };
 
-const MANAGER_P2: TestUser = {
+const MANAGER_P2: TestUserDef = {
   id: "00000000-0000-0000-0000-ffffffffffff",
+  email: "manager-p2@rls-test.local",
   role: "manager",
-  practice_id: PRACTICE_2,
+  practice_id: "00000000-0000-0000-0001-000000000002",
 };
 
-const ADMIN_USER: TestUser = {
+const ADMIN_USER: TestUserDef = {
   id: "00000000-0000-0000-0000-111111111111",
+  email: "admin@rls-test.local",
   role: "admin",
-  practice_id: PRACTICE_1,
+  practice_id: "00000000-0000-0000-0001-000000000001",
 };
+
+// ── Test fixture IDs ────────────────────────────────────────────────────────
+
+const PRACTICE_1_ID = "00000000-0000-0000-0001-000000000001";
+const PRACTICE_2_ID = "00000000-0000-0000-0001-000000000002";
+const CASE_A_ID = "00000000-0000-0000-1111-aaaaaaaaaaaa"; // therapist_a, patient_a, practice 1
+const CASE_B_ID = "00000000-0000-0000-1111-bbbbbbbbbbbb"; // therapist_b, practice 1
+const CASE_P2_ID = "00000000-0000-0000-1111-cccccccccccc"; // therapist_b, practice 2
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -91,230 +103,546 @@ function serviceClient(): SupabaseClient {
   return createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 }
 
-/**
- * Create a client impersonating a specific user/role.
- * Uses Supabase's ability to set custom JWT claims via the Authorization header.
- */
-function clientAs(user: TestUser): SupabaseClient {
-  // In a real test setup, you'd create a JWT with the correct claims.
-  // For Supabase local dev, you can use the test helpers:
-  //   supabase.auth.admin.createUser({ ... })
-  //   supabase.auth.admin.generateLink({ ... })
-  //
-  // This placeholder creates a client with auth override headers.
-  // When running with supabase local dev, use:
-  //   supabase.auth.signInWithPassword() for each test user.
-  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-    global: {
-      headers: {
-        // These headers are interpreted by Supabase's GoTrue
-        "x-supabase-auth-user-id": user.id,
-        "x-supabase-auth-role": user.role,
-        "x-supabase-auth-practice-id": user.practice_id,
-      },
-    },
+/** Sign in as a test user and return an authenticated client */
+async function signInAs(user: TestUserDef): Promise<SupabaseClient> {
+  const key = ANON_KEY || SERVICE_ROLE_KEY;
+  const client = createClient(SUPABASE_URL, key);
+  const { error } = await client.auth.signInWithPassword({
+    email: user.email,
+    password: TEST_PASSWORD,
   });
+  if (error) {
+    throw new Error(
+      `Failed to sign in as ${user.email}: ${error.message}. ` +
+        "Ensure test users are seeded (supabase/seed/test-users.sql)."
+    );
+  }
+  return client;
 }
 
-// ── Test fixtures ───────────────────────────────────────────────────────────
+/** Create an anon client (no auth session) */
+function anonClient(): SupabaseClient {
+  const key = ANON_KEY || SERVICE_ROLE_KEY;
+  return createClient(SUPABASE_URL, key);
+}
 
-const CASE_A_ID = "00000000-0000-0000-1111-aaaaaaaaaaaa"; // therapist_a, patient_a
-const CASE_B_ID = "00000000-0000-0000-1111-bbbbbbbbbbbb"; // therapist_b, patient_b
-const CASE_P2_ID = "00000000-0000-0000-1111-cccccccccccc"; // practice_2
+// ── Cached clients ──────────────────────────────────────────────────────────
+
+let therapistAClient: SupabaseClient;
+let therapistBClient: SupabaseClient;
+let patientAClient: SupabaseClient;
+let managerP1Client: SupabaseClient;
+let managerP2Client: SupabaseClient;
+let adminClient: SupabaseClient;
 
 // ── Tests ───────────────────────────────────────────────────────────────────
 
-describeWithDb("RLS Policy Enforcement", () => {
-  const admin = canConnect ? serviceClient() : (null as unknown as SupabaseClient);
+describe("RLS Policy Enforcement", () => {
+  const svc = serviceClient();
 
   beforeAll(async () => {
-    // Seed test fixtures using service role (bypasses RLS)
-    // In production tests, you'd use proper Supabase auth users.
-    // These are structural tests — they verify the SQL policy logic.
-  });
+    // Sign in all test users in parallel
+    [
+      therapistAClient,
+      therapistBClient,
+      patientAClient,
+      managerP1Client,
+      managerP2Client,
+      adminClient,
+    ] = await Promise.all([
+      signInAs(THERAPIST_A),
+      signInAs(THERAPIST_B),
+      signInAs(PATIENT_A),
+      signInAs(MANAGER_P1),
+      signInAs(MANAGER_P2),
+      signInAs(ADMIN_USER),
+    ]);
+  }, 30_000);
 
-  afterAll(async () => {
-    // Cleanup test fixtures
-  });
-
-  // ── THERAPIST ISOLATION ─────────────────────────────────────────────────
+  // ── THERAPIST ISOLATION (existing) ──────────────────────────────────────
 
   describe("Therapist Isolation (Critical)", () => {
     test("therapist_a cannot read therapist_b cases", async () => {
-      const client = clientAs(THERAPIST_A);
-      const { data } = await client
+      const { data } = await therapistAClient
         .from("cases")
         .select("id")
         .eq("therapist_id", THERAPIST_B.id);
-
       expect(data ?? []).toHaveLength(0);
     });
 
     test("therapist_a cannot read therapist_b checkins", async () => {
-      const client = clientAs(THERAPIST_A);
-      const { data } = await client
+      const { data } = await therapistAClient
         .from("checkins")
         .select("id, case_id")
         .eq("case_id", CASE_B_ID);
-
       expect(data ?? []).toHaveLength(0);
     });
 
     test("therapist_a cannot read therapist_b goals", async () => {
-      const client = clientAs(THERAPIST_A);
-      const { data } = await client
+      const { data } = await therapistAClient
         .from("goals")
         .select("id")
         .eq("case_id", CASE_B_ID);
-
       expect(data ?? []).toHaveLength(0);
     });
 
     test("therapist_a cannot read therapist_b tasks", async () => {
-      const client = clientAs(THERAPIST_A);
-      const { data } = await client
+      const { data } = await therapistAClient
         .from("tasks")
         .select("id")
         .eq("case_id", CASE_B_ID);
-
       expect(data ?? []).toHaveLength(0);
     });
 
     test("therapist_a CAN read their own cases", async () => {
-      const client = clientAs(THERAPIST_A);
-      const { data } = await client
+      const { data } = await therapistAClient
         .from("cases")
         .select("id")
         .eq("therapist_id", THERAPIST_A.id);
-
-      // Should return at least CASE_A_ID if fixtures are seeded
       expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(1);
     });
   });
 
-  // ── PATIENT ISOLATION ───────────────────────────────────────────────────
+  // ── PATIENT ISOLATION (existing) ────────────────────────────────────────
 
   describe("Patient Isolation (Critical)", () => {
-    test("patient_a cannot read patient_b record", async () => {
-      const client = clientAs(PATIENT_A);
-      const { data } = await client
-        .from("patients")
-        .select("id")
-        .eq("id", PATIENT_B.id);
-
-      expect(data ?? []).toHaveLength(0);
-    });
-
-    test("patient_a CAN read their own record", async () => {
-      const client = clientAs(PATIENT_A);
-      const { data } = await client
+    test("patient_a CAN read their own patient record", async () => {
+      const { data } = await patientAClient
         .from("patients")
         .select("id")
         .eq("id", PATIENT_A.id);
-
-      // Should return exactly 1 row
       expect(data).not.toBeNull();
     });
 
-    test("patient cannot read any case data", async () => {
-      // Patients should only see their own case (via patient_id = auth.uid())
-      const client = clientAs(PATIENT_A);
-      const { data } = await client
+    test("patient cannot query cases by therapist_id", async () => {
+      const { data } = await patientAClient
         .from("cases")
         .select("id")
         .eq("therapist_id", THERAPIST_A.id);
-
-      // Patient shouldn't be able to query by therapist_id and get results
       expect(data ?? []).toHaveLength(0);
     });
 
-    test("patient can read tasks assigned to them", async () => {
-      const client = clientAs(PATIENT_A);
-      const { data } = await client
-        .from("tasks")
+    test("patient CAN read their own case (patient_id match)", async () => {
+      const { data } = await patientAClient
+        .from("cases")
         .select("id")
-        .eq("assigned_to_id", PATIENT_A.id)
-        .eq("assigned_to_role", "patient");
-
-      // Should return tasks assigned to this patient
+        .eq("patient_id", PATIENT_A.id);
       expect(data).not.toBeNull();
-    });
-
-    test("patient cannot read tasks assigned to therapist", async () => {
-      const client = clientAs(PATIENT_A);
-      const { data } = await client
-        .from("tasks")
-        .select("id")
-        .eq("assigned_to_role", "therapist");
-
-      expect(data ?? []).toHaveLength(0);
+      expect((data ?? []).length).toBeGreaterThanOrEqual(1);
     });
   });
 
-  // ── MANAGER SCOPE ───────────────────────────────────────────────────────
+  // ── MANAGER SCOPE (existing + GAP-10) ──────────────────────────────────
 
   describe("Manager Scope (High)", () => {
-    test("manager_practice_1 cannot read practice_2 cases", async () => {
-      const client = clientAs(MANAGER_P1);
-      const { data } = await client
+    test("manager_p1 CAN read practice_1 cases", async () => {
+      const { data } = await managerP1Client
         .from("cases")
         .select("id")
-        .eq("practice_id", PRACTICE_2);
+        .eq("practice_id", PRACTICE_1_ID);
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(1);
+    });
 
+    test("manager_p1 cannot read practice_2 cases", async () => {
+      const { data } = await managerP1Client
+        .from("cases")
+        .select("id")
+        .eq("practice_id", PRACTICE_2_ID);
       expect(data ?? []).toHaveLength(0);
     });
 
-    test("manager_practice_1 CAN read practice_1 cases", async () => {
-      const client = clientAs(MANAGER_P1);
-      const { data } = await client
-        .from("cases")
-        .select("id")
-        .eq("practice_id", PRACTICE_1);
-
-      expect(data).not.toBeNull();
-    });
-
-    test("manager_practice_2 cannot read practice_1 therapists", async () => {
-      const client = clientAs(MANAGER_P2);
-      const { data } = await client
+    test("manager_p2 cannot read practice_1 therapists", async () => {
+      const { data } = await managerP2Client
         .from("therapists")
         .select("id")
-        .eq("practice_id", PRACTICE_1);
-
+        .eq("practice_id", PRACTICE_1_ID);
       expect(data ?? []).toHaveLength(0);
     });
   });
 
-  // ── ADMIN ───────────────────────────────────────────────────────────────
+  // ── ADMIN (existing) ───────────────────────────────────────────────────
 
   describe("Admin Access (High)", () => {
     test("admin can read all practices", async () => {
-      const client = clientAs(ADMIN_USER);
-      const { data } = await client
-        .from("practice")
-        .select("id");
-
-      // Admin should see all practices
+      const { data } = await adminClient.from("practice").select("id");
       expect(data).not.toBeNull();
-      expect((data ?? []).length).toBeGreaterThanOrEqual(0);
+      expect((data ?? []).length).toBeGreaterThanOrEqual(2);
     });
 
     test("admin can read all cases across practices", async () => {
-      const client = clientAs(ADMIN_USER);
-      const { data } = await client
-        .from("cases")
-        .select("id");
-
+      const { data } = await adminClient.from("cases").select("id");
       expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(2);
     });
   });
 
-  // ── AI AUDIT LOGS ───────────────────────────────────────────────────────
+  // ── GAP-04: case_ai_snapshots RLS ──────────────────────────────────────
+
+  describe("case_ai_snapshots RLS (GAP-04)", () => {
+    test("therapist_a CAN read snapshots for their cases", async () => {
+      const { data } = await therapistAClient
+        .from("case_ai_snapshots")
+        .select("id")
+        .eq("case_id", CASE_A_ID);
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(1);
+    });
+
+    test("therapist_b cannot read therapist_a snapshots", async () => {
+      const { data } = await therapistBClient
+        .from("case_ai_snapshots")
+        .select("id")
+        .eq("case_id", CASE_A_ID);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("patient cannot read case_ai_snapshots", async () => {
+      const { data } = await patientAClient
+        .from("case_ai_snapshots")
+        .select("id")
+        .limit(1);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("admin CAN read all snapshots", async () => {
+      const { data } = await adminClient
+        .from("case_ai_snapshots")
+        .select("id");
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // ── GAP-04: therapist_ratings RLS ──────────────────────────────────────
+
+  describe("therapist_ratings RLS (GAP-04)", () => {
+    test("therapist_a CAN read own ratings", async () => {
+      const { data } = await therapistAClient
+        .from("therapist_ratings")
+        .select("id")
+        .eq("therapist_id", THERAPIST_A.id);
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(1);
+    });
+
+    test("therapist_b cannot read therapist_a ratings", async () => {
+      const { data } = await therapistBClient
+        .from("therapist_ratings")
+        .select("id")
+        .eq("therapist_id", THERAPIST_A.id);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("manager_p1 CAN read ratings within practice", async () => {
+      const { data } = await managerP1Client
+        .from("therapist_ratings")
+        .select("id");
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(1);
+    });
+
+    test("manager_p2 cannot read practice_1 ratings", async () => {
+      const { data } = await managerP2Client
+        .from("therapist_ratings")
+        .select("id");
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("patient cannot read therapist_ratings", async () => {
+      const { data } = await patientAClient
+        .from("therapist_ratings")
+        .select("id")
+        .limit(1);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("therapist cannot INSERT ratings (server-side only)", async () => {
+      const { error } = await therapistAClient
+        .from("therapist_ratings")
+        .insert({
+          case_id: CASE_A_ID,
+          therapist_id: THERAPIST_A.id,
+          week_index: 99,
+          s_rating: 5,
+          o_rating: 5,
+          t_rating: 5,
+        });
+      expect(error).not.toBeNull();
+    });
+
+    test("admin CAN read all ratings", async () => {
+      const { data } = await adminClient
+        .from("therapist_ratings")
+        .select("id");
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // ── GAP-07: qa_checks locked down ─────────────────────────────────────
+
+  describe("qa_checks RLS (GAP-07)", () => {
+    test("anon returns 0 rows on qa_checks", async () => {
+      const anon = anonClient();
+      const { data } = await anon
+        .from("qa_checks")
+        .select("id")
+        .limit(1);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("therapist cannot read qa_checks", async () => {
+      const { data } = await therapistAClient
+        .from("qa_checks")
+        .select("id")
+        .limit(1);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("patient cannot read qa_checks", async () => {
+      const { data } = await patientAClient
+        .from("qa_checks")
+        .select("id")
+        .limit(1);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("manager cannot read qa_checks", async () => {
+      const { data } = await managerP1Client
+        .from("qa_checks")
+        .select("id")
+        .limit(1);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("admin CAN read qa_checks", async () => {
+      const { data } = await adminClient
+        .from("qa_checks")
+        .select("id");
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // ── GAP-09: therapist_profiles + user_roles ────────────────────────────
+
+  describe("therapist_profiles RLS (GAP-09)", () => {
+    test("therapist_a CAN read own profile", async () => {
+      const { data } = await therapistAClient
+        .from("therapist_profiles")
+        .select("id, preferred_name")
+        .eq("id", THERAPIST_A.id);
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBe(1);
+    });
+
+    test("therapist_a cannot read therapist_b profile", async () => {
+      const { data } = await therapistAClient
+        .from("therapist_profiles")
+        .select("id")
+        .eq("id", THERAPIST_B.id);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("manager_p1 CAN read profiles in practice", async () => {
+      const { data } = await managerP1Client
+        .from("therapist_profiles")
+        .select("id")
+        .eq("practice_id", PRACTICE_1_ID);
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(1);
+    });
+
+    test("patient cannot read therapist_profiles", async () => {
+      const { data } = await patientAClient
+        .from("therapist_profiles")
+        .select("id")
+        .limit(1);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("admin CAN read all profiles", async () => {
+      const { data } = await adminClient
+        .from("therapist_profiles")
+        .select("id");
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe("user_roles RLS (GAP-09)", () => {
+    test("therapist_a CAN read own role", async () => {
+      const { data } = await therapistAClient
+        .from("user_roles")
+        .select("user_id, role")
+        .eq("user_id", THERAPIST_A.id);
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBe(1);
+    });
+
+    test("therapist_a cannot read other users' roles", async () => {
+      const { data } = await therapistAClient
+        .from("user_roles")
+        .select("user_id")
+        .eq("user_id", ADMIN_USER.id);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("admin CAN read all roles", async () => {
+      const { data } = await adminClient
+        .from("user_roles")
+        .select("user_id, role");
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(4);
+    });
+  });
+
+  // ── GAP-10: cases policy conflict resolved ────────────────────────────
+
+  describe("Cases RLS — no conflicts (GAP-10)", () => {
+    test("therapist_a CAN read own cases", async () => {
+      const { data } = await therapistAClient
+        .from("cases")
+        .select("id")
+        .eq("therapist_id", THERAPIST_A.id);
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(1);
+    });
+
+    test("therapist_a cannot read therapist_b cases", async () => {
+      const { data } = await therapistAClient
+        .from("cases")
+        .select("id")
+        .eq("therapist_id", THERAPIST_B.id);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("therapist_a CAN insert a case assigned to themselves", async () => {
+      const newId = "00000000-0000-0000-9999-aaaaaaaaaaaa";
+      const { error } = await therapistAClient.from("cases").insert({
+        id: newId,
+        therapist_id: THERAPIST_A.id,
+        practice_id: PRACTICE_1_ID,
+        status: "active",
+      });
+      expect(error).toBeNull();
+      // Cleanup
+      await svc.from("cases").delete().eq("id", newId);
+    });
+
+    test("therapist_a cannot insert a case assigned to therapist_b", async () => {
+      const { error } = await therapistAClient.from("cases").insert({
+        id: "00000000-0000-0000-9999-bbbbbbbbbbbb",
+        therapist_id: THERAPIST_B.id,
+        practice_id: PRACTICE_1_ID,
+        status: "active",
+      });
+      expect(error).not.toBeNull();
+    });
+
+    test("patient CAN read own case (patient_id)", async () => {
+      const { data } = await patientAClient
+        .from("cases")
+        .select("id")
+        .eq("patient_id", PATIENT_A.id);
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(1);
+    });
+
+    test("manager_p1 CAN read all practice_1 cases", async () => {
+      const { data } = await managerP1Client
+        .from("cases")
+        .select("id")
+        .eq("practice_id", PRACTICE_1_ID);
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(1);
+    });
+
+    test("manager_p1 cannot read practice_2 cases", async () => {
+      const { data } = await managerP1Client
+        .from("cases")
+        .select("id")
+        .eq("practice_id", PRACTICE_2_ID);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("admin CAN read all cases", async () => {
+      const { data } = await adminClient.from("cases").select("id");
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  // ── GAP-20: audit_log ─────────────────────────────────────────────────
+
+  describe("audit_log RLS (GAP-20)", () => {
+    test("admin CAN read audit_log", async () => {
+      const { data } = await adminClient.from("audit_log").select("id");
+      expect(data).not.toBeNull();
+      expect((data ?? []).length).toBeGreaterThanOrEqual(1);
+    });
+
+    test("therapist cannot read audit_log", async () => {
+      const { data } = await therapistAClient
+        .from("audit_log")
+        .select("id")
+        .limit(1);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("patient cannot read audit_log", async () => {
+      const { data } = await patientAClient
+        .from("audit_log")
+        .select("id")
+        .limit(1);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("manager cannot read audit_log", async () => {
+      const { data } = await managerP1Client
+        .from("audit_log")
+        .select("id")
+        .limit(1);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("therapist CAN insert into audit_log", async () => {
+      const { error } = await therapistAClient.from("audit_log").insert({
+        event: "rls_test_insert",
+        role: "therapist",
+        route: "/test",
+      });
+      expect(error).toBeNull();
+    });
+
+    test("audit_log rejects UPDATE from any role", async () => {
+      const { data } = await adminClient
+        .from("audit_log")
+        .update({ event: "tampered" })
+        .eq("event", "rls_test_insert")
+        .select("id");
+      // No UPDATE policy exists, so 0 rows affected
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("audit_log rejects DELETE from any role", async () => {
+      const { data } = await adminClient
+        .from("audit_log")
+        .delete()
+        .eq("event", "rls_test_insert")
+        .select("id");
+      // No DELETE policy exists, so 0 rows affected
+      expect(data ?? []).toHaveLength(0);
+    });
+  });
+
+  // ── AI AUDIT LOGS (existing) ───────────────────────────────────────────
 
   describe("AI Audit Logs (High)", () => {
     test("manager select on ai_audit_logs_safe does not expose input_hash", async () => {
-      const client = clientAs(MANAGER_P1);
-      const { data } = await client
+      const { data } = await managerP1Client
         .from("ai_audit_logs_safe")
         .select("*")
         .limit(1);
@@ -326,204 +654,98 @@ describeWithDb("RLS Policy Enforcement", () => {
       }
     });
 
-    test("therapist cannot read audit logs", async () => {
-      const client = clientAs(THERAPIST_A);
-      const { data } = await client
+    test("therapist cannot read ai_audit_logs", async () => {
+      const { data } = await therapistAClient
         .from("ai_audit_logs")
         .select("id")
         .limit(1);
-
       expect(data ?? []).toHaveLength(0);
     });
 
-    test("patient cannot read audit logs", async () => {
-      const client = clientAs(PATIENT_A);
-      const { data } = await client
+    test("patient cannot read ai_audit_logs", async () => {
+      const { data } = await patientAClient
         .from("ai_audit_logs")
         .select("id")
         .limit(1);
-
       expect(data ?? []).toHaveLength(0);
     });
   });
 
-  // ── TASK STATUS UPDATES ─────────────────────────────────────────────────
+  // ── TASK STATUS UPDATES (existing) ────────────────────────────────────
 
   describe("Task Updates (High)", () => {
     test("patient can update status on their own task", async () => {
-      // This test needs a seeded task assigned to PATIENT_A
-      const client = clientAs(PATIENT_A);
-      const { error } = await client
+      const { error } = await patientAClient
         .from("tasks")
         .update({ status: "in_progress" })
         .eq("assigned_to_id", PATIENT_A.id)
         .eq("assigned_to_role", "patient");
-
-      // Should not error (may affect 0 rows if no fixtures)
       expect(error).toBeNull();
     });
 
     test("patient cannot update therapist tasks", async () => {
-      const client = clientAs(PATIENT_A);
-      const { data } = await client
+      const { data } = await patientAClient
         .from("tasks")
         .update({ status: "completed" })
         .eq("assigned_to_role", "therapist")
         .select("id");
-
-      // Should return 0 rows — patient can't touch therapist tasks
       expect(data ?? []).toHaveLength(0);
     });
   });
 
-  // ── CASE_CODE PATIENT AUTH ────────────────────────────────────────────────
-
-  describe("Case Code Patient Auth (P0 — Pilot Gate)", () => {
-    // Simulates a patient with a JWT containing case_code claim
-    const PATIENT_CASE_CODE: TestUser = {
-      id: "00000000-0000-0000-0000-aaaaaaaaaacc",
-      role: "patient",
-      practice_id: PRACTICE_1,
-    };
-
-    function clientAsPatientWithCaseCode(caseCode: string): SupabaseClient {
-      return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-        global: {
-          headers: {
-            "x-supabase-auth-user-id": PATIENT_CASE_CODE.id,
-            "x-supabase-auth-role": "patient",
-            "x-supabase-auth-practice-id": PRACTICE_1,
-            "x-supabase-auth-case-code": caseCode,
-          },
-        },
-      });
-    }
-
-    test("patient with case_code can read their own case", async () => {
-      // Note: requires test fixtures where CASE_A has a case_code
-      const client = clientAsPatientWithCaseCode("EMP-TEST01");
-      const { data } = await client
-        .from("cases")
-        .select("id, case_code")
-        .eq("case_code", "EMP-TEST01");
-
-      // Should return the case if fixtures are seeded
-      expect(data).not.toBeNull();
-    });
-
-    test("patient with case_code cannot read another case", async () => {
-      const client = clientAsPatientWithCaseCode("EMP-TEST01");
-      const { data } = await client
-        .from("cases")
-        .select("id, case_code")
-        .eq("case_code", "EMP-TEST02");
-
-      expect(data ?? []).toHaveLength(0);
-    });
-
-    test("patient with case_code can insert checkin for their case only", async () => {
-      const client = clientAsPatientWithCaseCode("EMP-TEST01");
-      // Insert should succeed for case with matching case_code
-      // Insert should fail for case with non-matching case_code
-      const { error } = await client
-        .from("checkins")
-        .insert({ case_id: CASE_B_ID, score: 7 }); // CASE_B has different case_code
-
-      // Should error — RLS should block this
-      expect(error).not.toBeNull();
-    });
-
-    test("patient with case_code can read checkins for their case", async () => {
-      const client = clientAsPatientWithCaseCode("EMP-TEST01");
-      const { data } = await client
-        .from("checkins")
-        .select("id")
-        .limit(5);
-
-      // Should only return checkins for cases with case_code EMP-TEST01
-      expect(data).not.toBeNull();
-    });
-
-    test("patient with case_code can read goals for their case", async () => {
-      const client = clientAsPatientWithCaseCode("EMP-TEST01");
-      const { data } = await client
-        .from("goals")
-        .select("id, title")
-        .limit(5);
-
-      expect(data).not.toBeNull();
-    });
-
-    test("patient cannot read join_codes table", async () => {
-      const client = clientAsPatientWithCaseCode("EMP-TEST01");
-      const { data } = await client
-        .from("join_codes")
-        .select("id")
-        .limit(1);
-
-      expect(data ?? []).toHaveLength(0);
-    });
-
-    test("patient cannot read portal_audit_log", async () => {
-      const client = clientAsPatientWithCaseCode("EMP-TEST01");
-      const { data } = await client
-        .from("portal_audit_log")
-        .select("id")
-        .limit(1);
-
-      expect(data ?? []).toHaveLength(0);
-    });
-
-    test("patient cannot read join_code_attempts", async () => {
-      const client = clientAsPatientWithCaseCode("EMP-TEST01");
-      const { data } = await client
-        .from("join_code_attempts")
-        .select("id")
-        .limit(1);
-
-      expect(data ?? []).toHaveLength(0);
-    });
-  });
-
-  // ── JOIN CODE ACCESS CONTROL ──────────────────────────────────────────────
+  // ── JOIN CODE ACCESS (existing) ───────────────────────────────────────
 
   describe("Join Code Access (P0)", () => {
     test("therapist can see join codes they created", async () => {
-      const client = clientAs(THERAPIST_A);
-      const { data } = await client
+      const { data } = await therapistAClient
         .from("join_codes")
         .select("id, code")
         .eq("created_by", THERAPIST_A.id);
-
       expect(data).not.toBeNull();
     });
 
     test("therapist cannot see join codes created by another therapist", async () => {
-      const client = clientAs(THERAPIST_A);
-      const { data } = await client
+      const { data } = await therapistAClient
         .from("join_codes")
         .select("id, code")
         .eq("created_by", THERAPIST_B.id);
-
       expect(data ?? []).toHaveLength(0);
     });
 
     test("admin can see all join codes", async () => {
-      const client = clientAs(ADMIN_USER);
-      const { data } = await client
-        .from("join_codes")
-        .select("id");
-
+      const { data } = await adminClient.from("join_codes").select("id");
       expect(data).not.toBeNull();
     });
 
     test("admin can see portal audit log", async () => {
-      const client = clientAs(ADMIN_USER);
-      const { data } = await client
+      const { data } = await adminClient
         .from("portal_audit_log")
         .select("id");
-
       expect(data).not.toBeNull();
+    });
+
+    test("patient cannot read join_codes", async () => {
+      const { data } = await patientAClient
+        .from("join_codes")
+        .select("id")
+        .limit(1);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("patient cannot read portal_audit_log", async () => {
+      const { data } = await patientAClient
+        .from("portal_audit_log")
+        .select("id")
+        .limit(1);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("patient cannot read join_code_attempts", async () => {
+      const { data } = await patientAClient
+        .from("join_code_attempts")
+        .select("id")
+        .limit(1);
+      expect(data ?? []).toHaveLength(0);
     });
   });
 });

@@ -8,6 +8,8 @@ import { createClient } from "@supabase/supabase-js";
 import { authenticatePatient } from "@/lib/patientAuth";
 import { supabaseAdmin } from "@/lib/supabase";
 import { checkRateLimitAsync } from "@/lib/rateLimit";
+import { detectInjection, MAX_NOTE_LENGTH } from "@/lib/phi/sanitize";
+import { scrubPrompt } from "@/lib/phi/scrub";
 
 export const dynamic = "force-dynamic";
 
@@ -81,8 +83,49 @@ export async function POST(req: Request) {
     }
   }
 
-  // Validate notes — no PII (server-side enforcement)
-  const noteText = typeof notes === "string" ? notes.trim().slice(0, 2000) : null;
+  // Validate notes — injection detection + length limit (server-side enforcement)
+  const rawNote = typeof notes === "string" ? notes.trim() : null;
+
+  if (rawNote) {
+    // Server-side length limit (GAP-19)
+    if (rawNote.length > MAX_NOTE_LENGTH) {
+      // Audit log (do NOT log the content itself)
+      const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+      try {
+        await supabaseAdmin.from("portal_audit_log").insert({
+          event: "injection_attempt",
+          case_code,
+          ip,
+          metadata: { route: "/api/portal/checkin", field: "note", reason: "exceeds_max_length" },
+        });
+      } catch { /* audit failure must not break the flow */ }
+      return NextResponse.json(
+        { data: null, error: { message: "Note exceeds maximum length of 1000 characters." } },
+        { status: 400 }
+      );
+    }
+
+    // Injection detection (GAP-19)
+    const injection = detectInjection(rawNote);
+    if (!injection.safe) {
+      const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+      try {
+        await supabaseAdmin.from("portal_audit_log").insert({
+          event: "injection_attempt",
+          case_code,
+          ip,
+          metadata: { route: "/api/portal/checkin", field: "note", reason: injection.reason },
+        });
+      } catch { /* audit failure must not break the flow */ }
+      return NextResponse.json(
+        { data: null, error: { message: "Note contains disallowed content." } },
+        { status: 400 }
+      );
+    }
+  }
+
+  // Scrub PHI from note before it could reach any AI route downstream
+  const noteText = rawNote ? scrubPrompt(rawNote, { field: "note", route: "/api/portal/checkin" }).text : null;
 
   // ── Resolve case_id from case_code (service role for this single lookup) ──
   const { data: caseRow, error: caseError } = await supabaseAdmin

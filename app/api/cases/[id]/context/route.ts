@@ -5,6 +5,16 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoCase, getDemoPatient, getDemoTherapist, demoPractice } from "@/lib/demo/demoData";
 
+const PHI_KEYS = new Set(["email", "phone", "date_of_birth"]);
+function stripPhi(ep: unknown): Record<string, unknown> {
+  if (!ep || typeof ep !== "object") return {};
+  const clean: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(ep as Record<string, unknown>)) {
+    if (!PHI_KEYS.has(k)) clean[k] = v;
+  }
+  return clean;
+}
+
 export async function GET(
   _: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -75,7 +85,7 @@ export async function GET(
       },
       practice: practice ?? { id: (c as any).practice_id ?? null, name: null },
       therapist: t ? { id: (t as any).id, name: (t as any).name ?? null, extended_profile: (t as any).extended_profile ?? {} } : null,
-      patient: pat ? { id: (pat as any).id, first_name: (pat as any).first_name ?? null, extended_profile: (pat as any).extended_profile ?? {} } : null,
+      patient: pat ? { id: (pat as any).id, first_name: (pat as any).first_name ?? null, extended_profile: stripPhi((pat as any).extended_profile) } : null,
     },
     error: null,
   });

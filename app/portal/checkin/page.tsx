@@ -179,9 +179,15 @@ function CheckinPageInner() {
               placeholder="Add a note (optional) &mdash; what's on your mind?"
               value={note}
               onChange={e => setNote(e.target.value)}
+              maxLength={1000}
               rows={3}
               style={{ resize: "none", lineHeight: 1.6 }}
             />
+            {note.length > 900 && (
+              <div style={{ fontSize: 11, color: note.length >= 1000 ? "#f87171" : "#fb923c", marginTop: 4, textAlign: "right" }}>
+                {note.length}/1000
+              </div>
+            )}
 
             {/* Crisis banner */}
             <div style={{ marginTop: 12 }}>

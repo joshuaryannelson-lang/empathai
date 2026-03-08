@@ -2,6 +2,7 @@
 // DELETE: remove an assignment (admin only)
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireRole, isAuthError, logUnauthorizedAccess, getClientIp } from "@/lib/apiAuth";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -12,6 +13,12 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireRole("admin");
+  if (isAuthError(auth)) {
+    await logUnauthorizedAccess("/api/admin/manager-practice-assignments/[id]", null, getClientIp(_request));
+    return auth;
+  }
+
   const { id } = await params;
   if (!id || !UUID_RE.test(id)) return bad("valid assignment id required");
 
