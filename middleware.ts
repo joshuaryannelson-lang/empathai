@@ -42,6 +42,19 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
+  // ── Analytics role gate (manager and owner only) ──
+  if (pathname.startsWith("/analytics")) {
+    // Read role from cookie (set client-side by persona picker / roleContext.ts)
+    const cookieRole = req.cookies.get("empathAI_role")?.value ?? null;
+    const allowedRoles = ["manager", "owner", "admin"];
+    if (!cookieRole || !allowedRoles.includes(cookieRole)) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
+    return res;
+  }
+
   // Create a Supabase client that reads/writes cookies on the request/response
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -106,5 +119,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/portal/:path*"],
+  matcher: ["/admin/:path*", "/portal/:path*", "/analytics/:path*"],
 };

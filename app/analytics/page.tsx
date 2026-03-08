@@ -1,11 +1,10 @@
 // app/analytics/page.tsx
-// GAP-31: Replace hardcoded analytics data with real DB queries + coming-soon cards
+// Analytics index — 4 module cards, LIVE cards navigate, COMING SOON cards muted
 "use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { isDemoMode } from "@/lib/demo/demoMode";
-import EngagementModule from "@/app/components/analytics/EngagementModule";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type ThsData = {
@@ -15,12 +14,14 @@ type ThsData = {
     delta: number | null;
     direction: "up" | "down" | "flat" | null;
   };
-  drivers: {
-    avg_checkin_score: number | null;
-    cases_count: number;
-    at_risk_count: number;
-    checkin_count: number;
-  };
+};
+
+type WeekData = {
+  week: string;
+  total: number;
+  uniquePatients: number;
+  avgMood: number | null;
+  completionRate: number;
 };
 
 // ── Sparkline (only renders with real data) ──────────────────────────────────
@@ -88,40 +89,43 @@ function StatusBadge({ status }: { status: "live" | "coming-soon" }) {
   );
 }
 
-// ── Live module card (real data connected) ───────────────────────────────────
-function LiveModuleCard({ icon, title, description, accent, preview }: {
-  icon: string; title: string; description: string; accent: string;
+// ── Live module card (clickable, navigates to sub-route) ─────────────────────
+function LiveModuleCard({ href, icon, title, description, accent, preview }: {
+  href: string; icon: string; title: string; description: string; accent: string;
   preview: React.ReactNode;
 }) {
   return (
-    <div style={{
-      border: `1px solid ${accent}22`,
-      borderRadius: 20, padding: 26,
-      background: `linear-gradient(135deg, ${accent}08 0%, #0d1018 60%)`,
-      display: "flex", flexDirection: "column", gap: 0,
-      position: "relative", overflow: "hidden",
-    }}>
-      <div style={{
-        position: "absolute", top: -60, right: -60, width: 200, height: 200,
-        borderRadius: "50%", background: `radial-gradient(circle, ${accent}20 0%, transparent 70%)`,
-        pointerEvents: "none",
-      }} />
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-            <span style={{ color: accent, fontSize: 16 }}>{icon}</span>
-            <StatusBadge status="live" />
+    <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
+      <div className="analytics-live-card" style={{
+        border: `1px solid ${accent}22`,
+        borderRadius: 20, padding: 26,
+        background: `linear-gradient(135deg, ${accent}08 0%, #0d1018 60%)`,
+        display: "flex", flexDirection: "column", gap: 0,
+        position: "relative", overflow: "hidden",
+        cursor: "pointer", transition: "border-color 0.2s",
+      }}>
+        <div style={{
+          position: "absolute", top: -60, right: -60, width: 200, height: 200,
+          borderRadius: "50%", background: `radial-gradient(circle, ${accent}20 0%, transparent 70%)`,
+          pointerEvents: "none",
+        }} />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <span style={{ color: accent, fontSize: 16 }}>{icon}</span>
+              <StatusBadge status="live" />
+            </div>
+            <div style={{ fontWeight: 900, fontSize: 16, letterSpacing: -0.3, marginBottom: 8, color: "#f1f5f9" }}>{title}</div>
+            <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.6 }}>{description}</div>
           </div>
-          <div style={{ fontWeight: 900, fontSize: 16, letterSpacing: -0.3, marginBottom: 8, color: "#f1f5f9" }}>{title}</div>
-          <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.6 }}>{description}</div>
+          <div style={{ flexShrink: 0, paddingTop: 4 }}>{preview}</div>
         </div>
-        <div style={{ flexShrink: 0, paddingTop: 4 }}>{preview}</div>
       </div>
-    </div>
+    </Link>
   );
 }
 
-// ── Coming-soon module card (no numbers, no fake data) ───────────────────────
+// ── Coming-soon module card (non-clickable, muted) ───────────────────────────
 function ComingSoonModuleCard({ icon, title, description }: {
   icon: string; title: string; description: string;
 }) {
@@ -132,6 +136,7 @@ function ComingSoonModuleCard({ icon, title, description }: {
       background: "#0d1018",
       display: "flex", flexDirection: "column", gap: 0,
       position: "relative", overflow: "hidden",
+      opacity: 0.5,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <span style={{ color: "#94a3b8", fontSize: 16 }}>{icon}</span>
@@ -143,11 +148,9 @@ function ComingSoonModuleCard({ icon, title, description }: {
   );
 }
 
-// ── THS live preview (real data from API, RLS-enforced) ──────────────────────
+// ── THS live preview ─────────────────────────────────────────────────────────
 function THSPreview({ ths, loading, error }: { ths: ThsData | null; loading: boolean; error: string | null }) {
-  if (loading) {
-    return <SkeletonLine />;
-  }
+  if (loading) return <SkeletonLine />;
 
   if (error) {
     return (
@@ -165,7 +168,6 @@ function THSPreview({ ths, loading, error }: { ths: ThsData | null; loading: boo
     );
   }
 
-  // Build a minimal sparkline from score + prior-week delta
   const score = ths.score;
   const priorScore = ths.trend.delta !== null ? score - ths.trend.delta : score;
   const sparkValues = [priorScore, score];
@@ -193,26 +195,69 @@ function THSPreview({ ths, loading, error }: { ths: ThsData | null; loading: boo
   );
 }
 
+// ── Engagement live preview ──────────────────────────────────────────────────
+function EngagementPreview({ weeks, loading }: { weeks: WeekData[] | null; loading: boolean }) {
+  if (loading) return <SkeletonLine />;
+
+  if (!weeks || weeks.length < 2) {
+    return (
+      <div style={{ width: 160, height: 52, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontSize: 11, color: "#94a3b8", textAlign: "center" }}>No data yet</span>
+      </div>
+    );
+  }
+
+  const totalCheckins = weeks.reduce((s, w) => s + w.total, 0);
+  const avgWeekly = Math.round(totalCheckins / weeks.length);
+  const lastTwo = weeks.slice(-2);
+  const trend = lastTwo.length === 2
+    ? (lastTwo[1].total > lastTwo[0].total ? "up" : lastTwo[1].total < lastTwo[0].total ? "down" : "flat")
+    : "flat";
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ textAlign: "right" }}>
+        <div style={{ fontSize: 22, fontWeight: 900, color: "#6b82d4", letterSpacing: -0.5 }}>
+          {avgWeekly}
+        </div>
+        <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>
+          avg/week
+        </div>
+        <div style={{
+          fontSize: 11, fontWeight: 700, marginTop: 2,
+          color: trend === "up" ? "#4ade80" : trend === "down" ? "#f87171" : "#94a3b8",
+        }}>
+          {trend === "up" ? "↑ trending up" : trend === "down" ? "↓ trending down" : "→ flat"}
+        </div>
+      </div>
+      <Sparkline
+        values={weeks.slice(-6).map(w => w.total)}
+        width={80} height={40} color="#6b82d4"
+      />
+    </div>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function AnalyticsPage() {
   const [ths, setThs] = useState<ThsData | null>(null);
   const [thsLoading, setThsLoading] = useState(true);
   const [thsError, setThsError] = useState<string | null>(null);
+  const [weeks, setWeeks] = useState<WeekData[] | null>(null);
+  const [weeksLoading, setWeeksLoading] = useState(true);
 
   useEffect(() => {
     async function loadTHS() {
       setThsLoading(true);
       setThsError(null);
       try {
-        // Get practice ID from localStorage (set by persona selection on home page)
         const practiceId = localStorage.getItem("selected_practice_id");
         if (!practiceId) {
           setThsLoading(false);
-          return; // No practice selected — show empty state
+          return;
         }
         const isDemo = isDemoMode();
         const demoParam = isDemo ? "&demo=true" : "";
-        // Fetch via API route which uses anon Supabase client (RLS-enforced)
         const res = await fetch(
           `/api/practices/${encodeURIComponent(practiceId)}/ths?week_start=${new Date().toISOString().slice(0, 10)}${demoParam}`,
           { cache: "no-store" }
@@ -234,7 +279,23 @@ export default function AnalyticsPage() {
         setThsLoading(false);
       }
     }
+
+    async function loadEngagement() {
+      setWeeksLoading(true);
+      try {
+        const res = await fetch("/api/analytics/engagement");
+        if (!res.ok) throw new Error();
+        const json = await res.json();
+        setWeeks(json.data?.weeks ?? []);
+      } catch {
+        setWeeks([]);
+      } finally {
+        setWeeksLoading(false);
+      }
+    }
+
     loadTHS();
+    loadEngagement();
   }, []);
 
   const liveModuleCount = 2;
@@ -247,6 +308,7 @@ export default function AnalyticsPage() {
         @keyframes orb3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,50px) scale(1.1); } }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        .analytics-live-card:hover { border-color: #6b82d4 !important; }
         @media (max-width: 767px) {
           .analytics-module-grid { grid-template-columns: 1fr !important; }
           .analytics-roadmap-milestones { flex-wrap: wrap !important; gap: 12px !important; }
@@ -336,56 +398,44 @@ export default function AnalyticsPage() {
             </p>
           </div>
 
-          {/* Module cards */}
+          {/* Module cards — 2×2 grid */}
           <div className="analytics-module-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 48, animation: "fadeUp 0.7s 0.25s cubic-bezier(0.16,1,0.3,1) both" }}>
 
-            {/* Module 1: Practice Health Score — LIVE (real DB data via RLS-enforced API) */}
+            {/* Module 1: Practice Health Score — LIVE */}
             <LiveModuleCard
+              href="/analytics/health-score"
               icon="◈" accent="#f5a623"
               title="Practice Health Score"
               description="Week-over-week engagement quality and care signal trends across your entire practice roster."
               preview={<THSPreview ths={ths} loading={thsLoading} error={thsError} />}
             />
 
-            {/* Module 2: At-Risk Pattern Detection — COMING SOON */}
+            {/* Module 2: Patient Engagement — LIVE */}
+            <LiveModuleCard
+              href="/analytics/engagement"
+              icon="◉" accent="#6b82d4"
+              title="Patient Engagement"
+              description="Weekly check-in volume, mood trends, and engagement patterns across your patient base."
+              preview={<EngagementPreview weeks={weeks} loading={weeksLoading} />}
+            />
+
+            {/* Module 3: At-Risk Pattern Detection — COMING SOON */}
             <ComingSoonModuleCard
               icon="⬟"
               title="At-Risk Pattern Detection"
               description="Surface caseload and engagement patterns that precede patient disengagement — before it happens."
             />
 
-            {/* Module 3: Therapist Utilization — COMING SOON */}
+            {/* Module 4: Therapist Utilization — COMING SOON */}
             <ComingSoonModuleCard
               icon="◎"
               title="Therapist Utilization"
               description="Caseload vs. capacity at a glance. Identify burnout risk and coverage gaps before they affect care."
             />
-
-            {/* Module 4: Cross-Practice Benchmarks — COMING SOON */}
-            <ComingSoonModuleCard
-              icon="⬡"
-              title="Cross-Practice Benchmarks"
-              description="Compare engagement, retention, and outcome signals across practices to find what's working."
-            />
-          </div>
-
-          {/* ── Module 2: Patient Engagement ───────────────────────────── */}
-          <div style={{
-            borderTop: "1px solid rgba(255,255,255,0.06)",
-            paddingTop: 32,
-            marginBottom: 48,
-            animation: "fadeUp 0.7s 0.35s cubic-bezier(0.16,1,0.3,1) both",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-              <span style={{ fontSize: 16, color: "#6b82d4" }}>◉</span>
-              <span style={{ fontWeight: 900, fontSize: 18, letterSpacing: -0.3, color: "#f1f5f9" }}>Patient Engagement</span>
-              <StatusBadge status="live" />
-            </div>
-            <EngagementModule />
           </div>
 
           {/* Bottom CTA */}
-          <div style={{ textAlign: "center", animation: "fadeUp 0.7s 0.45s cubic-bezier(0.16,1,0.3,1) both" }}>
+          <div style={{ textAlign: "center", animation: "fadeUp 0.7s 0.35s cubic-bezier(0.16,1,0.3,1) both" }}>
             <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 20 }}>
               Analytics ships as part of the empathAI platform — no separate setup required.
             </p>
