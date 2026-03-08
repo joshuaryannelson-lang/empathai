@@ -853,9 +853,7 @@ function AdminDevPage() {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#080c12", color: "#e2e8f0" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,900&family=DM+Mono:wght@400;500&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      <style>{`        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'DM Sans', sans-serif; }
         @media (max-width: 767px) {
           .dev-main { padding: 64px 16px 60px !important; }

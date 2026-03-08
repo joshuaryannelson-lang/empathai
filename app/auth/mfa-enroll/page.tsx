@@ -142,9 +142,7 @@ function MfaEnrollContent() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#080c12", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600;700&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      <style>{`        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #080c12; font-family: 'DM Sans', system-ui; }
       `}</style>
 

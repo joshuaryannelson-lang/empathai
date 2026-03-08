@@ -153,9 +153,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   return (
     <PortalIdentityContext.Provider value={{ session, setSession, signOut, authHeader }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600;700&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      <style>{`        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #080c12; }
         @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
         @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
