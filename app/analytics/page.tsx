@@ -2,9 +2,11 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 // ── Sparkline ─────────────────────────────────────────────────────────────────
 function Sparkline({ values, width = 160, height = 52, color = "#f5a623" }: { values: number[]; width?: number; height?: number; color?: string }) {
+  if (values.length < 2) return null;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
@@ -30,58 +32,10 @@ function Sparkline({ values, width = 160, height = 52, color = "#f5a623" }: { va
   );
 }
 
-// ── Bar chart ─────────────────────────────────────────────────────────────────
-function BarChart({ bars, width = 160, height = 52, color = "#f87171" }: { bars: number[]; width?: number; height?: number; color?: string }) {
-  const max = Math.max(...bars);
-  const gap = 4;
-  const barW = (width - gap * (bars.length - 1)) / bars.length;
-  return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-      {bars.map((v, i) => {
-        const barH = (v / max) * (height - 4);
-        const isLast = i === bars.length - 1;
-        return (
-          <rect key={i} x={i * (barW + gap)} y={height - barH} width={barW} height={barH} rx={3}
-            fill={isLast ? color : "rgba(255,255,255,0.12)"} />
-        );
-      })}
-    </svg>
-  );
-}
-
-// ── Capacity bar ──────────────────────────────────────────────────────────────
-function CapacityBar({ label, pct, color }: { label: string; pct: number; color: string }) {
-  return (
-    <div style={{ display: "grid", gap: 5 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, opacity: 0.65 }}>
-        <span>{label}</span><span style={{ fontWeight: 700, color }}>{pct}%</span>
-      </div>
-      <div style={{ height: 5, borderRadius: 99, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: color, transition: "width 1s ease" }} />
-      </div>
-    </div>
-  );
-}
-
-// ── Donut ─────────────────────────────────────────────────────────────────────
-function DonutRing({ pct, color, size = 64 }: { pct: number; color: string; size?: number }) {
-  const r = size / 2 - 7;
-  const circ = 2 * Math.PI * r;
-  return (
-    <svg width={size} height={size}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={7} />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={7}
-        strokeDasharray={`${(pct / 100) * circ} ${circ}`} strokeLinecap="round"
-        transform={`rotate(-90 ${size / 2} ${size / 2})`} />
-      <text x={size / 2} y={size / 2 + 4} textAnchor="middle" fill="white" fontSize={12} fontWeight={800}>{pct}%</text>
-    </svg>
-  );
-}
-
 // ── Module card ───────────────────────────────────────────────────────────────
 function ModuleCard({ icon, title, description, accent, preview, status = "coming-soon" }: {
   icon: string; title: string; description: string; accent: string;
-  preview: React.ReactNode; status?: "coming-soon" | "live";
+  preview?: React.ReactNode; status?: "coming-soon" | "live";
 }) {
   return (
     <div style={{
@@ -108,9 +62,9 @@ function ModuleCard({ icon, title, description, accent, preview, status = "comin
             <span style={{ color: accent, fontSize: 16 }}>{icon}</span>
             <span style={{
               fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase" as const,
-              color: status === "live" ? "#4ade80" : accent, opacity: 0.85,
-              background: status === "live" ? "rgba(74,222,128,0.1)" : `${accent}15`,
-              border: `1px solid ${status === "live" ? "rgba(74,222,128,0.3)" : `${accent}33`}`,
+              color: status === "live" ? "#4ade80" : "#d97706", opacity: 0.85,
+              background: status === "live" ? "rgba(74,222,128,0.1)" : "rgba(217,119,6,0.1)",
+              border: `1px solid ${status === "live" ? "rgba(74,222,128,0.3)" : "rgba(217,119,6,0.3)"}`,
               padding: "2px 8px", borderRadius: 999,
             }}>
               {status === "live" ? "● Live" : "Coming soon"}
@@ -119,23 +73,57 @@ function ModuleCard({ icon, title, description, accent, preview, status = "comin
           <div style={{ fontWeight: 900, fontSize: 16, letterSpacing: -0.3, marginBottom: 8 }}>{title}</div>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.6 }}>{description}</div>
         </div>
-        <div style={{ flexShrink: 0, paddingTop: 4 }}>{preview}</div>
+        {preview && <div style={{ flexShrink: 0, paddingTop: 4 }}>{preview}</div>}
       </div>
     </div>
   );
 }
 
+// ── Skeleton shimmer for loading state ────────────────────────────────────────
+function SparklineSkeleton() {
+  return (
+    <div style={{ width: 160, height: 52, borderRadius: 8, background: "rgba(255,255,255,0.04)", animation: "skeleton-shimmer 2s infinite linear", backgroundSize: "200% 100%", backgroundImage: "linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 100%)" }} />
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
-export default function AnalyticsComingSoon() {
+export default function AnalyticsPage() {
+  const [thsScores, setThsScores] = useState<number[] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchTHS() {
+      try {
+        const practiceId = typeof window !== "undefined"
+          ? localStorage.getItem("selected_practice_id") || "demo-practice-01"
+          : "demo-practice-01";
+        const res = await fetch(`/api/practices/${practiceId}/ths`);
+        if (!res.ok) throw new Error("Failed to fetch THS");
+        const json = await res.json();
+        const data = json.data;
+        if (!cancelled && data?.score != null) {
+          setThsScores([data.score]);
+        }
+      } catch {
+        // No data available — will show empty state
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    fetchTHS();
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@700;800;900&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600&display=swap');
         @keyframes orb1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(40px,-30px) scale(1.08); } }
         @keyframes orb2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-50px,40px) scale(1.05); } }
         @keyframes orb3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,50px) scale(1.1); } }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+        @keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         @media (max-width: 767px) {
           .analytics-module-grid { grid-template-columns: 1fr !important; }
           .analytics-roadmap-milestones { flex-wrap: wrap !important; gap: 12px !important; }
@@ -164,7 +152,6 @@ export default function AnalyticsComingSoon() {
             ← Back
           </Link>
 
-
           {/* Roadmap strip */}
           <div style={{
             border: "1px solid rgba(255,255,255,0.06)", borderRadius: 18,
@@ -173,8 +160,8 @@ export default function AnalyticsComingSoon() {
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <div>
-                <div style={{ fontWeight: 900, fontSize: 15, fontFamily: "'Sora', system-ui" }}>Module roadmap</div>
-                <div style={{ fontSize: 12, opacity: 0.4, marginTop: 3 }}>Health score pipeline is live — UI modules shipping next</div>
+                <div style={{ fontWeight: 900, fontSize: 15, fontFamily: "'Sora', system-ui", color: "#f1f5f9" }}>Module roadmap</div>
+                <div style={{ fontSize: 12, opacity: 0.4, marginTop: 3 }}>Health score pipeline is live — additional modules shipping next</div>
               </div>
               <div style={{ fontSize: 13, fontWeight: 800, color: "#f5a623" }}>1 of 4 live</div>
             </div>
@@ -188,7 +175,7 @@ export default function AnalyticsComingSoon() {
             <div className="analytics-roadmap-milestones" style={{ display: "flex", gap: 24, marginTop: 14 }}>
               {[
                 { label: "Health Score", done: true },
-                { label: "At-Risk Patterns", done: false },
+                { label: "Engagement", done: false },
                 { label: "Utilization", done: false },
                 { label: "Benchmarks", done: false },
               ].map((m) => (
@@ -232,40 +219,27 @@ export default function AnalyticsComingSoon() {
               icon="◈" accent="#f5a623" status="live"
               title="Practice Health Score"
               description="Week-over-week engagement quality and care signal trends across your entire practice roster."
-              preview={<Sparkline values={[5.2, 5.8, 6.1, 5.7, 6.4, 6.9, 7.1, 6.8, 7.3, 7.6, 7.2, 7.8]} color="#f5a623" />}
+              preview={loading
+                ? <SparklineSkeleton />
+                : thsScores && thsScores.length >= 2
+                  ? <Sparkline values={thsScores} color="#f5a623" />
+                  : <div style={{ width: 160, height: 52, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "rgba(255,255,255,0.25)", fontStyle: "italic" }}>Collecting data...</div>
+              }
             />
             <ModuleCard
               icon="⬟" accent="#f87171"
               title="At-Risk Pattern Detection"
               description="Surface caseload and engagement patterns that precede patient disengagement — before it happens."
-              preview={<BarChart bars={[3, 5, 4, 6, 4, 7, 5, 8, 6, 9, 7, 11]} color="#f87171" />}
             />
             <ModuleCard
               icon="◎" accent="#7c5cfc"
               title="Therapist Utilization"
               description="Caseload vs. capacity at a glance. Identify burnout risk and coverage gaps before they affect care."
-              preview={
-                <div style={{ display: "grid", gap: 8, width: 150 }}>
-                  <CapacityBar label="T. Reeves" pct={88} color="#7c5cfc" />
-                  <CapacityBar label="M. Okafor" pct={62} color="#7c5cfc" />
-                  <CapacityBar label="S. Lin" pct={95} color="#f87171" />
-                </div>
-              }
             />
             <ModuleCard
               icon="⬡" accent="#00c8a0"
               title="Cross-Practice Benchmarks"
               description="Compare engagement, retention, and outcome signals across practices to find what's working."
-              preview={
-                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <DonutRing pct={74} color="#00c8a0" />
-                  <div style={{ display: "grid", gap: 4 }}>
-                    <div style={{ fontSize: 10, opacity: 0.45, fontWeight: 600 }}>vs. org avg</div>
-                    <div style={{ fontSize: 22, fontWeight: 900, color: "#00c8a0", letterSpacing: -0.5 }}>+12%</div>
-                    <div style={{ fontSize: 11, color: "#4ade80", fontWeight: 700 }}>↑ trending up</div>
-                  </div>
-                </div>
-              }
             />
           </div>
 
