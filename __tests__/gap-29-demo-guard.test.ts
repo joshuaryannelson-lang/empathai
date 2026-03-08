@@ -35,26 +35,20 @@ describe("GAP-29a: Demo guard source checks", () => {
   });
 
   test("demo persona names are only rendered inside isDemo conditionals", () => {
-    // Persona names should exist in the source
+    // "Jordan" is the demo patient name shown in the check-in greeting
     expect(src).toMatch(/Jordan/);
-    expect(src).toMatch(/Dr\. Maya Chen/);
-    expect(src).toMatch(/Dr\. Chen/);
 
     // Split source at isDemo references — the first section (before any isDemo)
-    // should NOT contain any demo persona names
+    // should NOT contain demo persona names
     const isDemoSections = src.split("isDemo");
-    expect(isDemoSections[0]).not.toMatch(/Jordan|Dr\. Maya Chen|Dr\. Chen/);
+    expect(isDemoSections[0]).not.toMatch(/Jordan/);
 
-    // Each persona name should appear AFTER an isDemo ternary or conditional
-    // Verify by checking that "Jordan" only appears in sections after isDemo checks
+    // "Jordan" should appear AFTER an isDemo check
     const beforeFirstJordan = src.substring(0, src.indexOf("Jordan"));
     expect(beforeFirstJordan).toMatch(/isDemo/);
 
-    const beforeFirstMaya = src.substring(0, src.indexOf("Dr. Maya Chen"));
-    expect(beforeFirstMaya).toMatch(/isDemo/);
-
-    const beforeFirstChen = src.substring(0, src.indexOf("Dr. Chen"));
-    expect(beforeFirstChen).toMatch(/isDemo/);
+    // Therapist name was removed from checkin page (GAP-61: centralized in demo-fixtures)
+    expect(src).not.toMatch(/Dr\. Maya Chen/);
   });
 
   test("redirect logic still works: !session && !isDemo triggers redirect", () => {
