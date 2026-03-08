@@ -101,7 +101,7 @@ function CheckinPageInner() {
         </p>
         {isDemo && (
           <p style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", marginTop: 6, lineHeight: 1.5 }}>
-            Your therapist Dr. Maya Chen will review your response before your next session.
+            Your therapist will review your response before your next session.
           </p>
         )}
       </div>

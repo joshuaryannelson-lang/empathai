@@ -10,6 +10,7 @@ import { BUCKET, type Bucket } from "@/lib/constants";
 import { RISK_THRESHOLDS } from "@/lib/services/risk";
 import { isDemoMode, DEMO_CONFIG } from "@/lib/demo/demoMode";
 import { DEMO_TOUR_CASELOAD } from "@/lib/demo/demoData";
+import { getDemoTherapistName } from "@/lib/demo-fixtures";
 import { SkeletonPage } from "@/app/components/ui/Skeleton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -164,7 +165,7 @@ function TherapistCareDashboard() {
       const seed = DEMO_TOUR_CASELOAD;
       const demoCare: TherapistCareResponse = {
         therapist_id: DEMO_CONFIG.therapistId,
-        therapist_name: "Dr. Maya Chen",
+        therapist_name: getDemoTherapistName(DEMO_CONFIG.therapistId),
         week_start: new Date().toISOString().slice(0, 10),
         practice_id: "demo-practice-01",
         totals: {
