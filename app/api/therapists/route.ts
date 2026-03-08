@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { demoTherapists } from "@/lib/demo/demoData";
+import { sanitizeError } from "@/lib/utils/sanitize-error";
 
 /**
  * GET    /api/therapists?practice_id=...
@@ -41,13 +42,13 @@ export async function GET(request: Request) {
     const { data, error } = practiceId ? await query.eq("practice_id", practiceId) : await query;
 
     if (error) {
-      console.error("[/api/therapists] Supabase error:", JSON.stringify(error));
-      return NextResponse.json({ data: null, error }, { status: 500 });
+      console.error("[/api/therapists]", sanitizeError(error));
+      return NextResponse.json({ data: null, error: { message: "Internal server error" } }, { status: 500 });
     }
     return NextResponse.json({ data, error: null });
   } catch (e) {
-    console.error("[/api/therapists] Unexpected error:", e);
-    return NextResponse.json({ data: null, error: String(e) }, { status: 500 });
+    console.error("[/api/therapists]", sanitizeError(e));
+    return NextResponse.json({ data: null, error: { message: "Internal server error" } }, { status: 500 });
   }
 }
 
@@ -68,7 +69,10 @@ export async function POST(request: Request) {
     .select("id, name, practice_id")
     .single();
 
-  if (error) return NextResponse.json({ data: null, error }, { status: 500 });
+  if (error) {
+    console.error("[/api/therapists] POST", sanitizeError(error));
+    return NextResponse.json({ data: null, error: { message: "Internal server error" } }, { status: 500 });
+  }
   return NextResponse.json({ data, error: null }, { status: 201 });
 }
 
@@ -84,7 +88,10 @@ export async function DELETE(request: Request) {
     .select("id", { count: "exact", head: true })
     .eq("therapist_id", id);
 
-  if (cErr) return NextResponse.json({ data: null, error: cErr }, { status: 500 });
+  if (cErr) {
+    console.error("[/api/therapists] DELETE count check", sanitizeError(cErr));
+    return NextResponse.json({ data: null, error: { message: "Internal server error" } }, { status: 500 });
+  }
 
   const caseCount = count ?? 0;
   if (caseCount > 0) {
@@ -101,7 +108,10 @@ export async function DELETE(request: Request) {
   }
 
   const { error: dErr } = await supabase.from("therapists").delete().eq("id", id);
-  if (dErr) return NextResponse.json({ data: null, error: dErr }, { status: 500 });
+  if (dErr) {
+    console.error("[/api/therapists] DELETE", sanitizeError(dErr));
+    return NextResponse.json({ data: null, error: { message: "Internal server error" } }, { status: 500 });
+  }
 
   return NextResponse.json({ data: { deleted: true, id }, error: null });
 }

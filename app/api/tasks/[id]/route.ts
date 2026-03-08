@@ -5,6 +5,7 @@ import { updateTaskStatus, type TaskStatus } from "@/lib/services/taskGeneration
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { requireAuth, isAuthError } from "@/lib/apiAuth";
+import { sanitizeError } from "@/lib/utils/sanitize-error";
 
 const VALID_STATUSES: TaskStatus[] = ["pending", "in_progress", "completed", "dismissed"];
 
@@ -37,7 +38,7 @@ export async function PATCH(req: Request, ctx: RouteContextWithId) {
     return ok(updated);
   } catch (err: any) {
     const message = err?.message ?? "Failed to update task";
-    console.error(`[tasks] PATCH error: ${message}`, err);
+    console.error("[tasks] PATCH", sanitizeError(err));
     const statusCode = message.includes("Not authorized") ? 403 : 500;
     return bad(message, statusCode);
   }
@@ -59,13 +60,13 @@ export async function DELETE(req: Request, ctx: RouteContextWithId) {
       .eq("id", taskId);
 
     if (error) {
-      console.error(`[tasks] DELETE id=${taskId} error=${error.message}`, error);
+      console.error("[tasks] DELETE", sanitizeError(error));
       return bad(error.message, 500);
     }
 
     return ok({ deleted: true });
   } catch (err: any) {
-    console.error("[tasks] DELETE unhandled error:", err);
+    console.error("[tasks] DELETE", sanitizeError(err));
     return bad(err?.message ?? "Internal server error", 500);
   }
 }

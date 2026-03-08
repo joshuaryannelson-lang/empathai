@@ -5,6 +5,7 @@ import { bad, getIdFromContext, ok, RouteContextWithId } from "@/lib/route-helpe
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoCase } from "@/lib/demo/demoData";
 import { requireAuth, isAuthError, verifyCaseOwnership } from "@/lib/apiAuth";
+import { sanitizeError } from "@/lib/utils/sanitize-error";
 
 export async function GET(_req: Request, ctx: RouteContextWithId) {
   const id = await getIdFromContext(ctx);
@@ -87,7 +88,7 @@ export async function PATCH(req: Request, ctx: RouteContextWithId) {
         new_therapist_id: patch.therapist_id,
       },
     }).then(({ error: auditErr }) => {
-      if (auditErr) console.error(`[cases] audit log error: ${auditErr.message}`);
+      if (auditErr) console.error("[cases] audit log", sanitizeError(auditErr));
     });
   }
 

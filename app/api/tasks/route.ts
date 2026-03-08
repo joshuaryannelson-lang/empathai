@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { bad, ok } from "@/lib/route-helpers";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { demoTasks } from "@/lib/demo/demoData";
+import { sanitizeError } from "@/lib/utils/sanitize-error";
 
 export async function GET(req: Request) {
   try {
@@ -18,12 +19,12 @@ export async function GET(req: Request) {
       .limit(200);
 
     if (error) {
-      console.error(`[tasks] GET all error=${error.message}`, error);
-      return bad(error.message, 500, error);
+      console.error("[tasks] GET all", sanitizeError(error));
+      return bad("Internal server error", 500);
     }
     return ok(data);
   } catch (err: any) {
-    console.error("[tasks] GET all unhandled error:", err);
+    console.error("[tasks] GET all", sanitizeError(err));
     return bad(err?.message ?? "Internal server error", 500);
   }
 }

@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { bad, getIdFromContext, ok, RouteContextWithId } from "@/lib/route-helpers";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { checkRateLimitAsync } from "@/lib/rateLimit";
+import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { calculateTHS, type THSInput } from "@/lib/ai/thsScoring";
 import { buildTHSNarrativePrompt, validateNarrative } from "@/lib/ai/thsNarrativePrompt";
 import { hashPrompt, logAiCall } from "@/lib/services/audit";
@@ -119,7 +120,7 @@ export async function GET(_req: Request, ctx: RouteContextWithId) {
             await logAiCall({ service: "ths-scoring", case_code: caseId, triggered_by: "therapist", input_hash: hashPrompt(prompt), error: true });
           }
       } catch (e) {
-        console.error("[ths] Narrative generation failed:", e);
+        console.error("[ths] Narrative generation failed", sanitizeError(e));
         await logAiCall({ service: "ths-scoring", case_code: caseId, triggered_by: "therapist", input_hash: hashPrompt(buildTHSNarrativePrompt(result)), error: true });
       }
     }

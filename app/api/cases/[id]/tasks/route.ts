@@ -6,6 +6,7 @@ import { createManualTask } from "@/lib/services/taskGeneration";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { getDemoCaseTasks } from "@/lib/demo/demoData";
 import { requireAuth, isAuthError, verifyCaseOwnership } from "@/lib/apiAuth";
+import { sanitizeError } from "@/lib/utils/sanitize-error";
 
 export async function GET(_req: Request, ctx: RouteContextWithId) {
   try {
@@ -22,12 +23,12 @@ export async function GET(_req: Request, ctx: RouteContextWithId) {
       .limit(50);
 
     if (error) {
-      console.error(`[tasks] GET case_id=${caseId} error=${error.message}`, error);
-      return bad(error.message, 500, error);
+      console.error("[tasks] GET", sanitizeError(error));
+      return bad("Internal server error", 500);
     }
     return ok(data);
   } catch (err: any) {
-    console.error("[tasks] GET unhandled error:", err);
+    console.error("[tasks] GET", sanitizeError(err));
     return bad(err?.message ?? "Internal server error", 500);
   }
 }
@@ -75,7 +76,7 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
 
     return bad("Invalid trigger — must be 'manual'");
   } catch (err: any) {
-    console.error("[tasks] POST unhandled error:", err);
+    console.error("[tasks] POST", sanitizeError(err));
     return bad(err?.message ?? "Internal server error", 500);
   }
 }
