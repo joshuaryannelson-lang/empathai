@@ -434,9 +434,7 @@ function TherapistCareDashboard() {
 
   return (
     <div style={{ background: "#080c12", color: "#e2e8f0", minHeight: "100vh", fontFamily: "'DM Sans', system-ui" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      <style>{`        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         .page-wrap { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
         .back-link { font-size: 12px; font-weight: 500; color: #4b5563; text-decoration: none; letter-spacing: .05em; text-transform: uppercase; display: inline-block; margin-bottom: 20px; transition: color .15s; }
         .back-link:hover { color: #9ca3af; }

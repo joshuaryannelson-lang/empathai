@@ -684,9 +684,7 @@ export default function QABoard() {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: T.bg.page, color: T.text.primary }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,900&family=DM+Mono:wght@400;500&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      <style>{`        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'DM Sans', sans-serif; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulseHighlight { 0%,100% { border-color: ${T.border.DEFAULT}; } 50% { border-color: ${T.accent}; } }

@@ -97,9 +97,7 @@ export default function LoginPage() {
 
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-        .login-card {
+      <style>{`        .login-card {
           background: #0d1018;
           border: 1px solid #1a2035;
           border-radius: 12px;
