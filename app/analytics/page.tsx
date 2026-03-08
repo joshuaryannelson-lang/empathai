@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { isDemoMode } from "@/lib/demo/demoMode";
+import EngagementModule from "@/app/components/analytics/EngagementModule";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type ThsData = {
@@ -236,7 +237,7 @@ export default function AnalyticsPage() {
     loadTHS();
   }, []);
 
-  const liveModuleCount = 1;
+  const liveModuleCount = 2;
   const totalModuleCount = 4;
 
   return (
@@ -297,7 +298,7 @@ export default function AnalyticsPage() {
             <div className="analytics-roadmap-milestones" style={{ display: "flex", gap: 24, marginTop: 14 }}>
               {[
                 { label: "Health Score", done: true },
-                { label: "At-Risk Patterns", done: false },
+                { label: "Engagement", done: true },
                 { label: "Utilization", done: false },
                 { label: "Benchmarks", done: false },
               ].map((m) => (
@@ -366,6 +367,21 @@ export default function AnalyticsPage() {
               title="Cross-Practice Benchmarks"
               description="Compare engagement, retention, and outcome signals across practices to find what's working."
             />
+          </div>
+
+          {/* ── Module 2: Patient Engagement ───────────────────────────── */}
+          <div style={{
+            borderTop: "1px solid rgba(255,255,255,0.06)",
+            paddingTop: 32,
+            marginBottom: 48,
+            animation: "fadeUp 0.7s 0.35s cubic-bezier(0.16,1,0.3,1) both",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <span style={{ fontSize: 16, color: "#6b82d4" }}>◉</span>
+              <span style={{ fontWeight: 900, fontSize: 18, letterSpacing: -0.3, color: "#f1f5f9" }}>Patient Engagement</span>
+              <StatusBadge status="live" />
+            </div>
+            <EngagementModule />
           </div>
 
           {/* Bottom CTA */}
