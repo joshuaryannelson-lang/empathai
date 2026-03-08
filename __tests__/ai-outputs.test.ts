@@ -13,6 +13,7 @@ import { calculateTHS, PATIENT_THS_WEIGHTS } from "@/lib/ai/thsScoring";
 import { buildTHSNarrativePrompt, validateNarrative } from "@/lib/ai/thsNarrativePrompt";
 import { getDemoSessionPrepStructured } from "@/lib/demo/demoAI";
 import { describeDsmCode, describeDsmCodes } from "@/lib/ai/dsmDescriptions";
+import { scrubOutput } from "@/lib/phi/scrub";
 
 // ═══════════════════════════════════════════════════════════════════
 // SessionPrep Evals
@@ -659,6 +660,28 @@ describe("SessionPrep: Modalities & DSM Context", () => {
     const prompt = buildSessionPrepPrompt(input);
     const tokens = estimateTokenCount(prompt);
     expect(tokens).toBeLessThan(1000);
+  });
+
+  test("GAP-49: THS narrative scrubbed — no name, email, phone, DOB, initial", () => {
+    // Simulate a narrative with PHI that should be scrubbed
+    const narrativeWithPHI = "John Smith showed improvement this week. Contact at john@therapy.com or 555-123-4567. Born in 1985.";
+    const scrubbed = scrubOutput(narrativeWithPHI, { field: "ths_narrative", route: "/api/cases/[id]/ths" });
+
+    // Must not contain last name, email, phone, or birth year
+    expect(scrubbed.text).not.toMatch(/Smith/);
+    expect(scrubbed.text).not.toMatch(/john@therapy\.com/);
+    expect(scrubbed.text).not.toMatch(/555-123-4567/);
+    expect(scrubbed.text).not.toMatch(/born\s+in\s+\d{4}/i);
+    // Should contain redaction markers
+    expect(scrubbed.text).toMatch(/\[REDACTED\]|\[EMAIL\]|\[PHONE\]/);
+    expect(scrubbed.blocked).toBe(true);
+  });
+
+  test("GAP-49: Clean THS narrative passes scrubOutput unchanged", () => {
+    const cleanNarrative = "This period's score reflects solid session engagement and steady self-reported wellbeing.";
+    const scrubbed = scrubOutput(cleanNarrative, { field: "ths_narrative", route: "/api/cases/[id]/ths" });
+    expect(scrubbed.text).toBe(cleanNarrative);
+    expect(scrubbed.blocked).toBe(false);
   });
 
   test("55. DSM context instructs watch_for and try_this tailoring", () => {

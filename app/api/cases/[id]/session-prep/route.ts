@@ -18,7 +18,9 @@ import { describeDsmCodes } from "@/lib/ai/dsmDescriptions";
 import { hashPrompt, logAiCall } from "@/lib/services/audit";
 import { scrubOutput } from "@/lib/phi/scrub";
 import { requireRole, isAuthError, verifyCaseOwnership } from "@/lib/apiAuth";
-import { checkAiCostCeiling } from "@/lib/aiCostCeiling";
+import { checkCostCeiling, checkCostAlert, recordSpend } from "@/lib/ai-cost-guard";
+import { calculateCost } from "@/lib/ai-pricing";
+import { safeLog } from "@/lib/logger";
 
 // Format "2026-03-03" → "Week of Mar 3"
 function formatWeekLabel(weekStart: string): string {
@@ -31,9 +33,7 @@ function formatWeekLabel(weekStart: string): string {
 const MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS = 800;
 
-// Sonnet pricing: $3/M input, $15/M output
-const INPUT_COST_PER_TOKEN = 3 / 1_000_000;
-const OUTPUT_COST_PER_TOKEN = 15 / 1_000_000;
+// Pricing now managed by lib/ai-pricing.ts (single source of truth)
 
 export async function GET(req: Request, ctx: RouteContextWithId) {
   const caseId = await getIdFromContext(ctx);
@@ -111,26 +111,35 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
     return ok(structured);
   }
 
-  // ── Cost ceiling: $25/month ──
-  const costCheck = await checkAiCostCeiling();
+  // ── Cost ceiling: $25/month (Redis-backed circuit breaker) ──
+  const costCheck = await checkCostCeiling();
   if (!costCheck.allowed) {
-    return bad("AI limit reached — monthly cost ceiling exceeded", 503);
+    return bad("ai_cost_ceiling_reached", 503);
+  }
+  // Alert threshold at $20 — structured warning for observability
+  const isAlertMode = await checkCostAlert();
+  if (isAlertMode) {
+    safeLog.warn("[session-prep] AI cost alert threshold reached", { alert: "ai_cost_threshold", spend: costCheck.spend.toFixed(4), threshold: "20" });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return bad("Anthropic API key not configured", 500);
 
   // ── Rate limiting: 20 AI calls per case per day ──
-  const rl = await checkRateLimitAsync(`ai:${caseId}`, 20, 86400_000);
+  const rl = await checkRateLimitAsync(`ai:session-prep:${caseId}`, 20, 60_000);
   if (!rl.allowed) {
-    return bad("AI rate limit reached for today. Try again tomorrow.", 429);
+    const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
+    return new Response(
+      JSON.stringify({ data: null, error: { message: "rate_limit_exceeded", retryAfter: retryAfter > 0 ? retryAfter : 60 } }),
+      { status: 429, headers: { "Content-Type": "application/json", "Retry-After": String(retryAfter > 0 ? retryAfter : 60) } },
+    );
   }
 
   const startTime = Date.now();
 
-  // Diagnostic: log the [id] param and whether service role key is configured
+  // Diagnostic: log whether service role key is configured (no case codes)
   const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
-  console.log(`[session-prep] caseId="${caseId}" hasServiceRoleKey=${hasServiceKey} url=${req.url}`);
+  safeLog.info("[session-prep] POST started", { event: "session_prep_start", route: "/api/cases/[id]/session-prep", hasServiceRoleKey: String(hasServiceKey) });
 
   // ── Fetch case data for prompt ──
   // Use supabaseAdmin (service role) — anon key returns 0 rows when RLS
@@ -148,7 +157,7 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
     .order("created_at", { ascending: false })
     .limit(4);
 
-  console.log(`[session-prep] case=${caseId} case_found=${!!caseRes.data} case_error=${caseRes.error?.message ?? "none"} checkins_found=${checkinsRes.data?.length ?? 0} checkins_error=${checkinsRes.error?.message ?? "none"} first_checkin=${JSON.stringify(checkinsRes.data?.[0] ?? null)}`);
+  safeLog.info("[session-prep] data fetched", { event: "session_prep_data", route: "/api/cases/[id]/session-prep", case_found: String(!!caseRes.data), checkins_found: String(checkinsRes.data?.length ?? 0) });
 
   // FIX 2: fetch all goals (active + completed) so model can reference recent wins
   const goalsRes = await supabaseAdmin
@@ -216,43 +225,82 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
     prompt = buildSessionPrepPrompt({ checkins, goals, patientFirstName, clinicalNotes, modalities, dsmContext });
   } catch (e: any) {
     // PHI assertion failure — block the call
-    console.error(`[session-prep] PHI assertion blocked call for case=${caseId}: ${e.message}`);
+    safeLog.error("[session-prep] PHI assertion blocked call", { event: "phi_blocked", route: "/api/cases/[id]/session-prep", reason: e.message });
     return bad("Request blocked: potential PHI detected in notes. Please remove personal information.", 400);
   }
 
   const estimatedInputTokens = estimateTokenCount(prompt);
-  console.log(`[session-prep] case=${caseId} model=${MODEL} estimated_input_tokens=${estimatedInputTokens}`);
+  safeLog.info("[session-prep] prompt built", { event: "prompt_ready", route: "/api/cases/[id]/session-prep", model: MODEL, estimated_input_tokens: String(estimatedInputTokens) });
 
-  // ── Call Anthropic (10s timeout) ──
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
-  let res: Response;
-  try {
-    res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "anthropic-version": "2023-06-01",
-        "x-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-        messages: [{ role: "user", content: prompt }],
-      }),
-      signal: controller.signal,
-    });
-  } catch (err: any) {
-    clearTimeout(timeout);
-    if (err?.name === "AbortError") {
-      console.error(`[session-prep] case=${caseId} TIMEOUT after 10000ms`);
+  // ── GAP-13: Call Anthropic with retry logic ──────────────────────────────
+  // Retries up to 2 times on 504 / network errors only (not 4xx).
+  // Exponential backoff: 1s, 2s. Each attempt has its own 10s AbortController.
+  // On final failure: returns bad('prep_unavailable', 503).
+  // Structured JSON logging per attempt — NO case codes, NO PHI.
+  const MAX_RETRIES = 2;
+  const BACKOFF_MS = [1000, 2000];
+  const TIMEOUT_MS = 10_000;
+
+  let res: Response | null = null;
+  let lastStatus = 0;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const attemptStart = Date.now();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+    try {
+      res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "anthropic-version": "2023-06-01",
+          "x-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: MAX_TOKENS,
+          messages: [{ role: "user", content: prompt }],
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      lastStatus = res.status;
+
+      // Success or client error (4xx) — do not retry
+      if (res.ok || (res.status >= 400 && res.status < 500)) {
+        break;
+      }
+
+      // Server error (5xx including 504) — retry
+      safeLog.warn("[session-prep] retrying", { event: "ai_retry", route: "/api/cases/[id]/session-prep", attempt: String(attempt), status: String(res.status), latency_ms: String(Date.now() - attemptStart) });
+
+      if (attempt < MAX_RETRIES) {
+        await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
+        continue;
+      }
+    } catch (err: any) {
+      clearTimeout(timeout);
+      const latencyMs = Date.now() - attemptStart;
+      const isTimeout = err?.name === "AbortError";
+
+      safeLog.warn("[session-prep] retrying after error", { event: "ai_retry", route: "/api/cases/[id]/session-prep", attempt: String(attempt), status: isTimeout ? "504" : "0", latency_ms: String(latencyMs) });
+
+      if (attempt < MAX_RETRIES) {
+        await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]));
+        continue;
+      }
+
+      // Final attempt failed — log and return
       await logAiCall({ service: "session-prep", case_code: caseId, triggered_by: "therapist", input_hash: hashPrompt(prompt), error: true });
-      return bad("Session prep timed out — try again", 504);
+      return bad("prep_unavailable", 503);
     }
+  }
+
+  // If we exhausted retries on server errors
+  if (!res || (!res.ok && !(res.status >= 400 && res.status < 500))) {
     await logAiCall({ service: "session-prep", case_code: caseId, triggered_by: "therapist", input_hash: hashPrompt(prompt), error: true });
-    throw err;
-  } finally {
-    clearTimeout(timeout);
+    return bad("prep_unavailable", 503);
   }
 
   const json = await res.json();
@@ -266,7 +314,7 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   const promptTokens = json?.usage?.input_tokens ?? estimatedInputTokens;
   const completionTokens = json?.usage?.output_tokens ?? 0;
 
-  console.log(`[session-prep] case=${caseId} duration_ms=${durationMs} timeout=10000 tokens=${completionTokens}`);
+  safeLog.info("[session-prep] response received", { event: "ai_response", route: "/api/cases/[id]/session-prep", duration_ms: String(durationMs), tokens: String(completionTokens) });
 
   // ── Parse structured output ──
   // Strip markdown fences the model may wrap around JSON (e.g. ```json ... ```)
@@ -315,7 +363,7 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   // ── Validate output against policy ──
   const violations = validateSessionPrepOutput(parsed);
   if (violations.length > 0) {
-    console.error(`[session-prep] Output policy violations for case=${caseId}:`, violations);
+    safeLog.error("[session-prep] Output policy violations", { event: "policy_violation", route: "/api/cases/[id]/session-prep", violations: violations.join(", ") });
     // Null out the violating card fields
     for (const v of violations) {
       if (v.includes("open_with")) parsed.open_with = null;
@@ -335,7 +383,7 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
   }
 
   // ── Audit log (store only the artifact, never raw prompt) ──
-  const estimatedCost = (promptTokens * INPUT_COST_PER_TOKEN) + (completionTokens * OUTPUT_COST_PER_TOKEN);
+  const estimatedCost = calculateCost(MODEL, promptTokens, completionTokens);
 
   await logAiCall({
     service: "session-prep",
@@ -349,6 +397,9 @@ export async function POST(req: Request, ctx: RouteContextWithId) {
     completion_tokens: completionTokens,
     estimated_cost_usd: estimatedCost,
   });
+
+  // ── Record spend in Redis for circuit breaker ──
+  await recordSpend(estimatedCost);
 
   // Log redaction service activity (scrubbing always runs inside buildSessionPrepPrompt)
   await logAiCall({

@@ -166,19 +166,16 @@ describe("Suite 2: Check-in via case_code", () => {
     expect(res.status).toBe(400);
   });
 
-  // Test 12: PHI detection (client-side — tested separately in Suite 6 pure function tests)
-  // Server truncates notes to 2000 chars; PHI detection is client-side only
-  test("12. notes are truncated to 2000 characters", async () => {
+  // Test 12: Notes exceeding MAX_NOTE_LENGTH (1000 chars) are rejected with 400
+  test("12. notes exceeding 1000 characters are rejected", async () => {
     mockAuthenticatePatient.mockResolvedValue({ role: "patient", case_code: TEST_CASE_CODE_A });
 
-    const longNote = "x".repeat(3000);
+    const longNote = "x".repeat(1001);
     const res = await POST(makeRequest({ rating: 5, notes: longNote }, "valid-token"));
 
-    expect(res.status).toBe(200);
-    // The insert should have received truncated note
-    expect(mockPatientInsert).toHaveBeenCalled();
-    const insertedData = mockPatientInsert.mock.calls[0][0];
-    expect(insertedData.note.length).toBeLessThanOrEqual(2000);
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error.message).toContain("1000");
   });
 
   // Test 13: week_index validation

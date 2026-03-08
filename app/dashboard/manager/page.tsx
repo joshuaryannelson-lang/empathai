@@ -7,6 +7,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { NavSidebar } from "@/app/components/NavSidebar";
 import AIBriefing, { type AIBriefingData } from "@/app/components/ai/AIBriefing";
+import { SkeletonPage } from "@/app/components/ui/Skeleton";
 
 type RangeKey = "1d" | "7d" | "30d" | "this_week" | "last_week";
 
@@ -437,7 +438,7 @@ function ManagerDashboardInner() {
 
 export default function ManagerDashboard() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SkeletonPage />}>
       <ManagerDashboardInner />
     </Suspense>
   );

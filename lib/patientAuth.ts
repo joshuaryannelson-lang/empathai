@@ -3,13 +3,14 @@
 // This replaces the name+DOB identification flow.
 
 import { SignJWT, jwtVerify, JWTPayload } from "jose";
+import { safeLog } from "@/lib/logger";
 
 const JWT_SECRET = process.env.PATIENT_JWT_SECRET ?? process.env.SUPABASE_JWT_SECRET ?? "";
 const JWT_ISSUER = "empathai-portal";
 const JWT_EXPIRY = "7d";
 
 if (!JWT_SECRET && typeof window === "undefined") {
-  console.warn("[patientAuth] PATIENT_JWT_SECRET not set — patient JWTs will fail to verify");
+  safeLog.warn("[patientAuth] PATIENT_JWT_SECRET not set — patient JWTs will fail to verify");
 }
 
 function getSecret() {
@@ -52,10 +53,7 @@ export async function mintPatientJWT(caseCode: string): Promise<string> {
 export async function verifyPatientJWT(token: string): Promise<PatientJWTClaims | null> {
   if (!JWT_SECRET) {
     if (process.env.NODE_ENV === "production") {
-      console.error(
-        "[patientAuth] PATIENT_JWT_SECRET is not set — rejecting token. " +
-        "Add it to Vercel Dashboard > Settings > Environment Variables > Production."
-      );
+      safeLog.error("[patientAuth] PATIENT_JWT_SECRET is not set — rejecting token");
     }
     return null;
   }

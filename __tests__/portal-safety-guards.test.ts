@@ -362,11 +362,12 @@ describe("Suite 7: MFA Gate", () => {
     expect(result.action).toBe("pass");
   });
 
-  test("32h-6. middleware reads role cookie (empathAI_role)", () => {
+  test("32h-6. middleware reads role cookie (empathAI_role) without logging auth state", () => {
     const middlewarePath = path.resolve(__dirname, "../middleware.ts");
     const content = fs.readFileSync(middlewarePath, "utf-8");
     expect(content).toContain("empathAI_role");
-    expect(content).toContain("[middleware] role=");
+    // GAP-47: auth state must NOT be logged via console.log
+    expect(content).not.toContain("console.log");
   });
 
   test("32h. MFA enrollment page exists and cannot be skipped", () => {

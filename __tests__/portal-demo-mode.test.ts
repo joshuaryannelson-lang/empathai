@@ -23,10 +23,12 @@ describe("Suite 10a: Demo mode check-in — empty token detection", () => {
     expect(fs.existsSync(checkinPath)).toBe(true);
   });
 
-  test("42b. checkin detects demo mode via empty session token (not just URL param)", () => {
-    // The fix: demo mode is detected when session exists but token is empty/falsy
-    // Pattern: session != null && !session.token
-    expect(checkinContent).toMatch(/!session\.token/);
+  test("42b. checkin uses hasRealSession guard (GAP-29)", () => {
+    // GAP-29: Demo mode requires explicit demo flag AND no real patient session
+    // Pattern: hasRealSession = session != null && !!session.token && !!session.case_code
+    expect(checkinContent).toMatch(/hasRealSession/);
+    expect(checkinContent).toMatch(/session\.token/);
+    expect(checkinContent).toMatch(/session\.case_code/);
   });
 
   test("42c. checkin detects demo mode via isDemoMode() (localStorage-based)", () => {
@@ -39,15 +41,16 @@ describe("Suite 10a: Demo mode check-in — empty token detection", () => {
     expect(checkinContent).toMatch(/if\s*\(\s*isDemo\s*\)/);
   });
 
-  test("42e. checkin does not require URL param alone for demo detection", () => {
-    // The isDemo variable should combine both checks with OR
-    // Pattern: searchParams?.get("demo") === "true" || (session != null && !session.token)
+  test("42e. checkin uses AND logic: isDemoMode() && !hasRealSession (GAP-29)", () => {
+    // GAP-29: isDemo = isDemoMode() && !hasRealSession
+    // A real session always overrides demo mode flags
     const isDemoLine = checkinContent
       .split("\n")
-      .find((line) => line.includes("isDemo") && line.includes("!session.token"));
+      .find((line) => line.includes("const isDemo") && line.includes("isDemoMode"));
     expect(isDemoLine).toBeDefined();
-    // Must use OR to combine both detection methods
-    expect(isDemoLine).toMatch(/\|\|/);
+    // Must use AND to ensure real sessions override demo flags
+    expect(isDemoLine).toMatch(/&&/);
+    expect(isDemoLine).toMatch(/!hasRealSession/);
   });
 });
 
@@ -66,9 +69,10 @@ describe("Suite 10b: Demo patient history — API demo param", () => {
     expect(fs.existsSync(historyPath)).toBe(true);
   });
 
-  test("43b. history page computes demoSuffix from empty session token", () => {
-    // Pattern: !session.token ? "?demo=true" : ""
-    expect(historyContent).toMatch(/!session\.token\s*\?\s*["']?\?demo=true["']?/);
+  test("43b. history page computes demoSuffix from isDemoMode() guard (GAP-29)", () => {
+    // Pattern: isDemo ? "?demo=true" : "" (hardened isDemoMode + hasRealSession)
+    expect(historyContent).toMatch(/isDemo\s*\?\s*["']?\?demo=true["']?/);
+    expect(historyContent).toMatch(/isDemoMode\(\)\s*&&\s*!hasRealSession/);
   });
 
   test("43c. history page appends demoSuffix to timeline API fetch URL", () => {
@@ -100,9 +104,10 @@ describe("Suite 10c: Demo patient goals — API demo param", () => {
     expect(fs.existsSync(goalsPath)).toBe(true);
   });
 
-  test("44b. goals page computes demoSuffix from empty session token", () => {
-    // Pattern: !session.token ? "?demo=true" : ""
-    expect(goalsContent).toMatch(/!session\.token\s*\?\s*["']?\?demo=true["']?/);
+  test("44b. goals page computes demoSuffix from isDemoMode() guard (GAP-29)", () => {
+    // Pattern: isDemo ? "?demo=true" : "" (hardened isDemoMode + hasRealSession)
+    expect(goalsContent).toMatch(/isDemo\s*\?\s*["']?\?demo=true["']?/);
+    expect(goalsContent).toMatch(/isDemoMode\(\)\s*&&\s*!hasRealSession/);
   });
 
   test("44c. goals page appends demoSuffix to goals API fetch URL", () => {

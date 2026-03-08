@@ -4,6 +4,7 @@
 // Returns { allowed: false } if cumulative spend exceeds $25.
 
 import { supabaseAdmin } from "@/lib/supabase";
+import { safeLog } from "@/lib/logger";
 
 const MONTHLY_CEILING_USD = 25;
 
@@ -20,7 +21,7 @@ export async function checkAiCostCeiling(): Promise<{ allowed: boolean; totalSpe
 
     if (error) {
       // If table doesn't exist or query fails, allow (fail-open for availability)
-      console.warn("[aiCostCeiling] Query failed, allowing:", error.message);
+      safeLog.warn("[aiCostCeiling] Query failed, allowing", { error_message: error.message });
       return { allowed: true, totalSpend: 0 };
     }
 
@@ -30,13 +31,13 @@ export async function checkAiCostCeiling(): Promise<{ allowed: boolean; totalSpe
     );
 
     if (totalSpend >= MONTHLY_CEILING_USD) {
-      console.warn(`[aiCostCeiling] Monthly ceiling reached: $${totalSpend.toFixed(2)} >= $${MONTHLY_CEILING_USD}`);
+      safeLog.warn("[aiCostCeiling] Monthly ceiling reached", { totalSpend: totalSpend.toFixed(2), ceiling: String(MONTHLY_CEILING_USD) });
       return { allowed: false, totalSpend };
     }
 
     return { allowed: true, totalSpend };
   } catch (e) {
-    console.warn("[aiCostCeiling] Exception, allowing:", e);
+    safeLog.warn("[aiCostCeiling] Exception, allowing", { error: String(e) });
     return { allowed: true, totalSpend: 0 };
   }
 }

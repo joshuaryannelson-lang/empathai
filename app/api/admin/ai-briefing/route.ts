@@ -16,8 +16,8 @@ export async function POST(req: Request) {
   if (!rl.allowed) {
     const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
     return new NextResponse(
-      JSON.stringify({ data: null, error: { message: "AI rate limit exceeded" } }),
-      { status: 429, headers: { "Retry-After": String(retryAfter), "Content-Type": "application/json" } },
+      JSON.stringify({ data: null, error: { message: "rate_limit_exceeded", retryAfter: retryAfter > 0 ? retryAfter : 60 } }),
+      { status: 429, headers: { "Retry-After": String(retryAfter > 0 ? retryAfter : 60), "Content-Type": "application/json" } },
     );
   }
 
@@ -50,20 +50,30 @@ export async function POST(req: Request) {
     }),
   });
 
-  // ── Audit log ──
+  const json = await res.json();
+  if (!res.ok) {
+    await logAiCall({
+      service: "admin-briefing",
+      case_code: auth.user_id ?? "admin",
+      triggered_by: auth.user_id ?? "admin",
+      input_hash: hashPrompt(prompt),
+      model,
+      tokens_used: 0,
+      error: true,
+    });
+    return NextResponse.json({ error: json?.error?.message ?? "Anthropic API error" }, { status: res.status });
+  }
+
+  // ── Audit log: after confirmed success ──
   const tokensEstimated = Math.ceil(prompt.length / 4);
   await logAiCall({
     service: "admin-briefing",
-    case_code: null,
+    case_code: auth.user_id ?? "admin",
     triggered_by: auth.user_id ?? "admin",
     input_hash: hashPrompt(prompt),
     model,
     tokens_used: tokensEstimated,
   });
-
-  const json = await res.json();
-  if (!res.ok)
-    return NextResponse.json({ error: json?.error?.message ?? "Anthropic API error" }, { status: res.status });
 
   const text: string = json?.content?.[0]?.text ?? "";
   return NextResponse.json({ data: { text } });

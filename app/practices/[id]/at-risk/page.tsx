@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import { SkeletonPage } from "@/app/components/ui/Skeleton";
 
 type AtRiskRow = {
   case_id: string;
@@ -298,7 +299,7 @@ function PracticeAtRiskPage() {
 
 export default function Page() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SkeletonPage />}>
       <PracticeAtRiskPage />
     </Suspense>
   );

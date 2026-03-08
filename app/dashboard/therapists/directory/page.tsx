@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { NavSidebar } from "@/app/components/NavSidebar";
+import { SkeletonPage } from "@/app/components/ui/Skeleton";
 
 type Practice = { id: string; name: string | null };
 type Therapist = { id: string; name: string };
@@ -339,7 +340,7 @@ function TherapistDirectoryPage() {
 }
 export default function Page() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SkeletonPage />}>
       <TherapistDirectoryPage />
     </Suspense>
   );

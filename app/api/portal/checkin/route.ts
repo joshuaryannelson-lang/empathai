@@ -46,9 +46,10 @@ export async function POST(req: Request) {
   // ── Rate limiting: 10 check-ins per case_code per hour ──
   const rl = await checkRateLimitAsync(`checkin:${case_code}`, 10, 3600_000);
   if (!rl.allowed) {
+    const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
     return NextResponse.json(
-      { data: null, error: { message: "Too many check-ins. Please try again later." } },
-      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+      { data: null, error: { message: "rate_limit_exceeded", retryAfter: retryAfter > 0 ? retryAfter : 60 } },
+      { status: 429, headers: { "Retry-After": String(retryAfter > 0 ? retryAfter : 60) } }
     );
   }
 

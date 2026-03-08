@@ -255,6 +255,7 @@ export default function DemoLanding() {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
   const [launched, setLaunched] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [managerMode, setManagerMode] = useState<"multi" | "single">("multi");
   const ctaRef = useRef<HTMLDivElement>(null);
 
@@ -283,7 +284,7 @@ export default function DemoLanding() {
     setPracticesLoading(true);
     fetchJson<Practice[]>("/api/practices")
       .then((data) => setPractices(data ?? []))
-      .catch(() => {})
+      .catch(() => { setFetchError("Unable to load practices — please refresh"); })
       .finally(() => setPracticesLoading(false));
   }, [selected, managerMode, practices.length]);
 
@@ -336,7 +337,7 @@ export default function DemoLanding() {
             setLaunched(false); setSelected(null);
           }
         })
-        .catch(() => { setLaunched(false); setSelected(null); });
+        .catch(() => { setLaunched(false); setSelected(null); setFetchError("Unable to load therapists — please refresh"); });
     } else if (id === "manager") {
       if (managerMode === "single" && harperPractice) {
         storeRole("manager");
@@ -451,6 +452,26 @@ export default function DemoLanding() {
         padding: "32px 24px",
       }}>
         <Noise />
+
+        {fetchError && (
+          <div style={{
+            position: "relative",
+            zIndex: 2,
+            width: "100%",
+            maxWidth: 1320,
+            margin: "0 auto 16px",
+            padding: "12px 16px",
+            borderRadius: 12,
+            background: "rgba(248,113,113,0.08)",
+            border: "1px solid rgba(248,113,113,0.2)",
+            color: "#f87171",
+            fontSize: 13,
+            fontWeight: 600,
+            textAlign: "center",
+          }}>
+            {fetchError}
+          </div>
+        )}
 
         {/* Ambient orbs */}
         <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden" }}>

@@ -3,6 +3,7 @@
 import React, { useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PortalIdentityContext } from "../layout";
+import { isDemoMode } from "@/lib/demo/demoMode";
 
 type Checkin = {
   id: string;
@@ -34,15 +35,17 @@ const noteText = (c: Checkin) => c.note || c.notes || null;
 export default function HistoryPage() {
   const router = useRouter();
   const { session } = useContext(PortalIdentityContext);
+  const hasRealSession = session != null && !!session.token && !!session.case_code;
+  const isDemo = isDemoMode() && !hasRealSession;
   const [checkins, setCheckins] = useState<Checkin[]>([]);
   const [sessionNotes, setSessionNotes] = useState<SessionNote[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!session) { router.replace("/portal/onboarding"); return; }
-    const identity = { case_id: session.case_id ?? session.case_code };
+    if (!session && !isDemo) { router.replace("/portal/onboarding"); return; }
+    const identity = { case_id: session!.case_id ?? session!.case_code };
     // Append ?demo=true for demo sessions (empty token = legacy demo mode)
-    const demoSuffix = !session.token ? "?demo=true" : "";
+    const demoSuffix = isDemo ? "?demo=true" : "";
     setLoading(true);
     fetch(`/api/cases/${identity.case_id}/timeline${demoSuffix}`, { cache: "no-store" })
       .then(r => r.json())
@@ -60,7 +63,7 @@ export default function HistoryPage() {
       .finally(() => setLoading(false));
   }, [session, router]);
 
-  if (!session) return null;
+  if (!session && !isDemo) return null;
 
   return (
     <div style={{ maxWidth: 600, margin: "0 auto", padding: "32px 20px 80px" }}>

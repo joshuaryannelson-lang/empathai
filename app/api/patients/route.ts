@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/demo/demoMode";
 import { demoPatients } from "@/lib/demo/demoData";
+import { requireRole, isAuthError } from "@/lib/apiAuth";
+import { bad } from "@/lib/route-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -16,16 +18,32 @@ function stripPhi(ep: unknown): Record<string, unknown> {
   return clean;
 }
 
+// PII fields that must be rejected in POST body (GAP-34)
+const REJECTED_PII_FIELDS = ["last_name", "dob", "date_of_birth", "email", "phone"];
+
 export async function POST(request: Request) {
+  // ── Auth guard: admin, manager, or therapist only (GAP-34) ──
+  const auth = await requireRole("admin", "manager", "therapist");
+  if (isAuthError(auth)) return auth;
+
   if (isDemoMode(request.url)) {
     return NextResponse.json({ data: null, error: "Demo mode — changes are disabled" }, { status: 403 });
   }
 
   const body = await request.json().catch(() => ({}));
+
+  // Reject any PII fields in the request body (GAP-34)
+  if (body && typeof body === "object") {
+    for (const field of REJECTED_PII_FIELDS) {
+      if (field in body && body[field] !== undefined && body[field] !== null && body[field] !== "") {
+        return bad(`pii_field_rejected`, 422);
+      }
+    }
+  }
+
   const first_name = typeof body?.first_name === "string" ? body.first_name.trim() : "";
-  const last_name = typeof body?.last_name === "string" ? body.last_name.trim() : "";
-  if (!first_name && !last_name) {
-    return NextResponse.json({ data: null, error: "first_name or last_name is required" }, { status: 400 });
+  if (!first_name) {
+    return NextResponse.json({ data: null, error: "first_name is required" }, { status: 400 });
   }
 
   const extended_profile: Record<string, string> = {};
@@ -38,10 +56,9 @@ export async function POST(request: Request) {
     .from("patients")
     .insert({
       first_name: first_name || null,
-      last_name: last_name || null,
       ...(Object.keys(extended_profile).length > 0 ? { extended_profile } : {}),
     })
-    .select("id, first_name, last_name")
+    .select("id, first_name")
     .single();
 
   if (error) return NextResponse.json({ data: null, error }, { status: 500 });

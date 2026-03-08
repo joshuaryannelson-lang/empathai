@@ -3,6 +3,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase";
 import { createHash } from "crypto";
+import { safeLog } from "@/lib/logger";
 
 export interface AuditEntry {
   service: string;           // 'briefing' | 'session-prep' | 'ths'
@@ -50,10 +51,10 @@ export async function logAiCall(entry: AuditEntry): Promise<void> {
 
     if (error) {
       // Log the failure — never silently swallow
-      console.error("[audit] Failed to write ai_audit_logs:", error.message, row);
+      safeLog.error("[audit] Failed to write ai_audit_logs", { error_message: error.message, service: row.service });
     }
   } catch (err) {
     // Catch-all so audit failures never break the request
-    console.error("[audit] Exception writing ai_audit_logs:", err);
+    safeLog.error("[audit] Exception writing ai_audit_logs", { error: String(err) });
   }
 }

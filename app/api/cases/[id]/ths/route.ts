@@ -8,6 +8,7 @@ import { checkRateLimitAsync } from "@/lib/rateLimit";
 import { calculateTHS, type THSInput } from "@/lib/ai/thsScoring";
 import { buildTHSNarrativePrompt, validateNarrative } from "@/lib/ai/thsNarrativePrompt";
 import { hashPrompt, logAiCall } from "@/lib/services/audit";
+import { scrubOutput } from "@/lib/phi/scrub";
 
 const MODEL = "claude-haiku-4-5-20251001";
 const MAX_TOKENS = 200;
@@ -89,9 +90,12 @@ export async function GET(_req: Request, ctx: RouteContextWithId) {
         if (res.ok) {
           const rawNarrative = json?.content?.[0]?.text ?? "";
           const violations = validateNarrative(rawNarrative);
-          narrative = violations.length === 0
-            ? rawNarrative
-            : "Score summary is available above. Narrative could not be generated for this period.";
+          if (violations.length === 0) {
+            const scrubbed = scrubOutput(rawNarrative, { field: "ths_narrative", route: "/api/cases/[id]/ths" });
+            narrative = scrubbed.text;
+          } else {
+            narrative = "Score summary is available above. Narrative could not be generated for this period.";
+          }
 
           const promptTokens = json?.usage?.input_tokens ?? 0;
           const completionTokens = json?.usage?.output_tokens ?? 0;

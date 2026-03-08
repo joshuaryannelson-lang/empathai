@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import SessionPrepCard from "@/app/components/SessionPrepCard";
 import { isDemoMode } from "@/lib/demo/demoMode";
+import { SkeletonPage } from "@/app/components/ui/Skeleton";
 
 function toMondayISO(d: Date) {
   const copy = new Date(d);
@@ -115,7 +116,7 @@ function SessionPrepPageInner() {
 
 export default function SessionPrepPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SkeletonPage />}>
       <SessionPrepPageInner />
     </Suspense>
   );

@@ -66,8 +66,8 @@ export async function POST(req: Request) {
   if (!rl.allowed) {
     const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
     return new NextResponse(
-      JSON.stringify({ data: null, error: { message: "AI rate limit exceeded" } }),
-      { status: 429, headers: { "Retry-After": String(retryAfter), "Content-Type": "application/json" } },
+      JSON.stringify({ data: null, error: { message: "rate_limit_exceeded", retryAfter: retryAfter > 0 ? retryAfter : 60 } }),
+      { status: 429, headers: { "Retry-After": String(retryAfter > 0 ? retryAfter : 60), "Content-Type": "application/json" } },
     );
   }
 
@@ -130,25 +130,35 @@ Rules: first names only, no identifiers, priorityAlerts for score ≤ 3 or drop 
       }),
     });
 
-    // ── Audit log: every AI call ──
-    const tokensEstimated = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
-    await logAiCall({
-      service: "briefing",
-      case_code: null,
-      triggered_by: auth.user_id ?? auth.role ?? "unknown",
-      input_hash: hashPrompt(systemPrompt + userPrompt),
-      model: "claude-haiku-4-5-20251001",
-      tokens_used: tokensEstimated,
-    });
-
     if (!response.ok) {
       const err = await response.text().catch(() => "");
+      // Log failed AI call
+      await logAiCall({
+        service: "briefing",
+        case_code: auth.user_id ?? "unknown",
+        triggered_by: auth.user_id ?? auth.role ?? "unknown",
+        input_hash: hashPrompt(systemPrompt + userPrompt),
+        model: "claude-haiku-4-5-20251001",
+        tokens_used: 0,
+        error: true,
+      });
       // Fallback to structured data if API fails
       return ok(buildFallbackBriefing(dataSnapshot));
     }
 
     const result = await response.json();
     const text = result?.content?.[0]?.text ?? "";
+
+    // ── Audit log: after confirmed success ──
+    const tokensEstimated = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+    await logAiCall({
+      service: "briefing",
+      case_code: auth.user_id ?? "unknown",
+      triggered_by: auth.user_id ?? auth.role ?? "unknown",
+      input_hash: hashPrompt(systemPrompt + userPrompt),
+      model: "claude-haiku-4-5-20251001",
+      tokens_used: tokensEstimated,
+    });
 
     try {
       const parsed = JSON.parse(text);

@@ -29,6 +29,12 @@ jest.mock("@/lib/demo/demoData", () => ({
   getDemoTimeline: () => null,
 }));
 
+// Mock apiAuth to bypass cookies() call in test environment (GAP-34 added auth guard)
+jest.mock("@/lib/apiAuth", () => ({
+  requireRole: () => Promise.resolve({ user_id: "test-user", role: "admin", authenticated: true }),
+  isAuthError: (r: unknown) => r instanceof Response,
+}));
+
 // ── Helpers ──
 function chainable(resolvedData: unknown) {
   const self: Record<string, jest.Mock> = {};
@@ -113,47 +119,26 @@ test("PATCH /api/patients/[id] does not write email/phone/dob to extended_profil
   expect(ep).toHaveProperty("primary_diagnosis", "F41.1");
 });
 
-// ── Test: POST /api/patients does not store PHI in extended_profile ──
-test("POST /api/patients does not store email/phone/dob in extended_profile", async () => {
-  let capturedInsert: Record<string, unknown> | null = null;
-
-  mockSupabaseFrom.mockImplementation((table: string) => {
-    if (table === "patients") {
-      const chain = chainable(null);
-      chain.insert = jest.fn((payload: Record<string, unknown>) => {
-        capturedInsert = payload;
-        const insertChain = chainable(null);
-        insertChain.single = jest.fn().mockResolvedValue({
-          data: { id: "new-id", first_name: "Test" },
-          error: null,
-        });
-        return insertChain;
-      });
-      return chain;
-    }
-    return chainable(null);
-  });
-
+// ── Test: POST /api/patients rejects PII fields (GAP-34) ──
+test("POST /api/patients rejects requests containing email/phone/dob", async () => {
   const { POST } = await import("@/app/api/patients/route");
-  const req = new Request("http://localhost:3000/api/patients", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      first_name: "Test",
-      email: "test@example.com",
-      phone: "555-000-0000",
-      date_of_birth: "1990-01-01",
-    }),
-  });
 
-  await POST(req);
+  // Each PII field should be rejected with 422
+  for (const [field, value] of [
+    ["email", "test@example.com"],
+    ["phone", "555-000-0000"],
+    ["date_of_birth", "1990-01-01"],
+  ]) {
+    const req = new Request("http://localhost:3000/api/patients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ first_name: "Test", [field]: value }),
+    });
 
-  // extended_profile should either be absent or contain no PHI keys
-  const ep = capturedInsert?.extended_profile as Record<string, unknown> | undefined;
-  if (ep) {
-    for (const key of PHI_KEYS) {
-      expect(ep).not.toHaveProperty(key);
-    }
+    const res = await POST(req);
+    expect(res.status).toBe(422);
+    const json = await res.json();
+    expect(json.error.message).toBe("pii_field_rejected");
   }
 });
 

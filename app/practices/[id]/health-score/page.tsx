@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { isDemoMode } from "@/lib/demo/demoMode";
+import { SkeletonPage } from "@/app/components/ui/Skeleton";
 
 type THSComponents = {
   total: number;
@@ -421,7 +422,7 @@ function PracticeThsPageInner() {
 
 export default function PracticeThsPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SkeletonPage />}>
       <PracticeThsPageInner />
     </Suspense>
   );

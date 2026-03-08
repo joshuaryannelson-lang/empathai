@@ -68,6 +68,12 @@ export default function ProfileSetupPage() {
         if (data?.has_completed_profile) {
           router.replace("/portal/welcome");
         } else {
+          // Pre-populate if partial profile data exists
+          if (data?.profile) {
+            if (data.profile.preferred_name) setPreferredName(data.profile.preferred_name);
+            if (data.profile.pronouns) setPronouns(data.profile.pronouns);
+            if (data.profile.timezone) setTimezone(data.profile.timezone);
+          }
           setCheckingProfile(false);
         }
       })
@@ -286,7 +292,7 @@ export default function ProfileSetupPage() {
             </div>
           </div>
 
-          {/* Error */}
+          {/* Error with retry */}
           {error && (
             <div style={{
               fontSize: 13,
@@ -294,10 +300,26 @@ export default function ProfileSetupPage() {
               background: "#1a0808",
               border: "1px solid #3d1a1a",
               borderRadius: 8,
-              padding: "10px 12px",
+              padding: "12px 14px",
               lineHeight: 1.5,
+              display: "grid",
+              gap: 10,
             }}>
-              {error}
+              <div>{error}</div>
+              <Button
+                variant="danger"
+                onClick={() => handleSubmit(false)}
+                disabled={saving}
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  width: "fit-content",
+                }}
+              >
+                {saving ? "Retrying\u2026" : "Try again"}
+              </Button>
             </div>
           )}
 

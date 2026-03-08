@@ -7,6 +7,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useSearchParams } from "next/navigation";
 import { NavSidebar } from "@/app/components/NavSidebar";
 import { isDemoMode } from "@/lib/demo/demoMode";
+import { SkeletonPage } from "@/app/components/ui/Skeleton";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Tab = "debug" | "ai" | "api" | "readiness" | "cost";
@@ -912,7 +913,7 @@ function AdminDevPage() {
 
 export default function Page() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SkeletonPage />}>
       <AdminDevPage />
     </Suspense>
   );

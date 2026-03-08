@@ -3,6 +3,7 @@
 import React, { useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PortalIdentityContext } from "../layout";
+import { isDemoMode } from "@/lib/demo/demoMode";
 
 type Goal = {
   id: string;
@@ -17,14 +18,16 @@ const fmtDate = (iso: string) =>
 export default function GoalsPage() {
   const router = useRouter();
   const { session } = useContext(PortalIdentityContext);
+  const hasRealSession = session != null && !!session.token && !!session.case_code;
+  const isDemo = isDemoMode() && !hasRealSession;
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!session) { router.replace("/portal/onboarding"); return; }
-    const identity = { case_id: session.case_id ?? session.case_code };
+    if (!session && !isDemo) { router.replace("/portal/onboarding"); return; }
+    const identity = { case_id: session!.case_id ?? session!.case_code };
     // Append ?demo=true for demo sessions (empty token = legacy demo mode)
-    const demoSuffix = !session.token ? "?demo=true" : "";
+    const demoSuffix = isDemo ? "?demo=true" : "";
     setLoading(true);
     fetch(`/api/cases/${identity.case_id}/goals${demoSuffix}`, { cache: "no-store" })
       .then(r => r.json())
@@ -33,7 +36,7 @@ export default function GoalsPage() {
       .finally(() => setLoading(false));
   }, [session, router]);
 
-  if (!session) return null;
+  if (!session && !isDemo) return null;
 
   const doneCount = goals.filter(g => g.status === "done" || g.status === "completed").length;
 

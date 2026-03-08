@@ -8,6 +8,7 @@ import {
   type RedactedString,
   type SafeOutput,
 } from "@/lib/services/redaction";
+import { safeLog } from "@/lib/logger";
 
 // ── Last-name heuristic ─────────────────────────────────────────────────────
 // Matches "FirstName LastName" where both are capitalized words.
@@ -61,8 +62,8 @@ export interface PhiScrubEvent {
 type AuditSink = (entry: PhiScrubEvent) => void;
 
 let auditSink: AuditSink = (entry) => {
-  // Default: console log in structured format
-  console.log(`[phi_scrub] route=${entry.route} field=${entry.field} pattern=${entry.pattern_matched}`);
+  // Default: safe log in structured format
+  safeLog.info("[phi_scrub]", { route: entry.route, field: entry.field, pattern: entry.pattern_matched });
 };
 
 export function setAuditSink(sink: AuditSink): void {

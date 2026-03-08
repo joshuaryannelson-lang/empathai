@@ -11,6 +11,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { authenticatePatient, extractPatientToken } from "@/lib/patientAuth";
 import { supabaseAdmin } from "@/lib/supabase";
+import { safeLog } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -55,18 +56,27 @@ export async function GET(req: Request) {
     .single();
 
   if (!caseRow?.patient_id) {
-    return NextResponse.json({ has_completed_profile: false });
+    return NextResponse.json({ has_completed_profile: false, profile: null });
   }
 
   // RLS on patients table allows patient to SELECT their own row via case_code
   const { data: patient } = await db
     .from("patients")
-    .select("has_completed_profile")
+    .select("has_completed_profile, preferred_name, pronouns, timezone")
     .eq("id", caseRow.patient_id)
     .single();
 
+  const completed = patient?.has_completed_profile ?? false;
+
   return NextResponse.json({
-    has_completed_profile: patient?.has_completed_profile ?? false,
+    has_completed_profile: completed,
+    profile: completed
+      ? {
+          preferred_name: patient?.preferred_name ?? null,
+          pronouns: patient?.pronouns ?? null,
+          timezone: patient?.timezone ?? null,
+        }
+      : null,
   });
 }
 
@@ -151,7 +161,7 @@ export async function POST(req: Request) {
   }
 
   if (!updated || updated.length === 0) {
-    console.error("[profile-setup] 0 rows updated for patient_id:", patientId);
+    safeLog.error("[profile-setup] 0 rows updated");
     return NextResponse.json(
       { error: "Patient record not found. Please contact your care team." },
       { status: 404 }

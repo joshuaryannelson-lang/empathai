@@ -12,6 +12,7 @@ import { PracticeSelector } from "./components/PracticeSelector";
 import { getRole, type Role } from "@/lib/roleContext";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { isDemoMode } from "@/lib/demo/demoMode";
+import { SkeletonPage } from "@/app/components/ui/Skeleton";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -293,6 +294,7 @@ function PracticeStatusContent() {
           .stat-grid { grid-template-columns: 1fr 1fr !important; }
           .sparkline-grid { grid-template-columns: 1fr !important; }
           .therapist-table { font-size: 12px !important; }
+          .therapist-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         }
         @media (max-width: 500px) {
           .stat-grid { grid-template-columns: 1fr !important; }
@@ -630,7 +632,8 @@ function PracticeStatusContent() {
                 const cols = allRatingsEmpty ? "1.5fr 0.8fr 1fr 1fr" : "1.5fr 0.8fr 1fr 1fr 1fr";
                 return (
                   <>
-                  <div className="therapist-table" style={{ borderRadius: 12, border: `1px solid ${T.border.DEFAULT}`, overflow: "hidden" }}>
+                  <div className="therapist-table-wrap">
+                  <div className="therapist-table" style={{ borderRadius: 12, border: `1px solid ${T.border.DEFAULT}`, overflow: "hidden", minWidth: 480 }}>
                   {/* Header */}
                   <div style={{
                     display: "grid", gridTemplateColumns: cols,
@@ -675,6 +678,7 @@ function PracticeStatusContent() {
                       </div>
                     );
                   })}
+                  </div>
                   </div>
                   {allRatingsEmpty && (
                     <div style={{ fontSize: 12, color: T.text.disabled, fontStyle: "italic", marginTop: 8 }}>
@@ -745,7 +749,7 @@ function PracticeStatusContent() {
 
 export default function Page() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SkeletonPage />}>
       <PracticeStatusContent />
     </Suspense>
   );

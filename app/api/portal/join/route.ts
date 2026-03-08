@@ -14,6 +14,7 @@ import { NextResponse } from "next/server";
 // The returned JWT is scoped to case_code only (no admin access).
 import { supabaseAdmin } from "@/lib/supabase";
 import { mintPatientJWT } from "@/lib/patientAuth";
+import { safeLog } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -80,10 +81,10 @@ export async function POST(req: Request) {
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
     .maybeSingle();
 
-  console.log(`[join] code="${code}" found=${!!joinCode} error=${lookupError?.message ?? "none"} expires_at=${joinCode?.expires_at ?? "null"} redeemed_at=${joinCode?.redeemed_at ?? "null"}`);
+  safeLog.info("[join] post-lookup", { found: !!joinCode, error: lookupError?.message ?? "none" });
 
   try {
-    console.log("[join] entering post-lookup block");
+    safeLog.info("[join] entering post-lookup block");
 
     if (lookupError || !joinCode) {
       // Distinguish expired vs not-found for better UX
@@ -119,7 +120,7 @@ export async function POST(req: Request) {
       .is("redeemed_at", null); // Double-check not already redeemed (race condition guard)
 
     if (redeemError) {
-      console.error(`[join] redeem update failed for id=${joinCode.id}:`, redeemError.message);
+      safeLog.error("[join] redeem update failed", { error: redeemError.message });
       return NextResponse.json(
         { data: null, error: { message: "Failed to redeem join code." } },
         { status: 500 }
@@ -127,18 +128,18 @@ export async function POST(req: Request) {
     }
 
     // ── Mint patient JWT ──
-    console.log("[join] minting JWT for case_code=", joinCode.case_code);
+    safeLog.info("[join] minting JWT");
     let token: string;
     try {
       token = await mintPatientJWT(joinCode.case_code);
     } catch (e: any) {
-      console.error(`[join] JWT mint failed for case_code=${joinCode.case_code}:`, e?.message ?? e);
+      safeLog.error("[join] JWT mint failed", { error: e?.message ?? "unknown" });
       return NextResponse.json(
         { data: null, error: { message: "Authentication service error." } },
         { status: 500 }
       );
     }
-    console.log("[join] JWT minted successfully");
+    safeLog.info("[join] JWT minted successfully");
 
     // AUTO-RESET: test codes
     // Any code starting with "TEST-" is auto-resetting so QA can redeem
@@ -168,7 +169,7 @@ export async function POST(req: Request) {
           .eq("id", caseRow.patient_id);
       }
 
-      console.log(`[join] auto-reset test code="${code}" + patient profile for reuse`);
+      safeLog.info("[join] auto-reset test code for reuse");
     }
 
     // ── Audit log ──
@@ -183,10 +184,10 @@ export async function POST(req: Request) {
       },
       error: null,
     };
-    console.log("[join] returning success response for case_code=", joinCode.case_code);
+    safeLog.info("[join] returning success response");
     return NextResponse.json(response);
   } catch (e: any) {
-    console.error(`[join] unexpected error after lookup for code=${code}:`, e?.message ?? e, e?.stack);
+    safeLog.error("[join] unexpected error after lookup", { error: e?.message ?? "unknown" });
     return NextResponse.json(
       { data: null, error: { message: "Internal server error." } },
       { status: 500 }

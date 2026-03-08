@@ -7,6 +7,7 @@ import { PortalIdentityContext } from "../layout";
 import CrisisBanner, { useCrisisDetection } from "../components/CrisisBanner";
 import { detectPHI, phiWarningMessage } from "../components/PHIGuard";
 import { isDemoMode } from "@/lib/demo/demoMode";
+import { SkeletonPage } from "@/app/components/ui/Skeleton";
 
 const ACCENT_RGB = "56,189,248";
 
@@ -27,8 +28,10 @@ function CheckinPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, authHeader } = useContext(PortalIdentityContext);
-  // Demo mode: URL param OR session with empty token (legacy demo patient flow)
-  const isDemo = isDemoMode() || (session != null && !session.token);
+  // GAP-29: Demo mode requires explicit demo flag AND no real patient session.
+  // A real session (valid JWT + case_code) always takes precedence over demo flags.
+  const hasRealSession = session != null && !!session.token && !!session.case_code;
+  const isDemo = isDemoMode() && !hasRealSession;
 
   const [score, setScore] = useState<number | null>(null);
   const [note, setNote] = useState("");
@@ -227,7 +230,7 @@ function CheckinPageInner() {
 
 export default function CheckinPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SkeletonPage />}>
       <CheckinPageInner />
     </Suspense>
   );

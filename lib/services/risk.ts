@@ -84,24 +84,6 @@ export function isScoreCritical(score: number | null): boolean {
   return typeof score === "number" && score <= RISK_THRESHOLDS.criticalScore;
 }
 
-// ── Crisis language detection ───────────────────────────────────────────────
+// ── Crisis language detection (canonical implementation in lib/crisis-detection.ts) ──
 
-const CRISIS_PATTERNS = [
-  /\bsuicid/i,
-  /\bkill\s*(my|him|her|them)?self/i,
-  /\bself[- ]?harm/i,
-  /\bwant\s+to\s+die\b/i,
-  /\bend\s+(my|it\s+all|everything)\b/i,
-  /\bno\s+reason\s+to\s+live\b/i,
-  /\bhopeless\b/i,
-  /\boverdose\b/i,
-];
-
-/**
- * Detect crisis language in free-text input.
- * Returns true if any crisis pattern matches.
- */
-export function detectCrisisLanguage(text: string): boolean {
-  if (!text || typeof text !== "string") return false;
-  return CRISIS_PATTERNS.some(re => re.test(text));
-}
+export { detectCrisisLanguage } from "@/lib/crisis-detection";

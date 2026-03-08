@@ -24,9 +24,13 @@ export async function GET(request: Request) {
 
   // ── Rate limit: 10 calls/hour per IP ──
   const ip = getClientIp(request);
-  const rl = await checkRateLimitAsync(`qa:demo-creds:${ip}`, 10, 3600_000);
+  const rl = await checkRateLimitAsync(`qa:demo-creds:${ip}`, 10, 60_000);
   if (!rl.allowed) {
-    return bad("Rate limit exceeded", 429);
+    const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
+    return new Response(
+      JSON.stringify({ data: null, error: { message: "rate_limit_exceeded", retryAfter: retryAfter > 0 ? retryAfter : 60 } }),
+      { status: 429, headers: { "Content-Type": "application/json", "Retry-After": String(retryAfter > 0 ? retryAfter : 60) } },
+    );
   }
 
   // All credentials are DEMO ONLY — sourced from DEMO_* env vars,

@@ -10,6 +10,7 @@ import { BUCKET, type Bucket } from "@/lib/constants";
 import { RISK_THRESHOLDS } from "@/lib/services/risk";
 import { isDemoMode, DEMO_CONFIG } from "@/lib/demo/demoMode";
 import { DEMO_TOUR_CASELOAD } from "@/lib/demo/demoData";
+import { SkeletonPage } from "@/app/components/ui/Skeleton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type CaseRow = {
@@ -863,7 +864,7 @@ function TherapistCareDashboard() {
 
 export default function Page() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SkeletonPage />}>
       <TherapistCareDashboard />
     </Suspense>
   );

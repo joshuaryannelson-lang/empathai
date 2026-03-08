@@ -294,7 +294,6 @@ export async function GET(request: Request) {
 
     // Sort by time, limit to 10
     activityFeed.sort((a, b) => b.time.localeCompare(a.time));
-    console.log(`[practice-status] activity feed: ${activityFeed.length} items (portal_audit=${auditLogs.length}, ai_audit=${aiAuditLogs.length})`);
     const feedItems = activityFeed.slice(0, 10);
     const hasMoreActivity = activityFeed.length > 10;
 

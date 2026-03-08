@@ -7,6 +7,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BUCKET, type Bucket } from "@/lib/constants";
 import { NavSidebar } from "@/app/components/NavSidebar";
+import { SkeletonPage } from "@/app/components/ui/Skeleton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Practice = { id: string; name: string; created_at: string };
@@ -477,7 +478,7 @@ function CasesPage() {
 }
 export default function Page() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SkeletonPage />}>
       <CasesPage />
     </Suspense>
   );

@@ -2,6 +2,8 @@
 // Runtime guard: prevents PHI from being rendered in AI-generated display text.
 // Call before rendering any AI output to the DOM.
 
+import { safeLog } from "@/lib/logger";
+
 const PHI_PATTERNS = [
   { name: "email", pattern: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/ },
   { name: "phone", pattern: /(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}/ },
@@ -13,7 +15,7 @@ const PHI_PATTERNS = [
 export function assertNoPhiInDisplay(text: string, context: string): void {
   for (const { name, pattern } of PHI_PATTERNS) {
     if (pattern.test(text)) {
-      console.error(`PHI detected in display output [${context}]: ${name} pattern matched`);
+      safeLog.error("[phiDisplayGuard] PHI detected in display output", { context, pattern: name });
       throw new Error(`PHI detected in display output [${context}]`);
     }
   }

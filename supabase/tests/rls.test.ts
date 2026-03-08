@@ -233,6 +233,43 @@ describe("RLS Policy Enforcement", () => {
     });
   });
 
+  // ── PATIENT CROSS-ISOLATION (GAP-51) ──────────────────────────────────
+
+  describe("Patient Cross-Isolation (GAP-51)", () => {
+    test("patient_a cannot read checkins for another patient's case", async () => {
+      const { data } = await patientAClient
+        .from("checkins")
+        .select("id")
+        .eq("case_id", CASE_B_ID);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("patient_a cannot read goals for another patient's case", async () => {
+      const { data } = await patientAClient
+        .from("goals")
+        .select("id")
+        .eq("case_id", CASE_B_ID);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("patient_a CAN read their own checkins", async () => {
+      const { data } = await patientAClient
+        .from("checkins")
+        .select("id")
+        .eq("case_id", CASE_A_ID);
+      // May be 0 if no checkins seeded, but the query should not error
+      expect(data).not.toBeNull();
+    });
+
+    test("patient cannot read cases from another practice", async () => {
+      const { data } = await patientAClient
+        .from("cases")
+        .select("id")
+        .eq("practice_id", PRACTICE_2_ID);
+      expect(data ?? []).toHaveLength(0);
+    });
+  });
+
   // ── MANAGER SCOPE (existing + GAP-10) ──────────────────────────────────
 
   describe("Manager Scope (High)", () => {
@@ -250,6 +287,15 @@ describe("RLS Policy Enforcement", () => {
         .from("cases")
         .select("id")
         .eq("practice_id", PRACTICE_2_ID);
+      expect(data ?? []).toHaveLength(0);
+    });
+
+    test("manager_p1 cannot read practice_2 checkins (via case join)", async () => {
+      // Manager can only see checkins for cases in their practice
+      const { data } = await managerP1Client
+        .from("checkins")
+        .select("id, case_id")
+        .eq("case_id", CASE_P2_ID);
       expect(data ?? []).toHaveLength(0);
     });
 

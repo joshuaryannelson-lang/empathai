@@ -3,7 +3,8 @@
 // Falls back to in-memory when UPSTASH_REDIS_REST_URL is not configured.
 
 import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
+import { safeLog } from "@/lib/logger";
+import { getRedis } from "@/lib/redis";
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -13,17 +14,7 @@ export interface RateLimitResult {
 
 // ── Redis-backed limiter (Upstash) ──────────────────────────────────────────
 
-let redis: Redis | null = null;
 const limiters = new Map<string, Ratelimit>();
-
-function getRedis(): Redis | null {
-  if (redis) return redis;
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  redis = new Redis({ url, token });
-  return redis;
-}
 
 function getUpstashLimiter(maxRequests: number, windowMs: number): Ratelimit | null {
   const r = getRedis();
@@ -109,7 +100,7 @@ export async function checkRateLimitAsync(
     };
   } catch (e) {
     // Redis unavailable — fall back to memory
-    console.warn("[rateLimit] Upstash unavailable, falling back to memory:", (e as Error).message);
+    safeLog.warn("[rateLimit] Upstash unavailable, falling back to memory", { error: (e as Error).message });
     return checkMemoryRateLimit(key, maxRequests, windowMs);
   }
 }

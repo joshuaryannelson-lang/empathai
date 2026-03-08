@@ -196,6 +196,6 @@ export async function GET(request: Request) {
       components: [],
       last_checked: new Date().toISOString(),
       error: "Status check failed",
-    } satisfies StatusResponse, { status: 200 });
+    } satisfies StatusResponse, { status: 503 });
   }
 }

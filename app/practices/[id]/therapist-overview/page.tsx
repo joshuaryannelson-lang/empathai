@@ -7,6 +7,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { NavSidebar } from "@/app/components/NavSidebar";
 import MarkdownContent from "@/app/components/MarkdownContent";
+import { SkeletonPage } from "@/app/components/ui/Skeleton";
 
 type TherapistRow = {
   therapist_id: string;
@@ -566,7 +567,7 @@ function PracticeManagerPage() {
 
 export default function Page() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SkeletonPage />}>
       <PracticeManagerPage />
     </Suspense>
   );
